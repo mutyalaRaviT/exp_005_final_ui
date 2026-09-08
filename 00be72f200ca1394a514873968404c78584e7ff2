@@ -1,0 +1,15 @@
+receipt: phase 0, READMEs + wiki_from_git.py (2026-09-08)
+
+folders scanned          25 (find . -type d, excluding .git)
+folders with a README    20 of 25 code/artefact folders (+ repo root) = 21 READMEs
+folders left without     5 (docs/plan and its raw/bronze/silver/gold tiers) — by
+                         judgement; covered by docs/wiki_root.md + docs/plan/plan.md
+READMEs added this commit 3 (build_bin, backend/testdata_rules, docs)
+READMEs read by the tool  4 doc comments lifted on this commit's 4 changed paths
+tool size                362 lines, Python 3 stdlib only, 0 third-party imports
+tool runtime             77 ms wall per run (5 runs: 77/78/78/76/77 ms, --stdout,
+                         darwin 25.5.0, python3 --version below)
+git calls per run        4 (rev-parse, show -s, diff-tree, notes show)
+pass mark                READMEs: met for every code/artefact folder.
+                         "writes one bronze page from one commit": met by the next
+                         commit, which contains the generated page.
