@@ -1,0 +1,304 @@
+{
+  "file": "pipeline/tests/fixtures/mini_demo.mini",
+  "lossless": true,
+  "n_tokens": 33,
+  "tokens": [
+    {
+      "i": 0,
+      "kind": "comment",
+      "text": "-- mini demo source, fixture for exp_014 fold harness",
+      "line": 1,
+      "col": 1,
+      "b0": 0,
+      "b1": 53
+    },
+    {
+      "i": 1,
+      "kind": "whitespace",
+      "text": "\n",
+      "line": 1,
+      "col": 54,
+      "b0": 53,
+      "b1": 54
+    },
+    {
+      "i": 2,
+      "kind": "comment",
+      "text": "-- exercises: 2 statement types, comments, blank lines, escaped quotes",
+      "line": 2,
+      "col": 1,
+      "b0": 54,
+      "b1": 124
+    },
+    {
+      "i": 3,
+      "kind": "whitespace",
+      "text": "\n\n",
+      "line": 2,
+      "col": 71,
+      "b0": 124,
+      "b1": 126
+    },
+    {
+      "i": 4,
+      "kind": "word",
+      "text": "a",
+      "line": 4,
+      "col": 1,
+      "b0": 126,
+      "b1": 127
+    },
+    {
+      "i": 5,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 4,
+      "col": 2,
+      "b0": 127,
+      "b1": 128
+    },
+    {
+      "i": 6,
+      "kind": "symbol",
+      "text": "=",
+      "line": 4,
+      "col": 3,
+      "b0": 128,
+      "b1": 129
+    },
+    {
+      "i": 7,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 4,
+      "col": 4,
+      "b0": 129,
+      "b1": 130
+    },
+    {
+      "i": 8,
+      "kind": "keyword",
+      "text": "LOAD",
+      "line": 4,
+      "col": 5,
+      "b0": 130,
+      "b1": 134
+    },
+    {
+      "i": 9,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 4,
+      "col": 9,
+      "b0": 134,
+      "b1": 135
+    },
+    {
+      "i": 10,
+      "kind": "string",
+      "text": "'it\\'s a test'",
+      "line": 4,
+      "col": 10,
+      "b0": 135,
+      "b1": 149
+    },
+    {
+      "i": 11,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 4,
+      "col": 24,
+      "b0": 149,
+      "b1": 150
+    },
+    {
+      "i": 12,
+      "kind": "symbol",
+      "text": ";",
+      "line": 4,
+      "col": 25,
+      "b0": 150,
+      "b1": 151
+    },
+    {
+      "i": 13,
+      "kind": "eos",
+      "text": "",
+      "line": 4,
+      "col": 26,
+      "b0": 151,
+      "b1": 151
+    },
+    {
+      "i": 14,
+      "kind": "whitespace",
+      "text": "\n\n",
+      "line": 4,
+      "col": 26,
+      "b0": 151,
+      "b1": 153
+    },
+    {
+      "i": 15,
+      "kind": "word",
+      "text": "b",
+      "line": 6,
+      "col": 1,
+      "b0": 153,
+      "b1": 154
+    },
+    {
+      "i": 16,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 6,
+      "col": 2,
+      "b0": 154,
+      "b1": 155
+    },
+    {
+      "i": 17,
+      "kind": "symbol",
+      "text": "=",
+      "line": 6,
+      "col": 3,
+      "b0": 155,
+      "b1": 156
+    },
+    {
+      "i": 18,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 6,
+      "col": 4,
+      "b0": 156,
+      "b1": 157
+    },
+    {
+      "i": 19,
+      "kind": "keyword",
+      "text": "FILTER",
+      "line": 6,
+      "col": 5,
+      "b0": 157,
+      "b1": 163
+    },
+    {
+      "i": 20,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 6,
+      "col": 11,
+      "b0": 163,
+      "b1": 164
+    },
+    {
+      "i": 21,
+      "kind": "word",
+      "text": "a",
+      "line": 6,
+      "col": 12,
+      "b0": 164,
+      "b1": 165
+    },
+    {
+      "i": 22,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 6,
+      "col": 13,
+      "b0": 165,
+      "b1": 166
+    },
+    {
+      "i": 23,
+      "kind": "keyword",
+      "text": "BY",
+      "line": 6,
+      "col": 14,
+      "b0": 166,
+      "b1": 168
+    },
+    {
+      "i": 24,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 6,
+      "col": 16,
+      "b0": 168,
+      "b1": 169
+    },
+    {
+      "i": 25,
+      "kind": "word",
+      "text": "v",
+      "line": 6,
+      "col": 17,
+      "b0": 169,
+      "b1": 170
+    },
+    {
+      "i": 26,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 6,
+      "col": 18,
+      "b0": 170,
+      "b1": 171
+    },
+    {
+      "i": 27,
+      "kind": "symbol",
+      "text": ">",
+      "line": 6,
+      "col": 19,
+      "b0": 171,
+      "b1": 172
+    },
+    {
+      "i": 28,
+      "kind": "whitespace",
+      "text": " ",
+      "line": 6,
+      "col": 20,
+      "b0": 172,
+      "b1": 173
+    },
+    {
+      "i": 29,
+      "kind": "number",
+      "text": "15",
+      "line": 6,
+      "col": 21,
+      "b0": 173,
+      "b1": 175
+    },
+    {
+      "i": 30,
+      "kind": "symbol",
+      "text": ";",
+      "line": 6,
+      "col": 23,
+      "b0": 175,
+      "b1": 176
+    },
+    {
+      "i": 31,
+      "kind": "eos",
+      "text": "",
+      "line": 6,
+      "col": 24,
+      "b0": 176,
+      "b1": 176
+    },
+    {
+      "i": 32,
+      "kind": "eos",
+      "text": "",
+      "line": 6,
+      "col": 24,
+      "b0": 176,
+      "b1": 176
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "file": "corpus/fakelang/small/f06_shuffle.fk",
+  "inputs": [{"name": "raw", "path": "corpus/data/fakelang/raw.csv", "schema": ["a:int", "b:chararray"]}],
+  "outputs": [
+    {"name": "out_shuffle", "path": "ref/fakelang/f06_shuffle/out_shuffle", "schema": ["a:int", "b:chararray"]}
+  ]
+}

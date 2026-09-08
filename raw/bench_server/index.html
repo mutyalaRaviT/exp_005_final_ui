@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAS → PySpark Converter</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#F3F5F7;--panel:#FFFFFF;--ink:#1B2430;--mute:#6B7580;--line:#D8DEE4;--ir:#0E6E8C;--ir-bg:#E6F1F5;--in:#8A5A14;--in-bg:#F6EEDF;--out:#2E7D4F;--out-bg:#E4F2E9;--bad:#B3261E;--bad-bg:#FBE9E7;--head:#EDF0F3}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#14191F;--panel:#1C232B;--ink:#E6EBF0;--mute:#94A0AC;--line:#2E3844;--ir:#5FB7D4;--ir-bg:#16303A;--in:#D9A55B;--in-bg:#2F2717;--out:#6CC48F;--out-bg:#16301F;--bad:#F28B82;--bad-bg:#3A1F1D;--head:#222B34}}
+:root[data-theme="dark"]{--bg:#14191F;--panel:#1C232B;--ink:#E6EBF0;--mute:#94A0AC;--line:#2E3844;--ir:#5FB7D4;--ir-bg:#16303A;--in:#D9A55B;--in-bg:#2F2717;--out:#6CC48F;--out-bg:#16301F;--bad:#F28B82;--bad-bg:#3A1F1D;--head:#222B34}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "IBM Plex Sans",-apple-system,Segoe UI,sans-serif;padding:24px clamp(16px,3vw,40px) 48px}
+h1{font-size:22px;font-weight:600;margin:0}
+.sub{color:var(--mute);margin:4px 0 18px;max-width:70ch}
+pre,textarea,code,.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+.top{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;padding:2px 8px;border-radius:3px;align-self:flex-start}
+.lbl.in{color:var(--in);background:var(--in-bg)} .lbl.ir{color:var(--ir);background:var(--ir-bg)} .lbl.out{color:var(--out);background:var(--out-bg)}
+textarea{width:100%;min-height:380px;resize:vertical;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);padding:10px;font-size:12.5px;line-height:1.45}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin:0;overflow:auto;font-size:12.5px;line-height:1.45;max-height:420px;white-space:pre}
+pre.ir{color:var(--ir)}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+button{font:inherit;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:4px;padding:7px 14px;cursor:pointer}
+button.primary{background:var(--ir);border-color:var(--ir);color:#fff}
+button:focus-visible{outline:2px solid var(--ir);outline-offset:2px}
+button[disabled]{opacity:.5;cursor:default}
+label.chk{display:flex;gap:6px;align-items:center;color:var(--mute)}
+.receipts{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.chip{border:1px solid var(--line);border-radius:4px;padding:6px 12px;background:var(--panel);font-variant-numeric:tabular-nums}
+.chip b{font-weight:600} .chip.ok{border-color:var(--out);color:var(--out)} .chip.bad{border-color:var(--bad);color:var(--bad)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
+.errors{border-left:3px solid var(--bad);background:var(--bad-bg);padding:8px 12px;border-radius:0 4px 4px 0;white-space:pre-wrap;font-size:12.5px}
+.api{margin-top:32px;color:var(--mute);max-width:90ch} .api pre{max-height:none}
+@media (max-width:900px){.top,.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<h1>SAS → PySpark converter</h1>
+<p class="sub">Paste SAS. The Prolog DCG and the Rust engine each fold it to node/4, print it back, and generate PySpark from the same rules. The receipts tell you whether the two agreed.</p>
+
+<div class="top">
+  <div class="pane">
+    <span class="lbl in">SAS in</span>
+    <textarea id="sas" spellcheck="false" placeholder="data work.q1; set work.sales; if month(date) <= 3; run;"></textarea>
+    <div class="bar">
+      <button class="primary" id="go">Convert</button>
+      <button id="ex1">Load Vishnu's program</button>
+      <button id="ex2">Load test-data version</button>
+      <button id="ex3">Load corrected version</button>
+      <label class="chk"><input type="checkbox" id="run"> also run the PySpark (Spark, ~20 s)</label>
+      <span id="status" style="color:var(--mute)"></span>
+    </div>
+  </div>
+  <div class="pane">
+    <span class="lbl out">PySpark out</span>
+    <pre id="py">—</pre>
+    <details><summary style="color:var(--mute);cursor:pointer">plain printer output (the proof version, same node/4)</summary><pre id="pyplain">—</pre></details>
+  </div>
+</div>
+
+<div class="receipts" id="receipts"></div>
+<div id="errors"></div>
+
+<div class="grid">
+  <div class="pane"><span class="lbl ir">node/4 — the parse, one fact per statement</span><pre class="ir" id="node4">—</pre></div>
+  <div class="pane"><span class="lbl in">SAS rebuilt from node/4 (same rules) — must equal the input</span><pre id="printed">—</pre><details><summary style="color:var(--mute);cursor:pointer">canonical spelling (one space per token)</summary><pre id="canon">—</pre></details></div>
+</div>
+<div class="grid" id="listingWrap" hidden>
+  <div class="pane" style="grid-column:1/-1"><span class="lbl out">rows the PySpark produced</span><pre id="listing">—</pre></div>
+</div>
+
+<div class="api">
+<h3>API</h3>
+<pre>POST http://localhost:8042/api/convert
+{"sas": "data work.q1; set work.sales; if month(date) <= 3; run;", "run": false}
+
+→ {"ok": true, "statements": 3, "folded": 3, "roundtrip": 3,
+   "node4_prolog": "node('b_001', 1, data(ds(work,q1)), trace(...)).\n...",
+   "node4_rust": "...", "node4_same": true,
+   "printed_sas": "<the input, rebuilt from node/4>", "source_match": true,
+   "printed_canonical": "data work . q1 ;\nset work . sales ;\nif month ( date ) <= 3 ;\nrun ;\n",
+   "pyspark_pretty": "<the readable program>", "pyspark_pretty_same": true,
+   "pyspark_prolog": "...", "pyspark_rust": "...", "pyspark_same": true,
+   "rust_us": 1800, "errors": [], "listing": "(when run=true)"}
+
+curl -s localhost:8042/api/convert -H 'Content-Type: application/json' \
+  -d '{"sas":"data work.q1; set work.sales; if month(date) <= 3; run;"}' | python3 -m json.tool
+
+GET /api/example   GET /api/example_testdata   GET /api/spec   GET /api/health</pre>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const setStatus = t => $('status').textContent = t;
+async function load(path){ const r = await fetch(path); const j = await r.json(); $('sas').value = j.sas; }
+$('ex1').onclick = () => load('/api/example');
+$('ex2').onclick = () => load('/api/example_testdata');
+$('ex3').onclick = () => load('/api/example_fixed');
+function chip(label, value, ok){ const c = document.createElement('span'); c.className = 'chip' + (ok === undefined ? '' : ok ? ' ok' : ' bad'); c.innerHTML = label + ' <b>' + value + '</b>'; return c; }
+$('go').onclick = async () => {
+  const sas = $('sas').value; if (!sas.trim()) return;
+  $('go').disabled = true; setStatus($('run').checked ? 'converting, then running Spark…' : 'converting…');
+  const t0 = performance.now();
+  try {
+    const r = await fetch('/api/convert', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({sas, run: $('run').checked})});
+    const j = await r.json();
+    const rc = $('receipts'); rc.innerHTML = '';
+    if (j.statements !== undefined) {
+      rc.append(chip('folded', j.folded + ' / ' + j.statements, j.folded === j.statements));
+      rc.append(chip('round trip', j.roundtrip + ' / ' + j.statements, j.roundtrip === j.statements));
+    }
+    if (j.node4_same !== undefined) rc.append(chip('node/4 Prolog = Rust', j.node4_same ? 'identical' : 'differ', j.node4_same));
+    if (j.source_match !== undefined) rc.append(chip('source rebuilt from node/4', j.source_match ? 'byte-identical' : 'differs', j.source_match));
+    if (j.pyspark_pretty_same !== undefined) rc.append(chip('PySpark Prolog = Rust', j.pyspark_pretty_same ? 'identical' : 'differ', j.pyspark_pretty_same));
+    if (j.pyspark_same !== undefined) rc.append(chip('plain printer Prolog = Rust', j.pyspark_same ? 'identical' : 'differ', j.pyspark_same));
+    if (j.rust_us) rc.append(chip('Rust engine', (j.rust_us/1000).toFixed(1) + ' ms'));
+    if (j.run_seconds) rc.append(chip('Spark run', j.run_seconds + ' s'));
+    $('errors').innerHTML = (j.errors && j.errors.length) ? '<div class="errors">' + j.errors.map(e => e.replace(/</g,'&lt;')).join('\n') + '</div>' : '';
+    const body = t => t ? ('spark = make_spark()' + (t.split('\nspark = make_spark()')[1] || '')).trim() : '—';
+    $('py').textContent = body(j.pyspark_pretty);
+    $('pyplain').textContent = body(j.pyspark_prolog);
+    $('node4').textContent = j.node4_prolog || '—';
+    $('printed').textContent = j.printed_sas || '—';
+    $('canon').textContent = j.printed_canonical || '—';
+    $('listingWrap').hidden = !j.listing; $('listing').textContent = j.listing || '';
+    setStatus('done in ' + ((performance.now() - t0)/1000).toFixed(1) + ' s');
+  } catch (e) { setStatus('request failed: ' + e); }
+  $('go').disabled = false;
+};
+</script>
+</body>
+</html>

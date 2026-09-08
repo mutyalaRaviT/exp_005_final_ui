@@ -1,0 +1,5 @@
+[
+  {"block": "b_001", "seq": 1, "term": "assign(rel(raw),load(lit('corpus/data/fakelang/raw.csv'),call('X',[]),[field(a,int),field(b,double)]))", "trace": {}},
+  {"block": "b_001", "seq": 2, "term": "assign(rel(out_pass),filter(rel(raw),gt(col(a),lit(0))))", "trace": {}},
+  {"block": "b_002", "seq": 3, "term": "store(rel(out_pass),lit('ref/fakelang/f01_pass/out_pass'),call('X',[]))", "trace": {}}
+]

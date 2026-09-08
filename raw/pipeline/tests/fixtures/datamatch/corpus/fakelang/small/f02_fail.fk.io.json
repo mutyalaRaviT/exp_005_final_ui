@@ -1,0 +1,7 @@
+{
+  "file": "corpus/fakelang/small/f02_fail.fk",
+  "inputs": [{"name": "raw", "path": "corpus/data/fakelang/raw.csv", "schema": ["a:int", "b:double"]}],
+  "outputs": [
+    {"name": "out_fail", "path": "ref/fakelang/f02_fail/out_fail", "schema": ["a:int", "b:double"]}
+  ]
+}

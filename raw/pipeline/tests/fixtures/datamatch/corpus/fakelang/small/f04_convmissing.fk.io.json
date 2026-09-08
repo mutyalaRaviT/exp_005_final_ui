@@ -1,0 +1,7 @@
+{
+  "file": "corpus/fakelang/small/f04_convmissing.fk",
+  "inputs": [{"name": "raw", "path": "corpus/data/fakelang/raw.csv", "schema": ["a:int", "b:double"]}],
+  "outputs": [
+    {"name": "out_convmissing", "path": "ref/fakelang/f04_convmissing/out_convmissing", "schema": ["a:int", "b:double"]}
+  ]
+}

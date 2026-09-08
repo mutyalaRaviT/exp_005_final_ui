@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>exp_42 Studio — SAS → PySpark, every step</title>
+<style>
+:root{--accent:#2aa3df;--accent2:#1d8fcf;--text:#2b3a4a;--muted:#7a8a9a;--border:#e6edf3;--code:#f6f9fc;--green:#27ae60;--red:#e05a4f;--amber:#e0972f;--soft:#f4f8fc;--grad:linear-gradient(120deg,#2aa3df,#1d8fcf)}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;font-family:"Segoe UI",Roboto,system-ui,-apple-system,sans-serif;background:#e7edf4;color:var(--text);font-size:14px;line-height:1.55}
+.report{width:97%;max-width:1480px;margin:22px auto 56px;background:#fff;border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.cover{background:var(--grad);color:#fff;padding:36px 52px 30px}
+.cover h1{font-size:28px;font-weight:800;margin:0 0 8px}.cover .meta{opacity:.95;font-size:13.5px}
+.cover .badge{display:inline-block;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:5px 14px;font-weight:700;font-size:13px;margin:14px 8px 0 0}
+.cover .badge.bad{background:rgba(224,90,79,.45)}
+section{padding:26px 50px 10px;scroll-margin-top:10px;border-top:8px solid #eef3f9}
+section:first-of-type{border-top:0}
+.sec-head{display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--border);padding-bottom:10px;margin-bottom:14px}
+.sec-head h2{font-size:19px;margin:0;font-weight:800;flex:1}
+.sec-head .num{width:30px;height:30px;border-radius:8px;background:var(--grad);color:#fff;display:grid;place-items:center;font-weight:800;flex:0 0 auto}
+.hbadge{border-radius:8px;padding:4px 11px;font-size:12px;font-weight:800;white-space:nowrap}
+.hbadge.pass{background:#e7f7ee;color:#1c7a45;border:1px solid #b6e6c8}
+.hbadge.fail{background:#fdeceb;color:#b5302a;border:1px solid #f3c2bf}
+.hbadge.mixed{background:#fdf3e7;color:#a4631a;border:1px solid #f3d2a3}
+.hbadge.info{background:#eef6fb;color:#1d6fa5;border:1px solid #c8e2f2}
+.sub{color:var(--muted);margin:6px 0 12px;font-size:13px}
+code,pre,textarea,.mono{font-family:"SFMono-Regular",Consolas,Menlo,monospace}
+pre{background:var(--code);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:0;overflow:auto;font-size:12.3px;line-height:1.45;max-height:460px;white-space:pre}
+textarea{width:100%;min-height:340px;border:1px solid var(--border);border-radius:10px;padding:12px;font-size:12.5px;line-height:1.45;resize:vertical;background:var(--code)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:10px 0}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin:10px 0}
+.panel{border:1px solid var(--border);border-radius:12px;overflow:hidden;min-width:0}
+.panel .ph{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--soft);font-weight:700;font-size:13px;border-bottom:1px solid var(--border)}
+.panel .ph .lang{border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800;letter-spacing:.04em}
+.lang.sas{background:#fdf3e7;color:#a4631a}.lang.py{background:#eef6fb;color:#1d6fa5}.lang.ir{background:#efeafb;color:#5b3fa8}.lang.in{background:#e7f7ee;color:#1c7a45}.lang.exp{background:#fdf3e7;color:#a4631a}.lang.act{background:#eef6fb;color:#1d6fa5}
+.panel pre{border:0;border-radius:0;max-height:420px}
+.panel .body{padding:10px 12px}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+button{font:inherit;font-weight:700;border:1px solid var(--border);background:#fff;color:#3a4a5a;border-radius:10px;padding:7px 16px;cursor:pointer}
+button.primary{background:var(--grad);border-color:var(--accent2);color:#fff}
+button[disabled]{opacity:.5;cursor:default}
+label.chk{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:13px}
+.cards{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin:6px 0 4px}
+.card{border:1px solid var(--border);border-radius:14px;padding:10px}.card .inner{background:var(--soft);border-radius:10px;padding:10px;text-align:center}
+.card .big{font-size:22px;font-weight:800}.card .lbl{color:var(--muted);font-size:11px;margin-top:3px}
+.gr{color:var(--green)}.rd{color:var(--red)}.bl{color:var(--accent)}
+table.t{border-collapse:collapse;width:100%;font-size:12.3px}
+table.t th{background:var(--soft);text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);font-weight:700;position:sticky;top:0}
+table.t td{padding:5px 8px;border-bottom:1px solid #f0f4f8;white-space:nowrap}
+.tscroll{overflow:auto;max-height:320px}
+.chip{display:inline-block;border-radius:999px;padding:3px 10px;font-size:11.5px;font-weight:700;margin:2px 6px 2px 0;border:1px solid var(--border);background:#fff}
+.chip.ok{background:#e7f7ee;color:#1c7a45;border-color:#b6e6c8}.chip.bad{background:#fdeceb;color:#b5302a;border-color:#f3c2bf}.chip.warn{background:#fdf3e7;color:#a4631a;border-color:#f3d2a3}
+.verdict{border-radius:12px;padding:10px 14px;margin:10px 0;font-weight:800}
+.verdict.pass{background:#e7f7ee;color:#1c7a45}.verdict.fail{background:#fdeceb;color:#b5302a}.verdict.miss{background:#fdf3e7;color:#a4631a}
+.kw{color:#1d6fa5;font-weight:700}.cm{color:#7a8a9a;font-style:italic}.st{color:#a4631a}.fn{color:#5b3fa8}
+.block{border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin:14px 0}
+.block h3{margin:0 0 6px;font-size:15px}
+details summary{cursor:pointer;color:var(--muted);font-size:13px;margin:6px 0}
+.tok{display:inline-block;margin:1px;padding:1px 5px;border-radius:4px;font-size:11.5px;border:1px solid var(--border)}
+.tok.keyword{background:#eef6fb;color:#1d6fa5;font-weight:700}.tok.word{background:#fff}.tok.number{background:#e7f7ee}.tok.string{background:#fdf3e7}.tok.symbol{background:#f4f4f4;color:#666}.tok.comment{background:#f8f8f8;color:#999;font-style:italic}.tok.datalines{background:#efeafb;color:#5b3fa8}
+.toc{padding:16px 50px;display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px}.toc a{color:#3a4a5a;font-weight:600;text-decoration:none}
+.errors{border-left:3px solid var(--red);background:#fdeceb;padding:8px 12px;border-radius:0 8px 8px 0;white-space:pre-wrap;font-size:12.5px;margin:10px 0}
+.lineage-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.lin-ds{border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin:6px 0}
+.lin-ds b{color:#1d6fa5}.lin-ds .cols span{display:inline-block;margin:2px 6px 2px 0}
+@media (max-width:1000px){.two,.three,.lineage-grid{grid-template-columns:1fr}.cards{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<div class="report">
+<div class="cover">
+  <h1>exp_42 Studio — SAS → PySpark, every intermediate step</h1>
+  <div class="meta">Vishnu's test program through the lineageQ loops: tokens → node/4 (Prolog DCG and Rust engine) → SAS printed back → lineage → PySpark → execution, file level and block level, judged by DataMatch (TypeScript port of <code>pipeline/datamatch.py</code>, running in this page).</div>
+  <div id="badges"></div>
+</div>
+<div class="toc" id="toc"></div>
+
+<section id="s1">
+  <div class="sec-head"><div class="num">1</div><h2>Program</h2><span class="hbadge info" id="b1">SAS in</span></div>
+  <div class="bar">
+    <button id="ex2">Load test-data program</button><button id="ex1">Load Vishnu's original</button><button id="ex3">Load corrected version</button>
+    <label class="chk"><input type="checkbox" id="run"> run the PySpark under Spark, file level (~20 s)</label>
+    <label class="chk"><input type="checkbox" id="blocks"> run every block under Spark (~15 s per block)</label>
+    <label class="chk"><input type="checkbox" id="plpy"> also fold the PySpark with the Prolog DCG (slow, ~15 s)</label>
+  </div>
+  <textarea id="sas" spellcheck="false"></textarea>
+  <div class="bar"><button class="primary" id="go">Convert and run the loops</button><span id="status" style="color:var(--muted)"></span></div>
+  <div id="errors"></div>
+</section>
+
+<section id="s2"><div class="sec-head"><div class="num">2</div><h2>Tokens — lossless</h2><span class="hbadge" id="b2">—</span></div>
+  <div class="sub">Every byte of the source lands in exactly one token; keywords, words, numbers, strings, symbols, comments and the raw DATALINES block. Joined back, the tokens are the source.</div>
+  <div id="tokens" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px;padding:8px"></div>
+</section>
+
+<section id="s3"><div class="sec-head"><div class="num">3</div><h2>node/4 — the parse, one fact per statement</h2><span class="hbadge" id="b3">—</span></div>
+  <div class="sub">node(Block, Seq, Term, Trace). The Prolog DCG generated from <code>pipeline/specs/sas.py</code> and the Rust engine interpreting the same spec must write the same facts.</div>
+  <div class="two"><div class="panel"><div class="ph"><span class="lang ir">node/4</span>Prolog DCG</div><pre id="node4"></pre></div>
+  <div class="panel"><div class="ph"><span class="lang ir">node/4</span>Rust engine</div><pre id="node4r"></pre></div></div>
+</section>
+
+<section id="s4"><div class="sec-head"><div class="num">4</div><h2>SAS printed back from node/4 — loop 1</h2><span class="hbadge" id="b4">—</span></div>
+  <div class="sub">The same grammar rules print the term back; the printed tokens are put into the original whitespace and comments. The result must equal the input byte for byte.</div>
+  <div class="two"><div class="panel"><div class="ph"><span class="lang sas">SAS</span>rebuilt from node/4</div><pre id="printed"></pre></div>
+  <div class="panel"><div class="ph"><span class="lang sas">SAS</span>canonical spelling (one space per token)</div><pre id="canon"></pre></div></div>
+</section>
+
+<section id="s5"><div class="sec-head"><div class="num">5</div><h2>Column lineage — loop 2</h2><span class="hbadge" id="b5">—</span></div>
+  <div class="sub">From the SAS node/4 (Prolog and Rust) and from the PySpark node/4 (the generated PySpark parsed by its own pyDSL, Rust; Prolog on request). Four fact files, one text. <b>col</b> = value depends on; <b>ctl</b> = decides which rows.</div>
+  <div class="lineage-grid"><div id="lineageView"></div><div class="panel"><div class="ph"><span class="lang ir">facts</span><span id="linTitle">sas.prolog</span><span id="linTabs" style="margin-left:auto"></span></div><pre id="lineageRaw"></pre></div></div>
+</section>
+
+<section id="s6"><div class="sec-head"><div class="num">6</div><h2>PySpark — generated from node/4</h2><span class="hbadge" id="b6">—</span></div>
+  <div class="sub">The readable program (named DataFrames, the SAS of each step as a comment). The plain printer's program is the proof version; Prolog and Rust must produce it byte for byte.</div>
+  <div class="two"><div class="panel"><div class="ph"><span class="lang py">PySpark</span>readable</div><pre id="py"></pre></div>
+  <div class="panel"><div class="ph"><span class="lang py">PySpark</span>plain printer (Prolog = Rust)</div><pre id="pyplain"></pre></div></div>
+</section>
+
+<section id="s7"><div class="sec-head"><div class="num">7</div><h2>Execution, file level — loop 4</h2><span class="hbadge" id="b7">—</span></div>
+  <div class="sub">The executable node/4 (Prolog interpreter, Rust interpreter) stands in for SAS; Spark runs the generated PySpark when asked. DataMatch compares row multisets: numbers to 6 decimals, whitespace stripped. Paste the SAS OnDemand PROC PRINT listing below to judge against real SAS.</div>
+  <div class="cards" id="fileCards"></div>
+  <div id="fileTables"></div>
+  <details><summary>Paste the SAS listing (PROC PRINT output with TITLE lines) to DataMatch it against the PySpark tables</summary>
+    <textarea id="saslisting" style="min-height:140px" placeholder="sales_data&#10;Obs  sale_id  sale_amount  date&#10;  1  001  0  01/01/2023&#10;..."></textarea>
+    <div class="bar"><button id="matchsas">DataMatch the SAS listing</button></div><div id="sasmatch"></div></details>
+</section>
+
+<section id="s8"><div class="sec-head"><div class="num">8</div><h2>Execution, block level — loop 3</h2><span class="hbadge" id="b8">—</span></div>
+  <div class="sub">Every step runs alone on inputs generated from its own conditions (Z3 legs, boundary rows, one row per month). EXPECTED is the Prolog interpreter; ACTUAL is the Rust interpreter and, when run, Spark on the block's PySpark printed back from node/4.</div>
+  <div id="blocksView"></div>
+</section>
+
+<section id="s9"><div class="sec-head"><div class="num">9</div><h2>Wall clock</h2><span class="hbadge info" id="b9">ms</span></div><div class="cards" id="timeCards"></div><details><summary>server log</summary><pre id="log"></pre></details></section>
+</div>
+
+<script src="/datamatch.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const D = globalThis.DataMatch;
+const SAS_KW = /\b(data|set|merge|by|if|then|else|input|format|datalines|cards|run|quit|proc|sql|print|create|table|as|select|from|where|group|having|order|libname|title|in|and|or|not)\b/gi;
+const PY_KW = /\b(import|from|as|def|return|for|in|if|else|None|True|False|put|ds|spark|F)\b/g;
+function hlSas(s){ return esc(s).replace(/(\/\*[\s\S]*?\*\/)/g,'<span class="cm">$1</span>').replace(/('[^']*')/g,'<span class="st">$1</span>').replace(SAS_KW,'<span class="kw">$1</span>'); }
+function hlPy(src){ // line by line: a # outside quotes starts a comment; strings, keywords, .method( inside code
+  return src.split('\n').map(line=>{ let q=null, i=0; for(; i<line.length; i++){ const c=line[i]; if(q){ if(c===q) q=null; } else if(c==='"'||c==="'") q=c; else if(c==='#') break; }
+    const code=line.slice(0,i), cm=line.slice(i);
+    return esc(code).replace(/(&quot;[^&]*&quot;|'[^']*')/g,'<span class="st">$1</span>').replace(PY_KW,'<span class="kw">$1</span>').replace(/\.(\w+)\s*\(/g,'.<span class="fn">$1</span>(')+(cm?'<span class="cm">'+esc(cm)+'</span>':''); }).join('\n'); }
+function badge(id, ok, text, cls){ const b=$(id); b.className='hbadge '+(cls||(ok?'pass':'fail')); b.textContent=text; }
+function table(csvText, max=25){
+  const t = typeof csvText==='string' ? D.parseCsv(csvText) : csvText; if(!t) return '<div class="sub">(no table)</div>';
+  const rows = t.rows.slice(0,max);
+  return '<div class="tscroll"><table class="t"><thead><tr>'+t.cols.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr></thead><tbody>'+
+    rows.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'+(t.rows.length>max?'<div class="sub">… '+t.rows.length+' rows</div>':'<div class="sub">'+t.rows.length+' rows</div>');
+}
+function vchip(label, m){ const ok=m.verdict==='PASS'; const cls=ok?'ok':(m.verdict==='FAIL'?'bad':'warn'); return '<span class="chip '+cls+'">'+esc(label)+': '+m.verdict+(m.note?' · '+esc(m.note):'')+'</span>'; }
+function samples(m){ if(!m.samples||!m.samples.length) return ''; return '<div class="sub">mismatched rows (expected count / actual count): '+m.samples.map(s=>'<code>'+esc(s.row.join(','))+'</code> '+s.ref_count+'/'+s.conv_count).join(' ; ')+'</div>'; }
+function panel(lang, title, inner){ return '<div class="panel"><div class="ph"><span class="lang '+lang+'">'+esc(lang.toUpperCase())+'</span>'+title+'</div><div class="body">'+inner+'</div></div>'; }
+function card(big, lbl, cls){ return '<div class="card"><div class="inner"><div class="big '+(cls||'bl')+'">'+big+'</div><div class="lbl">'+esc(lbl)+'</div></div></div>'; }
+
+async function load(path){ const r=await fetch(path); const j=await r.json(); $('sas').value=j.sas; }
+$('ex1').onclick=()=>load('/api/example'); $('ex2').onclick=()=>load('/api/example_testdata'); $('ex3').onclick=()=>load('/api/example_fixed');
+load('/api/example_testdata');
+$('toc').innerHTML=[...document.querySelectorAll('section')].map(s=>'<a href="#'+s.id+'">'+s.querySelector('h2').textContent+'</a>').join('');
+
+let LAST=null;
+$('go').onclick = async () => {
+  const sas=$('sas').value; if(!sas.trim()) return;
+  $('go').disabled=true; $('status').textContent='running the loops…'; const t0=performance.now();
+  try{
+    const r=await fetch('/api/studio',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sas,run:$('run').checked,blocks:$('blocks').checked,prolog_pyspark:$('plpy').checked})});
+    const j=await r.json(); LAST=j; render(j, sas);
+    $('status').textContent='done in '+((performance.now()-t0)/1000).toFixed(1)+' s';
+  }catch(e){ $('status').textContent='request failed: '+e; }
+  $('go').disabled=false;
+};
+
+function render(j, sas){
+  $('errors').innerHTML=(j.errors&&j.errors.length)?'<div class="errors">'+esc(j.errors.join('\n'))+'</div>':'';
+  // 2 tokens
+  const toks=j.tokens||[]; badge('b2', j.lossless, j.lossless?toks.length+' tokens, lossless':'NOT lossless');
+  $('tokens').innerHTML=toks.filter(t=>t.kind!=='whitespace').map(t=>'<span class="tok '+t.kind+'" title="'+t.kind+' line '+t.line+'">'+esc(t.text.length>40?t.text.slice(0,40)+'…':t.text)+'</span>').join('');
+  // 3 node/4
+  badge('b3', j.node4_same, (j.folded??'?')+'/'+(j.statements??'?')+' folded · Prolog '+(j.node4_same?'==':'!=')+' Rust');
+  $('node4').textContent=j.node4_prolog||'—'; $('node4r').textContent=j.node4_rust||'—';
+  // 4 printed back
+  badge('b4', j.source_match, (j.roundtrip??'?')+'/'+(j.statements??'?')+' round trip · source '+(j.source_match?'byte-identical':'DIFFERS'));
+  $('printed').textContent=j.printed_sas||'—'; $('canon').textContent=j.printed_canonical||'—';
+  // 5 lineage
+  const L=j.lineage||{}; const keys=Object.keys(L);
+  badge('b5', j.lineage_same, keys.length+' fact files '+(j.lineage_same?'identical':'DIFFER')+(j.pyspark_fold?' · PySpark folded '+j.pyspark_fold.folded+'/'+j.pyspark_fold.statements:''));
+  $('linTabs').innerHTML=keys.map(k=>'<button style="padding:2px 8px;font-size:11px;margin-left:4px" data-k="'+k+'">'+k+'</button>').join('');
+  $('linTabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{ $('lineageRaw').textContent=L[b.dataset.k]; $('linTitle').textContent=b.dataset.k; });
+  $('lineageRaw').textContent=L[keys[0]]||'—'; $('linTitle').textContent=keys[0]||'';
+  $('lineageView').innerHTML=lineageView(L[keys[0]]||'');
+  // 6 pyspark
+  const body=t=>t?('spark = make_spark()'+(t.split('\nspark = make_spark()')[1]||'')).trim():'—';
+  badge('b6', j.pyspark_same&&j.pyspark_pretty_same, 'plain '+(j.pyspark_same?'identical':'differs')+' · readable '+(j.pyspark_pretty_same?'identical':'differs'));
+  $('py').innerHTML=hlPy(body(j.pyspark_pretty)); $('pyplain').innerHTML=hlPy(body(j.pyspark_prolog));
+  // 7 file level
+  renderFile(j, sas);
+  // 8 blocks
+  renderBlocks(j, sas);
+  // 9 timings
+  const t=j.timings||{}; $('timeCards').innerHTML=Object.entries(t).map(([k,v])=>card(v, k+' (ms)')).join('')+(j.rust_us?card((j.rust_us/1000).toFixed(1),'Rust fold+emit (ms)'):'')+(j.run_seconds?card(j.run_seconds,'Spark file run (s)'):'');
+  $('log').textContent=j.log||'';
+  // cover badges
+  const bs=[['loop 1 parse', j.source_match&&j.node4_same],['loop 2 lineage', j.lineage_same],['loop 4 file', window.__fileOk],['loop 3 blocks', window.__blocksOk]];
+  $('badges').innerHTML=bs.map(([n,ok])=>'<span class="badge'+(ok===false?' bad':'')+'">'+n+': '+(ok===undefined?'n/a':ok?'PASS':'FAIL')+'</span>').join('');
+}
+
+function lineageView(text){
+  const ds={}; const schema={};
+  for(const line of text.split('\n')){
+    let m;
+    if((m=line.match(/^schema\('?([^',]+)'?,\[(.*)\]\)\./))) schema[m[1]]=m[2].split(',');
+    else if((m=line.match(/^col_lineage\('?([^',]+)'?,([^,]+),'?([^',]+)'?,([^)]+)\)\./))) (ds[m[1]]??={cols:{},ctl:[]}).cols[m[2]]=[...((ds[m[1]].cols[m[2]])||[]), m[3]+'.'+m[4]];
+    else if((m=line.match(/^ctl_lineage\('?([^',]+)'?,'?([^',]+)'?,([^)]+)\)\./))) (ds[m[1]]??={cols:{},ctl:[]}).ctl.push(m[2]+'.'+m[3]);
+  }
+  return Object.keys(schema).map(k=>{ const d=ds[k]||{cols:{},ctl:[]}; return '<div class="lin-ds"><b>'+esc(k)+'</b> <span class="sub" style="margin:0">['+esc(schema[k].join(', '))+']</span>'+
+    (Object.keys(d.cols).length?'<div class="cols">'+Object.entries(d.cols).map(([c,ins])=>'<span><code>'+esc(c)+'</code> ← '+ins.map(esc).join(', ')+'</span>').join('')+'</div>':'<div class="sub" style="margin:0">source dataset</div>')+
+    (d.ctl.length?'<div class="sub" style="margin:2px 0 0">rows decided by '+d.ctl.map(esc).join(', ')+'</div>':'')+'</div>'; }).join('');
+}
+
+function renderFile(j, sas){
+  const f=j.file||{}; const P=f.prolog||{}, R=f.rust||{}, S=f.spark;
+  const names=Object.keys(P); let allOk=names.length>0; const cards=[]; let html='';
+  const src=sourceRows(sas);
+  for(const n of names){
+    const mPR=D.matchTables(D.parseCsv(P[n]), D.parseCsv(R[n]||''));
+    const mPS=S?D.matchTables(D.parseCsv(P[n]), S[n]?D.parseCsv(S[n]):null):null;
+    allOk=allOk&&mPR.verdict==='PASS'&&(!mPS||mPS.verdict==='PASS');
+    html+='<div class="block"><h3>'+esc(n)+' '+vchip('Prolog interp vs Rust interp', mPR)+(mPS?vchip('Prolog interp vs Spark', mPS):'<span class="chip">Spark: not run</span>')+'</h3>'+
+      (src&&n.endsWith('sales_data')?panel('in','DATALINES rows (the input)', table(src)):'')+
+      '<div class="'+(S?'three':'two')+'">'+panel('exp','Prolog interpreter (executable node/4)', table(P[n]))+panel('act','Rust interpreter', table(R[n]||''))+(S?panel('act','Spark, generated PySpark', table(S[n]||'')):'')+'</div>'+samples(mPR)+(mPS?samples(mPS):'')+'</div>';
+  }
+  window.__fileOk=names.length?allOk:undefined;
+  $('fileCards').innerHTML=card(names.length,'datasets')+card(names.filter(n=>D.matchTables(D.parseCsv(P[n]),D.parseCsv(R[n]||'')).verdict==='PASS').length,'Prolog = Rust','gr')+card(S?names.filter(n=>S[n]&&D.matchTables(D.parseCsv(P[n]),D.parseCsv(S[n])).verdict==='PASS').length:'—','= Spark',S?'gr':'bl')+card((f.spark_seconds??'—'),'Spark s')+card(j.timings?j.timings.interp_prolog:'—','Prolog interp ms')+card(j.timings?j.timings.interp_rust:'—','Rust interp ms');
+  badge('b7', allOk, names.length?(allOk?'all tables agree':'DIFFERENCES')+(S?' (3 executors)':' (2 interpreters; Spark not run)'):'no tables', names.length?undefined:'mixed');
+  $('fileTables').innerHTML=html+(f.sas_log?'<details><summary>what SAS would log (from the interpreter)</summary><pre>'+esc(f.sas_log)+'</pre></details>':'');
+}
+function sourceRows(sas){ const m=sas.match(/input\s+([^;]+);[\s\S]*?datalines;\n([\s\S]*?)\n;/i); if(!m) return null; const cols=m[1].replace(/:\w+\./g,'').replace(/\$/g,'').trim().split(/\s+/); return {cols, rows:m[2].split('\n').filter(l=>l.trim()).map(l=>l.trim().split(/\s+/))}; }
+
+$('matchsas').onclick=()=>{
+  if(!LAST||!LAST.file){ $('sasmatch').innerHTML='<div class="sub">convert first</div>'; return; }
+  const P=LAST.file.prolog||{}, S=LAST.file.spark||{};
+  const names=Object.keys(P); const listing=D.parseSasListing($('saslisting').value, names.map(n=>n.split('.').pop()));
+  let html='<table class="t"><thead><tr><th>table</th><th>SAS rows</th><th>vs Prolog interpreter</th><th>vs Spark</th></tr></thead><tbody>'; const vs=[];
+  for(const n of names){ const short=n.split('.').pop(); const sasT=listing[short]||listing[n]||null;
+    const a=D.matchTables(sasT, D.parseCsv(P[n])), b=D.matchTables(sasT, S[n]?D.parseCsv(S[n]):null); vs.push(a.verdict);
+    html+='<tr><td>'+esc(n)+'</td><td>'+(sasT?sasT.rows.length:'—')+'</td><td>'+vchip('',a)+'</td><td>'+vchip('',b)+'</td></tr>'; }
+  html+='</tbody></table>'; const w=D.worst(vs);
+  $('sasmatch').innerHTML='<div class="verdict '+(w==='PASS'?'pass':w==='FAIL'?'fail':'miss')+'">SAS listing vs converted: '+w+'</div>'+html;
+};
+
+function blockSource(j, b, sas){
+  const lines=sas.split('\n'); let l0=1e9,l1=0;
+  for(const line of (j.node4_prolog||'').split('\n')){ const m=line.match(/^node\('(b_\d+)',\s*\d+,.*trace\('[^']*',(\d+),(\d+),/); if(m&&m[1]===b){ l0=Math.min(l0,+m[2]); l1=Math.max(l1,+m[3]); } }
+  return l1?lines.slice(l0-1,l1).join('\n'):'';
+}
+function renderBlocks(j, sas){
+  const B=j.blocks||{}; const ids=Object.keys(B); let html=''; let allOk=ids.length>0; let nSpark=0;
+  for(const b of ids){ const e=B[b]; const outs=e.creates||[];
+    let chips='', vs=[];
+    for(const n of outs){ const mPR=D.matchTables(D.parseCsv(e.prolog[n]||''), D.parseCsv(e.rust[n]||'')); vs.push(mPR); chips+=vchip('Prolog vs Rust · '+n.split('.').pop(), mPR);
+      if(e.spark){ const mPS=D.matchTables(D.parseCsv(e.prolog[n]||''), e.spark[n]?D.parseCsv(e.spark[n]):null); vs.push(mPS); chips+=vchip('Prolog vs Spark', mPS); nSpark++; } }
+    const ok=vs.every(v=>v.verdict==='PASS'); allOk=allOk&&ok;
+    const conds=(e.conditions||[]).filter(c=>c.row).map(c=>'<span class="chip">'+esc(c.kind+' '+c.leg+(c.polarity?' = true':' = false'))+'</span>').join('');
+    html+='<div class="block"><h3>'+esc(b)+' creates '+esc(outs.join(', '))+' <span class="hbadge '+(ok?'pass':'fail')+'">'+(ok?'PASS':'FAIL')+'</span></h3>'+
+      '<div class="two">'+panel('sas','the step', '<pre>'+hlSas(blockSource(j,b,sas))+'</pre>')+panel('py','block program, printed back from PySpark node/4', '<pre>'+hlPy(e.program||'')+'</pre>')+'</div>'+
+      (conds?'<div class="sub">Z3 legs solved: '+conds+'</div>':'')+
+      (Object.keys(e.inputs).length?'<div class="two">'+Object.entries(e.inputs).map(([n,csv])=>panel('in','INPUT '+esc(n)+' (generated)', table(csv,12))).join('')+'</div>':'<div class="sub">no inputs: a source step</div>')+
+      outs.map(n=>'<div class="'+(e.spark?'three':'two')+'">'+panel('exp','EXPECTED · Prolog interpreter · '+esc(n), table(e.prolog[n]||''))+panel('act','ACTUAL · Rust interpreter', table(e.rust[n]||''))+(e.spark?panel('act','ACTUAL · Spark on the block program', table(e.spark[n]||'')):'')+'</div>').join('')+
+      '<div>'+chips+'</div>'+vs.map(samples).join('')+'</div>';
+  }
+  window.__blocksOk=ids.length?allOk:undefined;
+  badge('b8', allOk, ids.length?ids.length+' blocks · '+(allOk?'all agree':'DIFFERENCES')+(nSpark?' · Spark ran':' · Spark not run'):'no blocks', ids.length?undefined:'mixed');
+  $('blocksView').innerHTML=html;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "file": "corpus/fakelang/small/f05_float.fk",
+  "inputs": [{"name": "raw", "path": "corpus/data/fakelang/raw.csv", "schema": ["a:int", "b:double"]}],
+  "outputs": [
+    {"name": "out_float", "path": "ref/fakelang/f05_float/out_float.csv", "schema": ["a:int", "b:double"]}
+  ]
+}

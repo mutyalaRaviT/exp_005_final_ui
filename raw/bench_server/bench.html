@@ -1,0 +1,1318 @@
+<!doctype html>
+<html lang="en"><head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<title>lineageQ Bench</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#eef2f6; --panel:#ffffff; --panel2:#f5f8fb; --line:#d6dee7; --text:#1f2d3a; --muted:#6b7c8c; --faint:#9fb0bf;
+  --sas:#b8731a; --sas-bg:#fbf1e2; --py:#1f7fb8; --py-bg:#e6f2fa; --ir:#6a4fc2; --ir-bg:#eee9fa;
+  --good:#1c7a45; --good-bg:#e4f5ea; --bad:#b5302a; --bad-bg:#fbe7e5; --warn:#a4631a; --warn-bg:#fcf1e0;
+  --focus:#1f7fb8; --sel:#e6f2fa; --key:#f0f3f7; --shadow:0 6px 24px rgba(20,32,43,.12);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f171f; --panel:#151f29; --panel2:#1b2733; --line:#27354357; --text:#dbe5ee; --muted:#8fa3b5; --faint:#5e7183;
+    --sas:#e6a24a; --sas-bg:#2b2116; --py:#4fb0ea; --py-bg:#142a3a; --ir:#a58cf0; --ir-bg:#241f3a;
+    --good:#4fd08a; --good-bg:#12301f; --bad:#f0716a; --bad-bg:#3a1a18; --warn:#e8b45c; --warn-bg:#33261a;
+    --focus:#4fb0ea; --sel:#142a3a; --key:#1f2c39; --shadow:0 6px 24px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f171f; --panel:#151f29; --panel2:#1b2733; --line:#27354357; --text:#dbe5ee; --muted:#8fa3b5; --faint:#5e7183;
+  --sas:#e6a24a; --sas-bg:#2b2116; --py:#4fb0ea; --py-bg:#142a3a; --ir:#a58cf0; --ir-bg:#241f3a;
+  --good:#4fd08a; --good-bg:#12301f; --bad:#f0716a; --bad-bg:#3a1a18; --warn:#e8b45c; --warn-bg:#33261a;
+  --focus:#4fb0ea; --sel:#142a3a; --key:#1f2c39; --shadow:0 6px 24px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 "IBM Plex Sans",system-ui,-apple-system,sans-serif;height:100vh;overflow:hidden}
+code,pre,.mono,textarea,kbd,.term{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--key);font-size:11px;line-height:16px;text-align:center;color:var(--text)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.tag{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.tag.sas{background:var(--sas-bg);color:var(--sas)}.tag.py{background:var(--py-bg);color:var(--py)}.tag.ir{background:var(--ir-bg);color:var(--ir)}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid transparent}
+.pill.good{background:var(--good-bg);color:var(--good)}.pill.bad{background:var(--bad-bg);color:var(--bad)}.pill.warn{background:var(--warn-bg);color:var(--warn)}.pill.idle{background:var(--panel2);color:var(--muted);border-color:var(--line)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+
+/* ---------- frame ---------- */
+#app{display:grid;grid-template-rows:38px 1fr auto 26px;height:100vh}
+#top{display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden}
+#top>*{flex:0 0 auto}
+#top .sessions{flex:1 1 auto;min-width:0;overflow:hidden;justify-content:flex-end}
+#top .brand{font-weight:700;letter-spacing:.02em}
+#top .brand span{color:var(--py)}
+#top .file{display:flex;align-items:center;gap:8px;color:var(--muted)}
+#top .file .goto{position:relative;display:inline-flex}
+#top .file input{color:var(--text);font:inherit;font-weight:600;background:transparent;border:1px solid transparent;border-radius:6px;padding:2px 6px;width:34ch;min-width:12ch;outline:none;text-overflow:ellipsis}
+#top .file input:hover{border-color:var(--line)}
+#top .file input:focus{border-color:var(--py);background:var(--panel2);font-weight:400}
+#top .file .drop{display:none;position:fixed;width:min(560px,80vw);max-height:50vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);z-index:26;white-space:normal}
+#top .file .drop.open{display:block}
+#top .file .drop .it{display:grid;grid-template-columns:1fr auto;gap:10px;padding:6px 12px;font-size:12.5px;cursor:pointer;align-items:center;font-family:"JetBrains Mono",monospace;font-weight:400}
+#top .file .drop .it.on{background:var(--sel)}
+#top .file .drop .it small{margin-left:8px}
+#top .file .drop .it .k{color:var(--muted);font-size:11px;font-family:"IBM Plex Sans",sans-serif}
+#top .file .drop .none{padding:10px 12px;color:var(--muted);font-size:12.5px;font-weight:400}
+#top .sessions{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11.5px;color:var(--muted)}
+#top .sessions .sess{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--line);border-radius:7px;background:var(--panel2);cursor:pointer;font-family:"JetBrains Mono",monospace;font-size:11px}
+#top .sessions .sess.on{border-color:var(--py);color:var(--py);background:var(--py-bg)}
+#top .sessions .sess i{width:7px;height:7px;border-radius:50%;background:var(--good);display:inline-block}
+#top .sessions .sess i.busy{background:var(--warn)}
+#top .sessions .sess.err{border-color:var(--bad);color:var(--bad)}
+.runlog{margin-top:6px;font-size:11px;color:var(--muted)}.runlog pre{font-size:10.5px;max-height:160px;overflow:auto;white-space:pre-wrap;background:var(--panel2);padding:6px;border-radius:6px}
+#hl .c,.cell pre .c{color:var(--faint)}
+#top .sessions input{width:220px;min-width:120px;flex:0 1 auto;background:var(--panel2);border:1px dashed var(--line);border-radius:7px;padding:3px 8px;font:11px "JetBrains Mono",monospace;color:var(--text)}
+#top .theme{width:28px;height:26px;border:1px solid var(--line);border-radius:7px;color:var(--muted);font-size:14px;line-height:1}
+#top .theme:hover{color:var(--text)}
+.pill.prog{background:var(--panel2);color:var(--text);border-color:var(--line);font-variant-numeric:tabular-nums}
+.pill.prog i{background:var(--py)}
+.pill.prog.done{background:var(--good-bg);color:var(--good);border-color:transparent}
+.pill.prog.done i{background:currentColor}
+#top .engine{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+#top .engine button{padding:4px 10px;font-size:12px;color:var(--muted)}
+#top .engine button.on{background:var(--py-bg);color:var(--py);font-weight:600}
+#top .receipts{display:flex;gap:6px}
+#main{display:grid;grid-template-columns:44px auto 1fr auto;min-height:0}
+/* exp_42 2026-09-08: two buffers. Left = text (cells / IDE), right = viewer (graph / cells / console). i, j, g toggle them; whichever is alone takes the full width. */
+#main.no-text{grid-template-columns:44px auto 1fr}
+#main.no-text #center{display:none}
+#main.no-text #right.open{width:auto;min-width:0}
+#main.no-text #right .grip{display:none}
+#rail{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:4px}
+#rail button{width:32px;height:32px;border-radius:8px;color:var(--muted);display:grid;place-items:center;position:relative}
+#rail button.on{background:var(--sel);color:var(--focus)}
+#rail button kbd{position:absolute;right:-2px;bottom:-3px;min-width:14px;padding:0 3px;font-size:9px;line-height:13px}
+#rail svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+/* drawers */
+.drawer{width:0;overflow:hidden;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;position:relative}
+.drawer.open{width:var(--w,270px)}
+.drawer.right{border-right:0;border-left:1px solid var(--line)}
+.drawer.right.open{width:var(--w,680px)}
+.drawer .grip{position:absolute;top:0;bottom:0;width:6px;cursor:col-resize;z-index:3}
+.drawer .grip:hover,.drawer .grip.on{background:var(--focus);opacity:.35}
+#left .grip{right:-3px}#right .grip{left:-3px}
+kbd[data-act],[data-act]{cursor:pointer}
+kbd[data-act]:hover{border-color:var(--focus);color:var(--focus)}
+.dh{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap}
+.dh kbd{margin-left:auto}
+.db{overflow:auto;flex:1;min-width:270px;display:flex;flex-direction:column}
+.drawer.right .db{min-width:340px}
+@media (prefers-reduced-motion: reduce){.drawer{transition:none}}
+
+/* file tree */
+.tree{padding:6px 0;font-size:12.5px}
+.tree .search{padding:8px 12px 4px}
+.tree .search input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:12px "IBM Plex Sans",sans-serif;color:var(--text)}
+.tree .search input:focus{outline:2px solid var(--focus);outline-offset:1px}
+.tree .f.hide,.tree .dir.hide{display:none}
+.tree .empty{padding:8px 22px;color:var(--muted);font-size:12px}
+.tree .dir{padding:4px 12px;color:var(--muted);font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase;margin-top:6px}
+.tree .f{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 22px;cursor:pointer;white-space:nowrap}
+.tree .f:hover{background:var(--panel2)}
+.tree .f.on{background:var(--sel);color:var(--focus);font-weight:600}
+.tree .f .tag{margin-left:auto}
+.tree .sim{padding:4px 12px 4px 22px;display:grid;grid-template-columns:1fr auto;gap:6px;font-size:12px;cursor:pointer;align-items:center}
+.tree .sim:hover{background:var(--panel2)}
+.tree .sim .bar{grid-column:1/-1;height:3px;background:var(--panel2);border-radius:2px;overflow:hidden}
+.tree .sim .bar i{display:block;height:100%;background:var(--ir)}
+.tree .sim small{color:var(--muted)}
+
+/* center: two aligned cell columns */
+#center{display:grid;grid-template-rows:1fr auto;min-width:0;min-height:0}
+#cells{overflow:auto;padding:14px 18px}
+.colhead{display:grid;grid-template-columns:1fr 1fr;gap:14px;position:sticky;top:-14px;background:var(--bg);padding:10px 0 8px;z-index:2;margin-top:-14px}
+.colhead div{display:flex;align-items:center;gap:8px;font-weight:600;font-size:12px;color:var(--muted)}
+.colhead .cnt{margin-left:auto;font-weight:500}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;position:relative}
+#cells.only-left .pair,#cells.only-left .colhead{grid-template-columns:1fr}
+#cells.only-left .pair .cell:nth-child(2),#cells.only-left .colhead div:nth-child(2){display:none}
+#cells.only-right .pair,#cells.only-right .colhead{grid-template-columns:1fr}
+#cells.only-right .pair .cell:nth-child(1),#cells.only-right .colhead div:nth-child(1){display:none}
+.pair::before{content:attr(data-n);position:absolute;left:-14px;top:9px;font-size:10px;color:var(--faint);font-weight:600;font-family:"JetBrains Mono",monospace}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-width:0;position:relative;display:flex;flex-direction:column}
+/* code hugs the top, output hugs the bottom: left/right rows line up for eye comparison */
+.cell pre{flex:0 0 auto}
+.cell .out{margin-top:auto}
+.pair.focus .cell{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.pair.hl .cell{border-color:var(--ir);box-shadow:0 0 0 1px var(--ir)}
+.cell .ch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.cell .ch .name{font-weight:600;color:var(--text);font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.cell .ch .lines{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:10.5px}
+.cell .ch .exec{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--py);min-width:34px}
+.cell .ch .exec.none{color:var(--faint)}
+.pair.busy .cell{border-color:var(--warn)}
+.pair.busy .cell .ch .exec{color:var(--warn)}
+.pair.busy .cell .ch .exec::after{content:"*";animation:blink .6s steps(2) infinite}
+@keyframes blink{to{opacity:.2}}
+@media (prefers-reduced-motion: reduce){.pair.busy .cell .ch .exec::after{animation:none}}
+.cell pre{margin:0;padding:10px 12px;font-size:12px;line-height:1.5;overflow:auto;white-space:pre;tab-size:4}
+.cell pre .k{color:var(--sas);font-weight:600}.cell pre .p{color:var(--py);font-weight:600}.cell pre .c{color:var(--faint)}.cell pre .s{color:var(--ir)}
+.cell .out{border-top:1px dashed var(--line);padding:8px 12px;display:none}
+.pair.ran .out{display:block}
+.out table,.outblock table{border-collapse:collapse;font-family:"JetBrains Mono",monospace;font-size:11.5px;font-variant-numeric:tabular-nums}
+.out th,.outblock th{text-align:left;color:var(--muted);font-weight:600;padding:2px 12px 4px 0;border-bottom:1px solid var(--line)}
+.out td,.outblock td{padding:3px 12px 3px 0}
+.out .obs,.outblock .obs{color:var(--faint)}
+.out .meta{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:11px;color:var(--muted)}
+.cell .warnline{background:var(--warn-bg);color:var(--warn);padding:5px 12px;font-size:11.5px;border-top:1px solid var(--line)}
+
+/* bottom split */
+/* exp_42 2026-09-08: the third buffer — a full-width fixed strip under both buffers (Output / Terminal / Log / DataMatch / Story / Data). Two states: open (fixed height) or collapsed to its header line. No drag. */
+#bottom{display:none;flex-direction:column;border-top:1px solid var(--line);background:var(--panel);height:220px;min-height:0}
+#bottom.open{display:flex}
+#bottom.min{height:auto}
+#bottom.min .body,#bottom.min #termin{display:none}
+#bottom.min .tabs{border-bottom:0}
+#bottom .tabs .sp #bstat{display:inline-flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:11px;max-width:60vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#bottom .tabs .sp #bstat i{width:7px;height:7px;border-radius:50%;display:inline-block;flex:0 0 auto;background:var(--muted)}
+#bottom .tabs .sp #bstat i.good{background:var(--good)}#bottom .tabs .sp #bstat i.bad{background:var(--bad)}#bottom .tabs .sp #bstat i.warn{background:var(--warn)}#bottom .tabs .sp #bstat i.run{background:var(--warn)}
+#bottom .tabs .sp kbd{cursor:pointer}
+#bottom .tabs{display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--line);height:32px}
+#bottom .tabs button{padding:6px 10px;font-size:12px;color:var(--muted);border-bottom:2px solid transparent}
+#bottom .tabs button.on{color:var(--text);border-color:var(--py)}
+#bottom .tabs .sp{margin-left:auto;color:var(--muted);font-size:11px;display:flex;gap:10px;align-items:center}
+#bottom .body{flex:1;overflow:auto;min-height:0}
+.term{padding:8px 12px;font-size:12px;line-height:1.55;white-space:pre-wrap}
+.term .ok{color:var(--good)}.term .err{color:var(--bad)}.term .dim{color:var(--muted)}.term .prompt{color:var(--py);font-weight:700}
+#termin{display:flex;gap:8px;align-items:center;padding:6px 12px;border-top:1px solid var(--line)}
+#termin input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font:12px "JetBrains Mono",monospace;color:var(--text)}
+#termin input:focus{outline:2px solid var(--focus);outline-offset:1px}
+.allow{display:flex;flex-wrap:wrap;gap:4px}
+.allow kbd{font-size:10.5px}
+.logrow{display:grid;grid-template-columns:70px 60px 1fr;gap:10px;padding:3px 12px;font-size:12px;border-bottom:1px solid var(--line)}
+.logrow .t{color:var(--faint);font-family:"JetBrains Mono",monospace;font-size:11px}
+.logrow .w{font-weight:600}.logrow .w.sas{color:var(--sas)}.logrow .w.py{color:var(--py)}.logrow .w.ir{color:var(--ir)}.logrow .w.warn{color:var(--warn)}
+.pill.prog.warned{border-color:var(--warn);color:var(--warn)}.pill.prog.warned i{background:var(--warn)}
+.pill u{text-decoration:underline dotted;cursor:pointer}
+.pair.story .cell{border-color:var(--ir)}
+.pair.dim{opacity:.45}
+.pair.story::before{display:none}
+.pair .storyn{left:-24px}
+.pair .storyn{position:absolute;left:-30px;top:6px;width:18px;height:18px;border-radius:50%;background:var(--ir);color:#fff;font:700 10px/18px "JetBrains Mono",monospace;text-align:center;z-index:1}
+.term kbd[data-cmd]{cursor:pointer}
+.term .link{text-decoration:underline dotted;cursor:pointer}
+.outblock .h b{cursor:pointer}
+.dm{padding:10px 12px}
+.dm table{border-collapse:collapse;font-size:12px;width:100%}
+.dm th{text-align:left;color:var(--muted);font-weight:600;padding:4px 10px 6px 0;border-bottom:1px solid var(--line)}
+.dm td{padding:4px 10px 4px 0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.dm td.mono{font-family:"JetBrains Mono",monospace;font-size:11.5px}
+
+/* graph */
+#gwrap{flex:1;overflow:auto;position:relative;min-height:220px;display:flex;align-items:center;background:radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0/18px 18px}
+#graph{transform-origin:0 0;padding:14px}
+#graph svg{display:block}
+.gbar{display:flex;align-items:center;gap:6px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.gbar button{padding:2px 8px;border:1px solid var(--line);border-radius:5px;font-size:11.5px;color:var(--text);background:var(--panel2)}
+.gbar button.on{color:var(--py);border-color:var(--py)}
+.gbar .sp{margin-left:auto}
+#center.zen #cells,#center.zen #ide{display:none}
+#center.ide #cells,#center.page #cells,#center.page #ide{display:none}
+#page{display:none;overflow:auto;padding:14px 18px;min-height:0}
+#center.page #page{display:block}
+#page .fold table{border-collapse:collapse;width:100%;font-size:12px}
+#page .fold th{text-align:left;color:var(--muted);font-weight:600;padding:4px 8px;border-bottom:1px solid var(--line)}
+#page .fold td{padding:4px 8px;border-bottom:1px solid var(--line)}
+#page .fold tr.f{cursor:pointer}#page .fold tr.f:hover{background:var(--panel2)}
+#page .fold .ol .r{grid-template-columns:30px 1fr auto;padding:6px 8px;border-bottom:1px solid var(--line)}
+#page .fold .ol .r .n{font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+#page .fold .ol .r button{font:11px "IBM Plex Sans",sans-serif;padding:1px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--muted);cursor:pointer}
+#page .fold .ol .r:hover button{color:var(--text)}
+#page iframe{width:100%;height:calc(100% - 32px);border:1px solid var(--line);border-radius:6px;background:#fff}
+.selnote{font-size:11.5px;color:var(--muted);padding:2px 0 8px}.selnote b{color:var(--ir)}
+#graph .hit{stroke:transparent;stroke-width:12;fill:none;cursor:pointer;pointer-events:stroke}
+#graph .edge.sel{stroke:var(--ir);stroke-width:2.6}
+.tree .dir{cursor:pointer}.tree .dir:hover{color:var(--text)}
+.dgrid table{border-collapse:collapse;font-size:12px}.dgrid th{cursor:pointer;user-select:none;position:sticky;top:0;background:var(--panel)}
+.dgrid th.s::after{content:" ▲"}.dgrid th.sd::after{content:" ▼"}
+.dbar{display:flex;gap:8px;align-items:center;font-size:11.5px;color:var(--muted);padding:4px 0 8px;flex-wrap:wrap}
+.dbar button{font:11.5px "IBM Plex Sans",sans-serif;padding:2px 8px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--text);cursor:pointer}.dbar button.on{color:var(--focus);border-color:var(--focus)}
+.buftag{margin-left:8px}
+#ide{display:none;grid-template-columns:auto 1fr;grid-template-rows:1fr auto;overflow:hidden;min-height:0;background:var(--panel);border-bottom:1px solid var(--line)}
+#center.ide #ide{display:grid}
+#ide .idehead{grid-column:1/-1;display:flex;align-items:center;gap:10px;flex-wrap:nowrap;white-space:nowrap;min-width:0;padding:5px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);background:var(--bg)}
+#ide .idehead .name{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+#ide .idehead .info,#ide .idehead .cur{flex:0 0 auto}
+.info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--line);color:var(--muted);font:600 10px/1 "JetBrains Mono",monospace;cursor:help;background:var(--panel2)}
+#ide .idehead .cur{overflow:hidden;text-overflow:ellipsis;max-width:45%}
+#ide .idehead .name{font-family:"JetBrains Mono",monospace;color:var(--text);font-weight:600}
+#ide .idehead .cur{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:11px}
+#ide .gutter{overflow:hidden;padding:10px 0 10px 8px;background:var(--panel2);border-right:1px solid var(--line);font:12px/1.5 "JetBrains Mono",monospace;color:var(--faint);text-align:right;user-select:none;min-width:58px}
+#ide .gutter div{padding:0 10px 0 4px;border-left:3px solid transparent;white-space:nowrap}
+#ide .gutter div.mark{color:var(--py);font-weight:700}
+#ide .gutter div.cur{border-left-color:var(--focus);background:var(--sel);color:var(--text)}
+#ide .gutter div.ran{border-left-color:var(--good)}
+#ide .gutter div.cur.ran{border-left-color:var(--focus)}
+#ide .edwrap{position:relative;overflow:hidden;min-width:0}
+#ide textarea,#ide #hl{display:block;width:100%;height:100%;margin:0;padding:10px 14px;border:0;font:12px/1.5 "JetBrains Mono",monospace;white-space:pre;tab-size:4;box-sizing:border-box}
+#ide #hl{position:absolute;inset:0;overflow:hidden;pointer-events:none;color:var(--text)}
+#ide textarea{position:relative;resize:none;background:transparent;color:transparent;caret-color:var(--text);overflow:auto;outline:none;-webkit-text-fill-color:transparent}
+#hl .c{color:var(--faint)}#hl .s{color:var(--ir)}#hl .k{color:var(--sas);font-weight:600}#hl .f{color:var(--py)}#hl .n{color:var(--warn)}
+#hl .hdr{color:var(--py);font-weight:700;background:var(--py-bg);display:inline-block;width:100%}
+#ide textarea::selection{background:rgba(79,176,234,.28);color:transparent}
+.viewsw{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.viewsw button{padding:4px 10px;font-size:12px;color:var(--muted)}
+.viewsw button.on{background:var(--py-bg);color:var(--py);font-weight:600}
+.outblock{padding:8px 12px;border-bottom:1px solid var(--line)}
+/* exp_42 2026-09-08: Console panel on the right (p) — Python REPL or terminal, ⌃⏎ runs, ⇧⏎ runs and clears */
+.con{display:flex;flex-direction:column;height:100%;min-height:0}
+.con .bar{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.con .modes{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.con .modes button{padding:3px 10px;font-size:11.5px;color:var(--muted)}
+.con .modes button.on{background:var(--py-bg);color:var(--py);font-weight:600}
+.con textarea{width:100%;box-sizing:border-box;min-height:120px;height:160px;resize:vertical;border:0;border-bottom:1px solid var(--line);background:var(--panel2);padding:10px 12px;font:12px/1.5 "JetBrains Mono",monospace;color:var(--text);outline:none;tab-size:4;white-space:pre}
+.con textarea:focus{background:var(--panel)}
+.con .list{flex:1;overflow:auto;min-height:0}
+.con .outblock pre.code{margin:0 0 6px;padding:6px 8px;background:var(--panel2);border-radius:6px;font-size:11px;white-space:pre-wrap;color:var(--muted);max-height:120px;overflow:auto}
+.con .outblock pre.res{margin:0;white-space:pre-wrap;font-size:11.5px}
+.con .outblock pre.res.err{color:var(--bad)}
+.con .outblock .x{float:right;cursor:pointer;color:var(--faint)}
+.outblock .h{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);margin-bottom:6px}
+.outblock .h b{color:var(--py)}
+#zen{display:none;overflow:auto;flex-direction:column;min-height:0}
+#center.zen #zen{display:flex}
+#graph .node rect{fill:var(--panel2);stroke:var(--line);rx:6}
+#graph .node text{fill:var(--text);font:12px "JetBrains Mono",monospace}
+#graph .node .sub{fill:var(--muted);font-size:10px}
+#graph .layer{fill:var(--faint);font:10px "IBM Plex Sans",sans-serif;letter-spacing:.06em;text-transform:uppercase}
+#graph .node.src rect{stroke:var(--sas);fill:var(--sas-bg)}
+#graph .node.on rect{stroke:var(--ir);stroke-width:2;fill:var(--ir-bg)}
+#graph .node.focus rect{stroke:var(--focus);stroke-width:2;stroke-dasharray:4 2}
+#graph .node.ran text.sub::after{content:""}
+#graph .node .dot{fill:var(--good)}
+#graph .node.missing rect{stroke:var(--warn);stroke-dasharray:3 2}
+#graph .node.story rect{stroke:var(--ir);stroke-width:2;fill:var(--ir-bg)}
+#graph .node.faded{opacity:.25}#graph .edge.faded{opacity:.15}
+#graph .edge.story{stroke:var(--ir);stroke-width:2.2}
+#graph .node .sn{fill:var(--ir)}#graph .node .snt{fill:#fff;font:700 10px "JetBrains Mono",monospace}
+.story{padding:8px 12px;border-top:1px solid var(--line)}
+.story .t{display:flex;align-items:center;gap:8px;font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--ir);margin-bottom:6px}
+.story .step{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:6px 4px;border-radius:6px;cursor:pointer}
+.story .step:hover{background:var(--panel2)}
+.story .sn{width:18px;height:18px;border-radius:50%;background:var(--ir);color:#fff;font:700 10px/18px "JetBrains Mono",monospace;text-align:center}
+.story .st{font-family:"JetBrains Mono",monospace;font-size:12px}.story .st small{color:var(--muted);font-family:"IBM Plex Sans",sans-serif;font-size:11px}
+.story .sd{font-size:11.5px;color:var(--muted)}
+#graph .node{cursor:pointer}
+#graph .edge{stroke:var(--faint);fill:none;stroke-width:1.3}
+#graph .edge.ctl{stroke:var(--warn);stroke-dasharray:4 3}
+#graph .edge.on{stroke:var(--ir);stroke-width:2}
+.legend{display:flex;gap:12px;padding:8px 12px;font-size:11px;color:var(--muted);border-top:1px solid var(--line)}
+.legend i{display:inline-block;width:18px;border-top:2px solid var(--faint);vertical-align:middle;margin-right:4px}
+.legend i.ctl{border-top-style:dashed;border-color:var(--warn)}
+.cols{padding:8px 12px;font-size:12px}
+.cols .t{font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-size:10.5px;margin:6px 0 4px}
+.cols .r{display:grid;grid-template-columns:auto 1fr;gap:8px;padding:2px 0;font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.cols .r span:first-child{color:var(--ir)}
+
+/* cells outline */
+.ol{padding:6px 0}
+.ol .r{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:5px 12px;cursor:pointer;font-size:12px}
+.ol .r:hover{background:var(--panel2)}
+.ol .r.on{background:var(--sel)}
+.ol .r .n{color:var(--faint);font-family:"JetBrains Mono",monospace;font-size:10.5px}
+.ol .r .name{font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.ol .r .name small{display:block;color:var(--muted);font-family:"IBM Plex Sans",sans-serif;font-size:11px}
+.ol .r .name .tree{color:var(--faint);white-space:pre}
+.ol .r.dim{opacity:.3}
+.ol .r.story .name{color:var(--py)}
+.ol .r .n.step{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:var(--py);color:#fff;font-size:9.5px;font-weight:700}
+
+/* status bar */
+#status{display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--panel);border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+#status .mode{font-weight:600;color:var(--text)}
+#status .mode.edit{color:var(--sas)}
+#status .keys{display:flex;gap:10px;margin-left:auto;flex-wrap:nowrap;overflow:hidden}
+#status .keys span{white-space:nowrap}
+
+/* command palette (⌘⇧P) and file finder (⌘P) */
+#pal{position:fixed;inset:0;background:rgba(15,23,31,.35);display:none;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:25}
+#pal.open{display:flex}
+#pal .box{width:min(640px,92vw);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+#pal input{width:100%;border:0;border-bottom:1px solid var(--line);background:transparent;padding:11px 14px;font:13.5px "IBM Plex Sans",sans-serif;color:var(--text);outline:none}
+#pal .list{max-height:46vh;overflow:auto}
+#pal .it{display:grid;grid-template-columns:1fr auto;gap:10px;padding:7px 14px;font-size:12.5px;cursor:pointer;align-items:center}
+#pal .it.on{background:var(--sel)}
+#pal .it small{margin-left:8px}
+#pal .it .keys{display:flex;gap:4px}
+#pal .none{padding:12px 14px;color:var(--muted);font-size:12.5px}
+#help .k{cursor:pointer;border-radius:6px}
+#help .k:hover{background:var(--panel2)}
+/* help overlay */
+#help{position:fixed;inset:0;background:rgba(15,23,31,.45);display:none;place-items:center;z-index:20}
+#help.open{display:grid}
+#help .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);width:min(720px,92vw);padding:18px 22px}
+#help h2{margin:0 0 4px;font-size:15px}
+#help p{margin:0 0 12px;color:var(--muted);font-size:12.5px}
+#help .grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 28px}
+#help .k{display:grid;grid-template-columns:120px 1fr;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12.5px;align-items:center}
+#help .k b{font-weight:500}
+.toast{position:fixed;left:50%;bottom:40px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:6px 14px;border-radius:8px;font-size:12px;opacity:0;transition:opacity .15s;pointer-events:none;z-index:30}
+.toast.on{opacity:1}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div class="brand">lineage<span>Q</span> Bench</div>
+    <div class="file"><span class="tag sas">sas</span><span class="goto"><input id="fileName" value="…" autocomplete="off" spellcheck="false" title="type a file or folder · ⌘K"><div class="drop" id="fileDrop"></div></span><span>·</span><span id="fileMeta"></span></div>
+    <div class="receipts">
+      <span class="pill idle" id="rFold"><i></i>folded</span>
+      <span class="pill idle" id="rRound"><i></i>round trip</span>
+      <span class="pill idle" id="rSame"><i></i>prolog == rust</span>
+      <span class="pill prog" id="prog"><i></i>ran 0/0</span>
+    </div>
+    <div class="viewsw" title="j Jupyter cells · i IDE buffer with # %% cells"><button class="on" data-act="view_jupyter">Jupyter <kbd>j</kbd></button><button data-act="view_ide">IDE <kbd>i</kbd></button></div>
+    <div class="sessions" id="sessions"></div>
+    <button class="theme" id="themeBtn" data-act="theme" title="Theme (t)">◐</button>
+    <div class="engine" title="Which engine runs the left column (the executable node/4) and emits the right column">
+      <button class="on" data-eng="rust">Rust</button><button data-eng="prolog">Prolog</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <nav id="rail" aria-label="panels">
+      <button data-panel="files" title="Files and similar programs (b)"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg><kbd>b</kbd></button>
+      <button data-panel="cells" title="Cells in this buffer (c)"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="5"/><rect x="4" y="12" width="16" height="5"/></svg><kbd>c</kbd></button>
+      <button data-panel="graph" title="Table lineage graph (g)"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="12" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7l8 4M8 17l8-4"/></svg><kbd>g</kbd></button>
+      <button data-panel="console" title="Console: Python REPL or terminal, ⌃⏎ runs (p)"><svg viewBox="0 0 24 24"><path d="M5 7l5 5-5 5"/><rect x="12" y="15" width="7" height="3"/></svg><kbd>p</kbd></button>
+      <button data-panel="log" title="Log and terminal (l)"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 9l3 3-3 3M12 15h5"/></svg><kbd>l</kbd></button>
+      <button data-panel="help" title="Keys (?)" style="margin-top:auto;margin-bottom:8px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg><kbd>?</kbd></button>
+    </nav>
+
+    <aside class="drawer" id="left">
+      <div class="dh"><span id="leftTitle">Files</span><kbd data-act="files">b</kbd></div>
+      <div class="db" id="leftBody"></div>
+      <div class="grip" data-grip="left"></div>
+    </aside>
+
+    <section id="center">
+      <div id="cells" tabindex="0" aria-label="cells"></div>
+      <div id="ide"><div class="gutter" id="gutter"></div><div class="edwrap"><pre id="hl"></pre><textarea id="buf" spellcheck="false" wrap="off"></textarea></div><div class="idehead"><span class="tag py">py</span><span class="name" id="ideName">buffer</span><span class="buftag" id="bufTag"></span><span class="info" title="no cell UI · a line starting with # %% begins a cell · type one anywhere and it becomes a cell">i</span><span class="cur" id="idecur"></span></div></div>
+      <div id="page"></div>
+      <div id="zen"></div>
+    </section>
+
+    <aside class="drawer right" id="right">
+      <div class="dh"><span id="rightTitle">Lineage</span><kbd id="rightKey" data-act="graph">g</kbd></div>
+      <div class="db" id="rightBody"></div>
+      <div class="grip" data-grip="right"></div>
+    </aside>
+  </div>
+    <div id="bottom">
+      <div class="tabs">
+        <button data-tab="story" id="storyTab" hidden>Story</button>
+        <button data-tab="data" id="dataTab" hidden>Data</button>
+        <button data-tab="out">Output</button>
+        <button class="on" data-tab="term">Terminal</button>
+        <button data-tab="log">Log</button>
+        <button data-tab="dm">DataMatch</button>
+        <div class="sp"><span id="bstat"></span><kbd data-act="bmin" id="bminKey" title="collapse to one line (⌘J)">⌄</kbd><kbd data-act="close" title="close (⌃⇧C)">×</kbd></div>
+      </div>
+      <div class="body" id="bottomBody"></div>
+      <div id="termin"><span class="prompt mono" style="color:var(--py);font-weight:700">bench ›</span><input id="cmd" placeholder="↑ history · tab completes · fold / diff default to the focused block · run_all run_loops convert fold diff compare ls" autocomplete="off" spellcheck="false"></div>
+    </div>
+
+  <div id="status">
+    <span class="mode" id="mode">COMMAND</span>
+    <span id="focusInfo">block 4 · sales.sales_data</span>
+    <span id="engInfo">Rust engine · 18 ms</span>
+    <div class="keys">
+      <span><kbd data-act="run">⌃⏎</kbd> run</span><span><kbd data-act="run_next">⇧⏎</kbd> run, next</span><span><kbd data-act="runto">⇧E</kbd> run to here</span><span><kbd data-act="prev">↑</kbd><kbd data-act="next">↓</kbd> move</span><span><kbd data-act="up_lineage">[</kbd><kbd data-act="down_lineage">]</kbd> lineage</span><span><kbd data-act="story">s</kbd> story</span><span><kbd data-act="view_jupyter">j</kbd><kbd data-act="view_ide">i</kbd> view</span><span><kbd data-act="edit">⏎</kbd> edit</span><span><kbd data-act="escape">esc</kbd> command</span><span><kbd data-act="palette">⌘⇧P</kbd> palette</span><span><kbd data-act="help">?</kbd> keys</span>
+    </div>
+  </div>
+</div>
+
+<div id="pal" role="dialog" aria-label="palette"><div class="box"><input id="palin" placeholder="" autocomplete="off" spellcheck="false"><div class="list" id="pallist"></div></div></div>
+<div id="help" role="dialog" aria-label="keys">
+  <div class="card">
+    <h2>Keys</h2>
+    <p>Single letters work in COMMAND mode, like Jupyter. <kbd>⏎</kbd> edits the focused cell, <kbd>esc</kbd> leaves it. <kbd>⌃⏎</kbd> and <kbd>⇧⏎</kbd> run in both modes.</p>
+    <div class="grid">
+      <div class="k" data-act="run"><span><kbd>⌃</kbd><kbd>⏎</kbd> / <kbd>e</kbd></span><b>Run the focused cell, like Jupyter. Jupyter view: SAS block left (executable node/4) and its PySpark right, same Z3 inputs, tables and a DataMatch badge under both. IDE view: the <code># %%</code> region under the cursor.</b></div>
+      <div class="k" data-act="run_next"><span><kbd>⇧</kbd><kbd>⏎</kbd></span><b>Run and move to the next cell.</b></div>
+      <div class="k" data-act="view_jupyter"><span><kbd>j</kbd></span><b>Jupyter view: aligned SAS / PySpark cell pairs. Press j again to hide the text buffer; the viewer takes the width.</b></div>
+      <div class="k" data-act="view_ide"><span><kbd>i</kbd></span><b>IDE view (i again hides it): the whole PySpark file as one buffer, no cell chrome. Only <code># %%</code> lines make cells; type one and the gutter shows the new cell at once.</b></div>
+      <div class="k" data-act="runto"><span><kbd>⇧</kbd><kbd>e</kbd></span><b>Run every pair from the top to the focused one, in order.</b></div>
+      <div class="k" data-act="files"><span><kbd>b</kbd></span><b>Files: corpus, outputs, notebooks, and programs similar to this one.</b></div>
+      <div class="k" data-act="cells"><span><kbd>c</kbd></span><b>Cells as a lineage tree: a block sits under the table it reads. Click one: everything before it stays solid and numbered, everything after it goes transparent. Esc clears.</b></div>
+      <div class="k" data-act="graph"><span><kbd>g</kbd></span><b>Table lineage graph. Click a table to highlight the cells that make or read it.</b></div>
+      <div class="k" data-act="term"><span><kbd>l</kbd></span><b>Open the bottom split on the terminal / log.</b></div>
+      <div class="k" data-act="console"><span><kbd>p</kbd></span><b>Console on the right: python mode runs the text in the kernel (or local python), terminal mode sends each line to the gated terminal. <kbd>⌃⏎</kbd> runs, <kbd>⇧⏎</kbd> runs and clears.</b></div>
+      <div class="k" data-act="split"><span><kbd>⌘</kbd><kbd>⇧</kbd><kbd>d</kbd></span><b>Split the right dock: Output / Terminal / Log / DataMatch under the viewer. The left stays text.</b></div>
+      <div class="k" data-act="close"><span><kbd>⌃</kbd><kbd>⇧</kbd><kbd>c</kbd></span><b>Close that split.</b></div>
+      <div class="k" data-act="next"><span><kbd>↓</kbd></span><b>Focus next cell.</b></div>
+      <div class="k" data-act="prev"><span><kbd>↑</kbd></span><b>Focus previous cell.</b></div>
+      <div class="k" data-act="left_only"><span><kbd>1</kbd></span><b>Left column only (fold PySpark).</b></div>
+      <div class="k" data-act="right_only"><span><kbd>2</kbd></span><b>Right column only (fold SAS).</b></div>
+      <div class="k" data-act="both"><span><kbd>0</kbd></span><b>Both columns.</b></div>
+      <div class="k" data-act="engine"><span><kbd>r</kbd></span><b>Switch engine: Rust ⇄ Prolog. Both must agree; the receipt bar shows it.</b></div>
+      <div class="k"><span>paste link</span><b>Paste a Jupyter URL in the top bar: the bench attaches to that server, one kernel per open file, and cells execute there. Several sessions run in parallel; click a chip to switch.</b></div>
+      <div class="k" data-act="palette"><span><kbd>⌘</kbd><kbd>⇧</kbd><kbd>p</kbd></span><b>Command palette: every action here, fuzzy-searchable.</b></div>
+      <div class="k" data-act="finder"><span><kbd>⌘</kbd><kbd>p</kbd></span><b>File finder: jump to any file in the corpus or out/.</b></div>
+      <div class="k" data-act="goto_file"><span><kbd>⌘</kbd><kbd>k</kbd></span><b>Type in the file name at the top: files and folders match as you type; Enter opens, Esc puts the name back.</b></div>
+      <div class="k" data-act="dock"><span><kbd>⌘</kbd><kbd>j</kbd></span><b>Bottom strip: open, or collapsed to its one status line. ⌃⇧C closes it.</b></div>
+      <div class="k" data-act="zen"><span><kbd>⇧</kbd><kbd>g</kbd></span><b>Graph alone: hides the text buffer. ⇧G, j or i brings the text back.</b></div>
+      <div class="k"><span>drag</span><b>The files dock and the divider between the two buffers drag to resize. The bottom strip is fixed.</b></div>
+      <div class="k" data-act="run_deps"><span><kbd>d</kbd></span><b>Run upstream first: any table this block reads that has not run yet runs before it, in lineage order. ⌃⏎ does this too; ⇧E stays positional.</b></div>
+      <div class="k" data-act="up_lineage"><span><kbd>[</kbd></span><b>Focus a maker of what this block reads; press again to cycle. The shared table lights up in the graph.</b></div>
+      <div class="k" data-act="down_lineage"><span><kbd>]</kbd></span><b>Focus a reader of this block's table; press again to cycle.</b></div>
+      <div class="k" data-act="story"><span><kbd>s</kbd></span><b>Backward story of the focused table: every upstream table numbered source → here, in the graph and on the cells. Clicking a graph node does the same; double-click focuses its maker. Esc clears.</b></div>
+      <div class="k" data-act="theme"><span><kbd>t</kbd></span><b>Theme: system, dark, light. Remembered in this browser.</b></div>
+      <div class="k" data-act="filter"><span><kbd>/</kbd></span><b>Filter the files dock; Enter opens the first match.</b></div>
+      <div class="k" data-act="help"><span><kbd>?</kbd></span><b>This card. Every row here is clickable and runs the action.</b></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------------------------------------------------------------- live data (server/bench_api.py through convert_api.py)
+let BLOCKS = [], FILES = [], SIMILAR = [], LINEAGE = [], COLS = {}, SESS = [];
+let PROGRAM = {stem:null, path:null, receipts:{}, pyspark:""};
+const api = async (path, body) => {
+  const r = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)} : undefined);
+  const j = await r.json().catch(()=>({error:"bad JSON from "+path}));
+  if(!r.ok || j.error) throw new Error(j.error || (path+" -> HTTP "+r.status));
+  return j;
+};
+const SASKW = /\b(libname|data|set|merge|by|if|then|else|do|end|run|quit|input|format|informat|datalines|cards|proc|sql|create|table|as|select|from|where|group|order|having|sum|avg|min|max|count|month|year|day|in|and|or|not|output|keep|drop|rename|retain|length)\b/gi;
+function hlSas(text){
+  return text.split("\n").map(line => {
+    const cm = line.match(/^(\s*)(\/\*.*\*\/|\*.*;)\s*$/); if(cm) return esc(cm[1])+`<span class="c">${esc(cm[2])}</span>`;
+    const re=/('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")|(\/\*.*?\*\/)|\b(libname|data|set|merge|by|if|then|else|do|end|run|quit|input|format|informat|datalines|cards|proc|sql|create|table|as|select|from|where|group|order|having|sum|avg|min|max|count|month|year|day|in|and|or|not|output|keep|drop|rename|retain|length)\b/gi;
+    let out="", last=0, m;
+    while((m=re.exec(line))){ out+=esc(line.slice(last,m.index)); last=m.index+m[0].length; out+=`<span class="${m[1]?"s":m[2]?"c":"k"}">${esc(m[0])}</span>`; }
+    return out+esc(line.slice(last));
+  }).join("\n");
+}
+function fromProgram(p){
+  PROGRAM = {stem:p.stem, path:p.path, receipts:p.receipts, pyspark:p.pyspark_pretty, errors:p.errors||[]};
+  BLOCKS = p.blocks.map(b => ({id:b.id, n:b.n, kind:b.kind, name:b.name, lines:b.lines, reads:b.reads, writes:b.writes, warn:b.warn||"",
+    sasText:b.sas, pyText:b.py, sas:hlSas(b.sas), py:highlight(b.py), out:null, left:null, tables:null, py_ms:null, left_ms:null, where:null, match:null}));
+  const lin = p.lineage || {ds_lineage:[], col_lineage:[], ctl_lineage:[]};
+  // an edge is "ctl" (dashed: decides rows, carries no column) when ctl_lineage names it and no column flows along it
+  const flows = new Set(lin.col_lineage.map(([o,c,i])=>o+"|"+i));
+  LINEAGE = lin.ds_lineage.map(([o,i]) => flows.has(o+"|"+i) ? [o,i] : (lin.ctl_lineage.some(([a,b])=>a===o&&b===i) ? [o,i,"ctl"] : [o,i]));
+  lin.ctl_lineage.forEach(([o,i,c]) => { if(!LINEAGE.some(([a,b])=>a===o&&b===i)) LINEAGE.push([o,i,"ctl"]); });
+  COLS = {};
+  lin.col_lineage.forEach(([o,c,i,ic]) => (COLS[o] ||= []).push([c, i.replace("sales.","")+"."+ic]));
+  lin.ctl_lineage.forEach(([o,i,c]) => (COLS[o] ||= []).push(["ctl ← "+i.replace("sales.","")+"."+c, ""]));
+  S.ran = new Set(); S.exec = {}; S.counter = 0; S.busy = new Set(); S.story = null; S.hl = null; S.outs = []; S.ideRan = new Set();
+  S.focus = Math.min(S.focus, Math.max(0, BLOCKS.length-1));
+  S.sel = null; S.data = null; S.ideFile = null;
+  $("#buf").value = "";
+  const k=ideKey(), fresh=fullIdeText();
+  if(BUF[k] && BUF[k].text!==fresh && BUF[k].saved===undefined) BUF[k].saved = fresh;
+  if(BUF[k] && BUF[k].text && BUF[k].text!==fresh){ $("#buf").value = BUF[k].text; syncIde(); $("#buf").value=""; toast("restored your edits to "+k.split("/").pop()); }
+  else bufNote(k, fresh, fresh);
+  renderTop();
+}
+function renderTop(){
+  const r = PROGRAM.receipts || {};
+  $("#fileName").value = PROGRAM.path || (PROGRAM.stem ? PROGRAM.stem+" (pasted)" : "no program");
+  $("#fileMeta").textContent = `${BLOCKS.length} blocks · ${r.statements ?? "?"} statements`;
+  const pill = (id, ok, text) => { const el=$(id); el.className = "pill "+(ok===true?"good":ok===false?"bad":"idle"); el.innerHTML = `<i></i>${text}`; };
+  pill("#rFold", r.folded!=null && r.folded===r.statements, `folded ${r.folded ?? "?"}/${r.statements ?? "?"}`);
+  pill("#rRound", r.roundtrip!=null && r.roundtrip===r.statements && r.source_match===true, `round trip ${r.roundtrip ?? "?"}/${r.statements ?? "?"}`);
+  pill("#rSame", r.node4_same===true && r.pyspark_same===true && r.pyspark_pretty_same===true, r.node4_same===true && r.pyspark_same===true ? "prolog == rust" : "prolog != rust");
+  $("#engInfo").textContent = `${S.engine==="rust"?"Rust":"Prolog"} engine · ${r.rust_us ? Math.round(r.rust_us/1000)+" ms" : "—"}`;
+  if(PROGRAM.errors && PROGRAM.errors.length) toast(PROGRAM.errors[0].split("\n")[0]);
+}
+async function loadProgram(path){
+  toast("opening "+path+" …"); setMode("BUSY");
+  try{
+    const p = await api("/api/open", {path});
+    fromProgram(p);
+    S.similar = await api("/api/similar?stem="+encodeURIComponent(p.stem)).catch(()=>[]);
+    SIMILAR = S.similar.map(x=>[x.path, x.score, x.why]);
+    S.listing = await api("/api/listing?stem="+encodeURIComponent(p.stem)).catch(()=>({loaded:false, tables:{}}));
+    renderCells(); renderRight(); renderZen(); renderLeft(); renderBottom(); if(S.view==="ide") renderIde();
+    log("ir", `opened ${path}: ${BLOCKS.length} blocks, folded ${p.receipts.folded}/${p.receipts.statements}, prolog == rust: ${p.receipts.node4_same && p.receipts.pyspark_same}`);
+    toast(`${path} · ${BLOCKS.length} blocks`);
+  }catch(e){ toast("open failed: "+e.message); log("warn", "open "+path+": "+e.message); }
+  setMode("COMMAND");
+}
+async function loadFiles(){
+  try{ const f = await api("/api/files"); FILES = f.groups; S.recent = f.recent || []; }catch(e){ FILES = []; }
+  ALLFILES = FILES.flatMap(g => g.items.map(it => ({label:it.path, tag:it.kind})));
+}
+async function loadSessions(){ try{ SESS = await api("/api/sessions"); }catch(e){ SESS=[]; } if(!SESS.some(x=>x.on) && SESS.length) SESS[0].on=true; renderSessions(); }
+// ---------------------------------------------------------------- state
+const S = {focus:1, ran:new Set(), left:null, right:null, text:true, bmin:false, bottom:false, tab:"term", engine:"rust", mode:"COMMAND", hl:null, log:[], term:[], zen:false, cols:"both", view:"jupyter", line:0, ideRan:new Set(), outs:[], exec:{}, counter:0, busy:new Set(), recent:[], depIdx:-1, story:null, hist:[], histIdx:-1, similar:[], session:null, listing:{loaded:false, tables:{}}, sel:null, data:null, dsort:null, draw:false, dside:"right"};
+// exp_42 2026-09-08 — selection model: file → buffer; graph (table or edge) → selected blocks → Jupyter + IDE + Output + Log.
+const selBlocks = () => S.sel ? S.sel.blocks : BLOCKS.map((_,i)=>i);
+const inSel = i => !S.sel || S.sel.blocks.includes(i);
+function setSel(blocks, label, add){
+  blocks = blocks.filter(k=>k>=0);
+  if(add && S.sel) blocks = [...new Set([...S.sel.blocks, ...blocks])];
+  syncIde();
+  S.sel = blocks.length ? {blocks:[...new Set(blocks)], label:(add&&S.sel&&S.sel.label?S.sel.label+" + ":"")+label} : null;
+  if(S.sel && !S.sel.blocks.includes(S.focus)) S.focus = S.sel.blocks[0];
+  if(S.view==="ide"){ $("#buf").value = ideText(); const r=ideRegions().find(r=>r.title.split(/\s+/)[0]===BLOCKS[S.focus].name); gotoLine(r?r.start:0); }
+  renderCells(); renderRight(); renderZen(); if(S.bottom) renderBottom();
+}
+function clearSel(){ if(S.view==="page" && FOLDER && FOLDER.sel){ FOLDER.sel=null; renderFolder(); if(S.right==="graph") renderRight(); return; } S.sel=null; S.story=null; S.hl=null; S.data=null; syncIde(); if(S.view==="ide"){ $("#buf").value=ideText(); renderIde(); } renderCells(); renderRight(); renderZen(); if(S.bottom){ if(S.tab==="story"||S.tab==="data") S.tab="out"; renderBottom(); } }
+// buffers: one per file, kept in localStorage across sessions, with a changed / saved tag; ⌘S saves a copy under out/bench/buffers
+const BUF = (()=>{ try{ return JSON.parse(localStorage.getItem("bench.buffers.v1")||"{}"); }catch(e){ return {}; } })();
+function bufStore(){ try{ localStorage.setItem("bench.buffers.v1", JSON.stringify(BUF)); }catch(e){} }
+const ideKey = () => S.ideFile || (PROGRAM.stem ? `out/api/${PROGRAM.stem}/${PROGRAM.stem}_pretty_prolog.py` : null);
+function bufNote(key, text, saved){ const b = BUF[key] || (BUF[key] = {}); b.text = text; if(saved!==undefined) b.saved = saved; if(b.saved===undefined) b.saved = text; b.line = S.line; b.at = Date.now(); bufStore(); return b; }
+function bufTag(){ const k=ideKey(); const el=$("#bufTag"); if(!el) return; const b=k&&BUF[k]; if(!b){ el.innerHTML=""; return; }
+  el.innerHTML = b.text!==b.saved ? `<span class="pill warn" title="edited in this browser, not saved · ⌘S saves a copy under out/bench/buffers"><i></i>changed · ⌘S</span>` : b.savedAs ? `<span class="pill good" title="${esc(b.savedAs)}"><i></i>saved</span>` : `<span class="pill idle">unchanged</span>`; }
+function syncIde(){   // merge the # %% cells shown in the buffer back into their blocks, so a filtered buffer never loses edits
+  if(S.ideFile || !BLOCKS.length || !$("#buf").value) return;
+  const lines=$("#buf").value.split("\n");
+  ideRegions().forEach(r => { const b=BLOCKS.find(b=>b.name===r.title.split(/\s+/)[0]); if(b){ const body=lines.slice(r.start+1,r.end+1).join("\n").replace(/\n+$/,""); if(body!==b.pyText){ b.pyText=body; b.py=highlight(body); } } });
+  const k=ideKey(); if(k) bufNote(k, fullIdeText());
+}
+async function saveBuf(){ const k=ideKey(); if(!k){ toast("nothing to save"); return; } syncIde(); const b=BUF[k]||bufNote(k, S.ideFile?$("#buf").value:fullIdeText());
+  try{ const r=await api("/api/save", {path:k, text:b.text}); b.saved=b.text; b.savedAs=r.saved_as; bufStore(); bufTag(); log("ir", `saved ${k} → ${r.saved_as} (${r.bytes} bytes)`); toast("saved · "+r.saved_as); }catch(e){ toast("save failed: "+e.message); } }
+const $ = s => document.querySelector(s);
+const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+// ---------------------------------------------------------------- cells
+function renderCells(){
+  const c = $("#cells");
+  let h = `<div class="colhead"><div><span class="tag sas">sas</span>${esc((PROGRAM.path||PROGRAM.stem||"").split("/").pop())}<span class="cnt">${S.engine==="rust"?"Rust":"Prolog"} executable node/4</span></div><div><span class="tag py">pyspark</span>${esc(PROGRAM.stem||"")}_pretty.py<span class="cnt">${sessionLabel()}</span></div></div>`;
+  if(S.sel) h += `<div class="selnote">showing <b>${S.sel.blocks.length} of ${BLOCKS.length}</b> pairs · ${esc(S.sel.label)} · <kbd data-act="escape">esc</kbd> shows all · shift-click in the graph adds</div>`;
+  selBlocks().forEach(i => { const b=BLOCKS[i];
+    const ran = S.ran.has(i), cls = (i===S.focus?" focus":"") + (ran?" ran":"") + (S.busy.has(i)?" busy":"") + (S.hl && (b.writes===S.hl || (b.reads||[]).includes(S.hl))?" hl":"") + (S.story && S.story.includes(b.writes)?" story":"");
+    const need = ran ? [] : deps(i);
+    const badge = ran ? (b.match==="differs" ? `<span class="pill bad"><i></i>differs${b.first_diff?` · ${esc(b.first_diff)}`:""}</span>` : b.match==="missing" ? `<span class="pill bad"><i></i>${esc(b.missing||"output missing")}</span>` : b.match==="failed" ? `<span class="pill bad" title="${esc(b.fail||"")}"><i></i>failed</span>` : warnOf(b) ? `<span class="pill warn" data-path="corpus/sas/test_vishnu_testdata_fixed.sas" title="${esc(b.warn)}"><i></i>match · 0 obs ⚠</span>` : b.out ? `<span class="pill good"><i></i>match</span>` : `<span class="pill idle">no table</span>`)
+                      : (need.length ? `<span class="pill warn"><i></i>needs ${need.map(k=>`<u data-goto="${k}">${BLOCKS[k].name.replace("sales.","")}</u>`).join(", ")}</span>` : `<span class="pill idle">not run</span>`);
+    const storyN = S.story ? S.story.indexOf(b.writes) : -1;
+    const tbl = b.out ? table(b.out) : "";
+    h += `<div class="pair${cls}" data-n="${String(b.n).padStart(2,"0")}" data-i="${i}">${storyN>=0?`<span class="storyn" title="step ${storyN+1} of the story of ${S.story.at(-1)}">${storyN+1}</span>`:""}
+      <div class="cell"><div class="ch"><span class="exec${ran?"":" none"}">[${ran?S.exec[i]:" "}]</span><span class="tag sas">${b.kind}</span><span class="name">${b.name}</span><span class="lines">L${b.lines}</span></div>
+        <pre>${b.sas}</pre>
+        ${b.warn?`<div class="warnline">${b.warn}</div>`:""}
+        <div class="out">${b.left?table(b.left):tbl}<div class="meta">${badge}<span>${b.leftEngine||S.engine} interp${b.left_ms!=null?` · ${b.left_ms} ms`:""}</span></div>${b.leftLog?`<details class="runlog"><summary>log</summary><pre>${esc(b.leftLog)}</pre></details>`:""}</div></div>
+      <div class="cell"><div class="ch"><span class="exec${ran?"":" none"}">[${ran?S.exec[i]:" "}]</span><span class="tag py">step</span><span class="name">${b.name.split(".").pop()}</span><span class="lines">emit ${S.engine}</span></div>
+        <pre>${b.py}</pre>
+        <div class="out">${tbl}<div class="meta">${badge}<span>${b.where||"spark"}${b.py_ms!=null?` · ${Math.round(b.py_ms)} ms`:""}</span><span>${b.out?"· rows "+b.out.rows.length:""}</span></div>${b.rightLog?`<details class="runlog"><summary>log</summary><pre>${esc(b.rightLog)}</pre></details>`:""}</div></div>
+    </div>`;
+  });
+  c.innerHTML = h;
+  c.querySelectorAll(".pair").forEach(p => p.addEventListener("click", e => { const g=e.target.closest("[data-goto]"); if(g){ S.focus=+g.dataset.goto; renderCells(); renderRight(); e.stopPropagation(); return; } const w=e.target.closest("[data-path]"); if(w){ openFile(w.dataset.path); e.stopPropagation(); return; } S.focus = +p.dataset.i; renderCells(); renderRight(); }));
+  c.querySelectorAll(".warnline").forEach(w => w.addEventListener("click", () => openFile("corpus/sas/test_vishnu_testdata_fixed.sas")));
+  const f = c.querySelector(".pair.focus"); if (f) f.scrollIntoView({block:"nearest"});
+  const b = BLOCKS[S.focus]; if(!b) return;
+  $("#focusInfo").textContent = `block ${b.n} · ${b.name}`;
+  const nw=[...S.ran].filter(i=>warnOf(BLOCKS[i])).length;
+  const pr=$("#prog"); pr.innerHTML=`<i></i>ran ${S.ran.size}/${BLOCKS.length}${nw?` · ${nw} warn`:""}`; pr.classList.toggle("done", S.ran.size===BLOCKS.length && !nw); pr.classList.toggle("warned", nw>0);
+}
+function setTheme(t){
+  const root=document.documentElement;
+  if(t==="system") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", t);
+  try{ localStorage.setItem("bench.theme", t); }catch(e){}
+  $("#themeBtn").textContent = t==="dark"?"●":t==="light"?"○":"◐";
+  if(S.right==="graph") renderRight();
+}
+function cycleTheme(){ const cur=document.documentElement.getAttribute("data-theme")||"system"; setTheme(cur==="system"?"dark":cur==="dark"?"light":"system"); toast("theme: "+(document.documentElement.getAttribute("data-theme")||"system")); }
+try{ const t=localStorage.getItem("bench.theme"); if(t) setTheme(t); }catch(e){}
+function table(o){
+  if(!o.rows.length) return `<table><tr>${o.cols.map(c=>`<th>${c}</th>`).join("")}</tr><tr><td colspan="${o.cols.length}" style="color:var(--muted)">0 observations</td></tr></table>`;
+  return `<table><tr><th class="obs">Obs</th>${o.cols.map(c=>`<th>${c}</th>`).join("")}</tr>${o.rows.map((r,i)=>`<tr><td class="obs">${i+1}</td>${r.map(v=>`<td>${v}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+const makerOf = t => BLOCKS.findIndex(b=>b.writes===t);
+const warnOf = b => !!(b.match==="match-warn" || (b.ran && (b.warn || (b.out && !b.out.rows.length))));
+const sessionLabel = () => { const s=SESS.find(x=>x.on); return s ? `kernel ${s.kernel.slice(0,8)} (${s.name})` : "local python"; };
+const csvToOut = rows => rows && rows.length ? {cols: rows[0], rows: rows.slice(1)} : null;
+function deps(i, seen=new Set()){            // unrun makers of what block i reads, transitively, upstream first
+  const out=[]; for(const t of (BLOCKS[i].reads||[])){ const m=makerOf(t); if(m<0||seen.has(m)) continue; seen.add(m); out.push(...deps(m,seen)); if(!S.ran.has(m)) out.push(m); }
+  return [...new Set(out)];
+}
+function ancestors(t, seen=new Set()){       // every table upstream of t, source first (the backward story)
+  const out=[]; for(const [o,i] of LINEAGE){ if(o!==t||seen.has(i)) continue; seen.add(i); out.push(...ancestors(i,seen)); out.push(i); }
+  return [...new Set(out)];
+}
+const RUNS = {};   // block index -> in-flight promise, so a pair is never run twice at once
+function run(i, quiet){
+  const b = BLOCKS[i]; if(!b) return Promise.resolve();
+  if(RUNS[i]) return RUNS[i];
+  S.exec[i] = ++S.counter; S.busy.add(i);
+  const sess = SESS.find(x=>x.on);
+  log("sas", `block ${b.id} ${b.name}: ${S.engine} interp on its Z3 inputs`, i);
+  log("py", `block ${b.id} ${b.name}: block program in ${sessionLabel()}`, i);
+  RUNS[i] = api("/api/run_block", {stem:PROGRAM.stem, block:b.id, engine:S.engine, session: sess ? sess.id : null}).then(r => {
+    b.ran = true; S.ran.add(i); b.match = r.match; b.warn = r.warn || b.warn;
+    if(r.right){ b.py_ms = r.right.ms; b.where = r.right.where; b.rightLog = r.right.rc ? r.right.log : ""; if(r.right.rc && !Object.keys(r.tables||{}).length){ b.match="failed"; b.fail=r.right.log; } }
+    if(r.left){ b.left_ms = r.left.ms; b.leftEngine = r.engine; b.leftLog = r.left.rc ? r.left.log : ""; }
+    const tabs = Object.entries(r.tables || {});
+    if(tabs.length){
+      const [t, v] = tabs[0]; b.out = csvToOut(v.right); b.left = csvToOut(v.left); b.tables = r.tables;
+      if(v.verdict==="differs" && v.samples && v.samples.length) b.first_diff = `${v.n_mismatch} row(s) differ, e.g. [${v.samples[0].row.join(", ")}] left×${v.samples[0].ref_count} right×${v.samples[0].conv_count}`;
+      if(v.verdict==="missing") b.missing = `${v.missing} side wrote no ${t}`;
+      log(v.verdict==="match"||v.verdict==="match-warn" ? "ir" : "warn", `DataMatch ${t}: ${v.verdict}${v.n_mismatch?` (${v.n_mismatch} rows)`:""} · left ${r.left.ms} ms · right ${Math.round(r.right.ms)} ms`, i);
+    } else { b.out = null; log("ir", `block ${b.id}: ${r.match}`, i); }
+    if(warnOf(b)) log("warn", `${b.name}: ${b.warn || "0 observations"}`, i);
+    if(!quiet) toast(`ran block ${b.n} on both sides · ${b.match}`);
+  }).catch(e => { b.ran = true; S.ran.add(i); b.match = "failed"; b.fail = e.message; log("warn", `block ${b.id} failed: ${e.message}`, i); toast("run failed: "+e.message); })
+  .finally(() => { S.busy.delete(i); delete RUNS[i]; renderCells(); renderRight(); renderZen(); if(S.bottom) renderBottom(); if(S.view==="ide") renderIde(); });
+  renderCells();
+  return RUNS[i];
+}
+async function runChain(idxs){ for(const k of idxs) await run(k, true); }
+
+// ---------------------------------------------------------------- left drawer
+function renderLeft(){
+  const d = $("#left"); d.classList.toggle("open", !!S.left);
+  document.querySelectorAll("#rail button").forEach(x => x.classList.toggle("on", x.dataset.panel===S.left || x.dataset.panel===S.right || (x.dataset.panel==="log"&&S.bottom)));
+  if(!S.left) return;
+  $("#leftTitle").textContent = "Files";
+  let h = `<div class="tree"><div class="search"><input id="fsearch" placeholder="filter files…  (/ focuses)" autocomplete="off" spellcheck="false"></div>`;
+  if(S.recent.length) h += `<div class="dir">Recent</div>` + S.recent.map(n=>`<div class="f" data-path="${n}">${n.split("/").pop()}<span class="tag ${n.endsWith(".py")?"py":n.endsWith(".sas")?"sas":"ir"}">${n.endsWith(".py")?"py":n.endsWith(".sas")?"sas":"ir"}</span></div>`).join("");
+  FILES.forEach(g => { h += `<div class="dir" data-dir="${g.dir}" title="open ${g.dir}/ as a page">${g.dir}</div>` + g.items.map(it => `<div class="f${it.path===PROGRAM.path?" on":""}" data-path="${it.path}">${it.name}${it.kind?`<span class="tag ${it.kind}">${it.kind}</span>`:""}</div>`).join(""); });
+  h += `<div class="dir">Similar to ${esc((PROGRAM.path||"").split("/").pop()||"this program")}</div>`;
+  if(!SIMILAR.length) h += `<div class="empty">no other SAS program to compare (corpus/sas, corpus/parts, testdata)</div>`;
+  SIMILAR.forEach(([n,s,why]) => { h += `<div class="sim" data-path="${n}" title="${why}"><span>${n.split("/").pop()}</span><span>${Math.round(s*100)}%</span><div class="bar"><i style="width:${s*100}%"></i></div><small style="grid-column:1/-1">${why}</small></div>`; });
+  h += `<div class="dir" style="margin-top:12px">score</div><div style="padding:2px 12px 10px 22px;font-size:11.5px;color:var(--muted)">Jaccard over block shapes ∪ lineage edges from node/4, over every SAS file in corpus/sas, corpus/parts and testdata (files the loop never parsed are folded once by the Rust engine into out/bench/sig). Same rules for SAS and PySpark, so a converted program can be matched back to its source.</div></div>`;
+  $("#leftBody").innerHTML = h;
+  const inp=$("#fsearch");
+  inp.addEventListener("focus", ()=>setMode("FILTER")); inp.addEventListener("blur", ()=>setMode("COMMAND"));
+  inp.addEventListener("keydown", e=>{ if(e.key==="Escape"){ inp.value=""; filterFiles(""); inp.blur(); e.stopPropagation(); } if(e.key==="Enter"){ const first=$("#leftBody .f:not(.hide)"); if(first) openFile(first.dataset.path); e.stopPropagation(); } });
+  inp.addEventListener("input", ()=>filterFiles(inp.value));
+  $("#leftBody").querySelectorAll(".f[data-path],.sim[data-path]").forEach(f=>f.addEventListener("click", ()=>openFile(f.dataset.path)));
+  $("#leftBody").querySelectorAll(".dir[data-dir]").forEach(d=>d.addEventListener("click", ()=>openFolder(d.dataset.dir)));
+}
+function filterFiles(q){
+  const tree=$("#leftBody .tree"); q=q.trim(); let any=false;
+  tree.querySelectorAll(".f").forEach(f=>{ const show=!q || fuzzy(q, f.dataset.path||f.textContent)!==null; f.classList.toggle("hide", !show); any=any||show; });
+  tree.querySelectorAll(".dir").forEach(d=>{ let el=d.nextElementSibling, vis=false; while(el && !el.classList.contains("dir")){ if(el.classList.contains("f") && !el.classList.contains("hide")) vis=true; el=el.nextElementSibling; } d.classList.toggle("hide", !vis); });
+  let e=tree.querySelector(".empty"); if(!any){ if(!e){ e=document.createElement("div"); e.className="empty"; e.textContent="No file matches."; tree.appendChild(e);} } else if(e) e.remove();
+}
+async function openFile(path){
+  S.recent = [path, ...S.recent.filter(x=>x!==path)].slice(0,8);
+  if(path.endsWith(".sas")){ await loadProgram(path); if(S.view==="ide") setView("ide"); else setView("jupyter"); }
+  else if(path.endsWith(".html")){ try{ const f = await api("/api/file?path="+encodeURIComponent(path)); if(f.size <= 200*1024){ showPage(`<div class="dbar"><b>${esc(path)}</b><span>${Math.round(f.size/1024)} KB · iframe</span><button data-open-text="${esc(path)}">open as text</button></div><iframe src="/raw?path=${encodeURIComponent(path)}" sandbox="allow-same-origin allow-scripts"></iframe>`); $("#page [data-open-text]").addEventListener("click", ()=>openText(path, f.text)); } else openText(path, f.text); }catch(e){ toast("open failed: "+e.message); } }
+  else { try{ const f = await api("/api/file?path="+encodeURIComponent(path)); openText(path, f.text); }catch(e){ toast("open failed: "+e.message); } }
+  if(S.left) renderLeft();
+}
+
+function openText(path, text){
+  if(S.view==="ide") syncIde();
+  S.ideFile = path; const b = BUF[path];
+  if(b && b.text!==text && b.saved===undefined) b.saved = text;
+  $("#buf").value = (b && b.text) ? b.text : text; if(!b) bufNote(path, text, text);
+  S.line = (b && b.line) || 0; setView("ide"); gotoLine(S.line); log("ir", "opened "+path+" in its buffer"+(b&&b.text!==text?" (your edits restored)":""));
+}
+function showPage(html){ $("#page").innerHTML = html; setView("page"); }
+// exp_42 2026-09-08: a folder opens as a file tree by file lineage (flow: reads a table another file writes; subset: a part of a
+// fuller program; derived: the PySpark / node4 / notebook of a SAS file). Click a file: what it comes from stays solid, the rest
+// goes transparent, and the graph on the right (if open) shows the same. Double-click or "open" opens it.
+let FOLDER = null;
+async function openFolder(dir){
+  try{ const f = await api("/api/folder?dir="+encodeURIComponent(dir)); FOLDER = {dir, files:f.files, links:f.links||[], subdirs:f.subdirs, total:f.total_bytes, sel:null}; renderFolder(); if(S.right==="graph") renderRight(); }
+  catch(e){ toast("folder: "+e.message); }
+}
+const kbOf = n => n<1024 ? n+" B" : n<1048576 ? Math.round(n/1024)+" KB" : (n/1048576).toFixed(1)+" MB";
+function folderParents(name){ return FOLDER.links.filter(l=>l.to===name); }
+function folderAncestors(name, seen=new Set()){ for(const l of folderParents(name)){ if(!seen.has(l.from)){ seen.add(l.from); folderAncestors(l.from, seen); } } return seen; }
+function folderTree(){
+  const F=FOLDER; const byName={}; F.files.forEach(r=>byName[r.name]=r);
+  const primary={}; F.files.forEach(r=>{ const ps=folderParents(r.name); primary[r.name] = ps.length ? ps[0].from : null; });
+  const kids={}; F.files.forEach(r=>kids[r.name]=[]); F.files.forEach(r=>{ if(primary[r.name] && kids[primary[r.name]]) kids[primary[r.name]].push(r.name); });
+  const rows=[]; const walk=(n,lvl,last,prefix,guard)=>{ if(guard.has(n)) return; guard.add(n); rows.push({r:byName[n],lvl,last,prefix}); kids[n].forEach((k,j)=>walk(k,lvl+1,j===kids[n].length-1,prefix+(lvl?(last?"   ":"│  "):""),guard)); };
+  const guard=new Set(); F.files.forEach(r=>{ if(!primary[r.name] || !byName[primary[r.name]]) walk(r.name,0,true,"",guard); }); F.files.forEach(r=>walk(r.name,0,true,"",guard));
+  return rows;
+}
+function renderFolder(){
+  const F=FOLDER; const keep = F.sel ? new Set([...folderAncestors(F.sel), F.sel]) : null;
+  const how = r => { const ps=folderParents(r.name); if(!ps.length) return r.kind==="sas" && r.writes ? `makes ${r.writes.length} tables${r.reads&&r.reads.length?" · starts from "+r.reads.map(t=>t.replace("sales.","")).join(", "):""}` : ""; 
+    return ps.map(l => l.kind==="flow" ? `reads ${l.via.map(t=>t.replace("sales.","")).join(", ")} from ${l.from}` : l.kind==="subset" ? `part of ${l.from} · ${l.via[0]}` : l.kind==="same" ? `${l.via[0]} as ${l.from}` : `from ${l.from}`).join(" · "); };
+  const rows = folderTree().map(({r,lvl,last,prefix}) => `<div class="r${F.sel===r.name?" on":""}${keep&&!keep.has(r.name)?" dim":""}" data-name="${esc(r.name)}" data-path="${esc(r.path)}" title="click: what it comes from · double-click: open"><span class="n">${r.kind==="sas"?"sas":r.kind==="py"?"py":r.kind}</span><span class="name">${lvl?`<span class="tree">${prefix}${last?"└─ ":"├─ "}</span>`:""}${esc(r.name)}<small>${kbOf(r.size)} · ${r.modified}${r.shapes!=null?` · ${r.shapes} shapes · ${r.edges} edges`:r.rows!=null?` · ${r.rows} rows`:""}${r.bench?` · ${r.bench}`:""}${how(r)?` · <b>${esc(how(r))}</b>`:""}</small></span><span><button data-open="${esc(r.path)}">open</button></span></div>`).join("");
+  showPage(`<div class="fold"><div class="dbar"><b>${esc(F.dir)}/</b><span>${F.files.length} files · ${kbOf(F.total)} · ${F.links.length} links${F.subdirs.length?" · folders: "+F.subdirs.map(d=>`<u data-dir="${esc(F.dir+"/"+d)}" style="cursor:pointer">${esc(d)}</u>`).join(", "):""}</span><span style="margin-left:auto">${F.sel?`<kbd data-act="escape">esc</kbd> clears`:`click a file: what it comes from stays solid · <kbd data-act="graph">g</kbd> graph`}</span></div>
+    <div class="ol tree">${rows||`<div class="r"><span></span><span class="name" style="color:var(--muted)">empty</span></div>`}</div></div>`);
+  const pg=$("#page");
+  pg.querySelectorAll(".r[data-name]").forEach(r => { r.addEventListener("click", () => { F.sel = F.sel===r.dataset.name ? null : r.dataset.name; renderFolder(); if(S.right==="graph") renderRight(); }); r.addEventListener("dblclick", () => openFile(r.dataset.path)); });
+  pg.querySelectorAll("[data-open]").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); openFile(b.dataset.open); }));
+  pg.querySelectorAll("[data-dir]").forEach(d => d.addEventListener("click", () => openFolder(d.dataset.dir)));
+}
+function fileGraph(){
+  const F=FOLDER; const linked=new Set(F.links.flatMap(l=>[l.from,l.to])); const nodes=F.files.map(r=>r.name).filter(n=>linked.has(n)||n.endsWith(".sas"));
+  const ins={}; nodes.forEach(n=>ins[n]=[]); F.links.forEach(l=>{ if(ins[l.to]&&nodes.includes(l.from)) ins[l.to].push(l.from); });
+  const depth={}; const d=(n,seen=new Set())=>{ if(depth[n]!==undefined) return depth[n]; if(seen.has(n)) return 0; seen.add(n); depth[n]=ins[n].length?1+Math.max(...ins[n].map(m=>d(m,seen))):0; return depth[n]; }; nodes.forEach(n=>d(n));
+  const layers=[]; nodes.forEach(n=>(layers[depth[n]] ||= []).push(n));
+  const W=200,H=30,GX=64,GY=14,PAD=20,TOP=30; const pos={}; const maxRows=Math.max(1,...layers.map(l=>l.length)); const totalH=TOP+maxRows*(H+GY)+PAD;
+  layers.forEach((l,li)=>{ const h=l.length*(H+GY)-GY; const y0=TOP+(totalH-TOP-PAD-h)/2; l.forEach((n,ri)=>pos[n]=[PAD+li*(W+GX), y0+ri*(H+GY)]); });
+  const width=PAD*2+layers.length*W+(layers.length-1)*GX, height=totalH;
+  const keep = F.sel ? new Set([...folderAncestors(F.sel), F.sel]) : null;
+  const edges=F.links.filter(l=>pos[l.from]&&pos[l.to]).map(l=>{ const a=pos[l.from], b=pos[l.to]; const x1=a[0]+W,y1=a[1]+H/2,x2=b[0],y2=b[1]+H/2; const dP=a[0]===b[0]?`M${x1} ${y1} C ${x1+40} ${y1}, ${x1+40} ${y2}, ${x1} ${y2}`:`M${x1} ${y1} C ${(x1+x2)/2} ${y1}, ${(x1+x2)/2} ${y2}, ${x2} ${y2}`; const on=keep&&keep.has(l.from)&&keep.has(l.to); return `<path class="edge${l.kind!=="flow"?" ctl":""}${keep?(on?" story":" faded"):""}" d="${dP}"><title>${esc(l.from)} → ${esc(l.to)} · ${l.kind}${l.via.length?" · "+esc(l.via.join(", ")):""}</title></path>`; }).join("");
+  const nodesSvg=Object.entries(pos).map(([n,[x,y]])=>{ const r=F.files.find(f=>f.name===n); const label=n.length>26?n.slice(0,25)+"…":n; return `<g class="node${n.endsWith(".sas")?" src":""}${F.sel===n?" on":""}${keep?(keep.has(n)?" story":" faded"):""}" data-f="${esc(n)}" transform="translate(${x},${y})" style="cursor:pointer"><rect width="${W}" height="${H}"/><text x="8" y="13">${esc(label)}</text><text class="sub" x="8" y="25">${esc(r?r.kind+" · "+kbOf(r.size):"")}</text><title>${esc(n)}</title></g>`; }).join("");
+  const labels=layers.map((l,i)=>`<text class="layer" x="${pos[l[0]][0]}" y="16">${i===0?"source":"step "+i}</text>`).join("");
+  return `<div class="gbar"><button data-z="fit" class="${GZ.mode==="fit"?"on":""}">fit</button><button data-z="1">100%</button><button data-z="-">−</button><button data-z="+">+</button><span id="zpct">${Math.round(GZ.scale*100)}%</span><span class="sp">${F.dir}/ · ${F.links.length} links</span></div>
+  <div id="gwrap"><div id="graph"><svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${labels}${edges}${nodesSvg}</svg></div></div>
+  <div class="legend"><span><i></i>flow: reads a table the other file writes</span><span><i class="ctl"></i>part of / derived from</span></div>`;
+}
+
+// ---------------------------------------------------------------- right drawer (graph / cells)
+function renderRight(){
+  const d = $("#right"); d.classList.toggle("open", !!S.right); renderText();
+  document.querySelectorAll("#rail button").forEach(x => x.classList.toggle("on", x.dataset.panel===S.left || x.dataset.panel===S.right || (x.dataset.panel==="log"&&S.bottom)));
+  if(!S.right) return;
+  const rk=$("#rightKey");
+  if(S.right==="graph" && S.view==="page" && FOLDER){ $("#rightTitle").textContent="File lineage"; rk.textContent="g"; rk.dataset.act="graph"; const rb=$("#rightBody"); rb.innerHTML = fileGraph(); rb.querySelectorAll("#graph .node[data-f]").forEach(n => { n.addEventListener("click", () => { FOLDER.sel = FOLDER.sel===n.dataset.f ? null : n.dataset.f; renderFolder(); renderRight(); }); n.addEventListener("dblclick", () => { const r=FOLDER.files.find(f=>f.name===n.dataset.f); if(r) openFile(r.path); }); }); bindZoom(rb); applyZoom(rb); }
+  else if(S.right==="graph"){ $("#rightTitle").textContent="Table lineage"; rk.textContent="g"; rk.dataset.act="graph"; const rb=$("#rightBody"); rb.innerHTML = graph(); bindGraph(rb); bindZoom(rb); applyZoom(rb); }
+  else if(S.right==="console"){ $("#rightTitle").textContent="Console"; rk.textContent="p"; rk.dataset.act="console"; renderConsole(); }
+  else { $("#rightTitle").textContent="Cells"; rk.textContent="c"; rk.dataset.act="cells"; $("#rightBody").innerHTML = outline(); bindOutline(); }
+}
+// exp_42 2026-09-08: Console panel. Python mode runs the text through /api/exec (the attached kernel, else local python);
+// terminal mode sends each line to the gated terminal (runCmd), so only known commands run. ⌃⏎ runs, ⇧⏎ runs and clears.
+const CON = {mode:(()=>{ try{ return localStorage.getItem("bench.con.mode")||"python"; }catch(e){ return "python"; } })(), text:"", items:[]};
+function renderConsole(){
+  const rb=$("#rightBody"); const sess=sessionLabel();
+  rb.innerHTML = `<div class="con"><div class="bar"><div class="modes"><button data-m="python" class="${CON.mode==="python"?"on":""}">python</button><button data-m="terminal" class="${CON.mode==="terminal"?"on":""}">terminal</button></div><span>${CON.mode==="python"?`runs in ${esc(sess)}`:`known commands only: ${KNOWN.join(" ")}`}</span><span style="margin-left:auto"><kbd>⌃⏎</kbd> run · <kbd>⇧⏎</kbd> run, clear</span></div><textarea id="conin" spellcheck="false" placeholder="${CON.mode==="python"?"python, one or many lines — spark is warm in a kernel":"one command per line, e.g. fold 6"}"></textarea><div class="list" id="conout"></div></div>`;
+  const t=$("#conin"); t.value=CON.text;
+  t.addEventListener("input", () => { CON.text=t.value; });
+  t.addEventListener("keydown", e => {
+    if(e.key==="Enter" && (e.ctrlKey||e.metaKey)){ e.preventDefault(); conRun(false); }
+    else if(e.key==="Enter" && e.shiftKey){ e.preventDefault(); conRun(true); }
+    else if(e.key==="Escape"){ t.blur(); setMode("COMMAND"); act("escape"); }
+    else if(e.key==="Tab"){ e.preventDefault(); const a=t.selectionStart, b=t.selectionEnd; t.value=t.value.slice(0,a)+"    "+t.value.slice(b); t.selectionStart=t.selectionEnd=a+4; CON.text=t.value; }
+    e.stopPropagation();
+  });
+  t.addEventListener("focus", () => setMode("CONSOLE")); t.addEventListener("blur", () => { if(S.mode==="CONSOLE") setMode("COMMAND"); });
+  rb.querySelectorAll(".modes button").forEach(b => b.addEventListener("click", () => { CON.mode=b.dataset.m; try{ localStorage.setItem("bench.con.mode", CON.mode); }catch(e){} renderConsole(); $("#conin").focus(); }));
+  renderConOut();
+}
+function renderConOut(){
+  const el=$("#conout"); if(!el) return;
+  el.innerHTML = CON.items.length ? CON.items.slice().reverse().map((o,k) => `<div class="outblock"><div class="h"><span class="x" data-k="${CON.items.length-1-k}" title="remove">×</span>${o.mode==="python"?"py":"bench ›"} · ${esc(o.where||"")}${o.ms!=null?` · ${Math.round(o.ms)} ms`:""}${o.pending?` · <span style="color:var(--warn)">running…</span>`:""}${o.rc?` · <span style="color:var(--bad)">rc ${o.rc}</span>`:""}</div><pre class="code">${esc(o.code)}</pre>${o.pending?"":`<pre class="res${o.rc?" err":""}">${esc(o.out||"(no output)")}</pre>`}</div>`).join("") : `<div class="term dim">${CON.mode==="python"?"Nothing yet. Type python above and press ⌃⏎. Tables you build here live in the same kernel as the cells.":"Nothing yet. Type a command above and press ⌃⏎; the result also lands in the bottom Terminal tab."}</div>`;
+  el.querySelectorAll(".x").forEach(x => x.addEventListener("click", () => { CON.items.splice(+x.dataset.k,1); renderConOut(); }));
+}
+function conRun(clear){
+  const code=CON.text.trim(); if(!code){ toast("nothing to run"); return; }
+  if(CON.mode==="terminal"){
+    const lines=code.split("\n").map(l=>l.trim()).filter(Boolean);
+    S.bottom=true; S.tab="term"; renderBottom();
+    lines.forEach(l => { CON.items.push({mode:"terminal", code:l, out:"sent to the terminal below", where:"terminal"}); runCmd(l); });
+  } else {
+    const sess=SESS.find(x=>x.on); const o={mode:"python", code, pending:true, where:sessionLabel()}; CON.items.push(o);
+    api("/api/exec", {code, session: sess?sess.id:null}).then(res => { o.out=res.out; o.ms=res.ms; o.where=res.where; o.rc=res.rc; o.pending=false; renderConOut(); log(res.rc?"warn":"py", `console: ${res.where}, ${Math.round(res.ms)} ms${res.rc?" · rc "+res.rc:""}`); })
+      .catch(e => { o.out=String(e.message||e); o.rc=1; o.pending=false; renderConOut(); });
+  }
+  if(clear){ CON.text=""; const t=$("#conin"); if(t) t.value=""; }
+  renderConOut();
+}
+const GZ = {mode:"fit", scale:1};
+function graphLayout(){
+  const nodes = [...new Set(LINEAGE.flatMap(([o,i])=>[o,i]))];
+  const ins = {}; nodes.forEach(n=>ins[n]=[]); LINEAGE.forEach(([o,i])=>ins[o].push(i));
+  const depth = {}; const d = n => depth[n] ?? (depth[n] = ins[n].length ? 1+Math.max(...ins[n].map(d)) : 0);
+  nodes.forEach(d);
+  const layers = []; nodes.forEach(n => (layers[depth[n]] ||= []).push(n));
+  const W=140,H=30,GX=64,GY=14,PAD=20,TOP=30;
+  const pos={};
+  const maxRows = Math.max(...layers.map(l=>l.length));
+  const totalH = TOP + maxRows*(H+GY) + PAD;
+  layers.forEach((l,li) => { const h = l.length*(H+GY)-GY; const y0 = TOP + (totalH-TOP-PAD-h)/2; l.forEach((n,ri)=> pos[n]=[PAD+li*(W+GX), y0+ri*(H+GY)]); });
+  return {pos, layers, W, H, width: PAD*2+layers.length*W+(layers.length-1)*GX, height: totalH};
+}
+function graph(){
+  const {pos, layers, W, H, width, height} = graphLayout();
+  const edges = LINEAGE.map(([o,i,k]) => {
+    const a=pos[i], b=pos[o]; const x1=a[0]+W, y1=a[1]+H/2, x2=b[0], y2=b[1]+H/2;
+    const same = a[0]===b[0];
+    const dP = same ? `M${x1} ${y1} C ${x1+40} ${y1}, ${x1+40} ${y2}, ${x1} ${y2}` : `M${x1} ${y1} C ${(x1+x2)/2} ${y1}, ${(x1+x2)/2} ${y2}, ${x2} ${y2}`;
+    const on = S.hl && (o===S.hl || i===S.hl);
+    const st = S.story && S.story.includes(o) && S.story.includes(i);
+    const se = S.sel && S.sel.blocks.includes(makerOf(o)) && S.sel.blocks.includes(makerOf(i));
+    return `<path class="edge${k?" ctl":""}${on&&!S.story?" on":""}${S.story?(st?" story":" faded"):""}${se?" sel":""}" d="${dP}"/><path class="hit" data-e="${esc(i)}|${esc(o)}" d="${dP}"><title>${esc(i.replace("sales.",""))} → ${esc(o.replace("sales.",""))}${k?" (decides rows)":""} · click selects both blocks</title></path>`;
+  }).join("");
+  const blockOf = n => BLOCKS.find(b=>b.writes===n);
+  const focusTable = BLOCKS[S.focus] && BLOCKS[S.focus].writes;
+  const tip = n => { const c=COLS[n]; const readers=LINEAGE.filter(([o,i])=>i===n).map(([o])=>o.replace("sales.","")); return `${n}\n${c?"columns: "+c.filter(([k])=>!k.startsWith("ctl")).map(([k])=>k).join(", ")+"\n":""}${readers.length?"read by: "+readers.join(", "):"final table"}`; };
+  const missing = new Set(deps(S.focus).map(k=>BLOCKS[k].writes));
+  const nodes = Object.entries(pos).map(([n,[x,y]]) => { const b=blockOf(n); const ran=b&&S.ran.has(BLOCKS.indexOf(b)); const sn=S.story?S.story.indexOf(n):-1; return `<g class="node${n==="sales.sales_data"?" src":""}${S.hl===n?" on":""}${focusTable===n?" focus":""}${missing.has(n)?" missing":""}${S.story?(sn>=0?" story":" faded"):""}" data-n="${n}" transform="translate(${x},${y})"><title>${esc(tip(n))}</title><rect width="${W}" height="${H}"/><text x="9" y="13">${n.replace("sales.","")}</text><text class="sub" x="9" y="25">${b?b.kind+" · block "+b.n:""}</text>${ran?`<circle class="dot" cx="${W-9}" cy="9" r="3"/>`:""}${sn>=0?`<circle class="sn" cx="-1" cy="${H/2}" r="8"/><text class="snt" x="-1" y="${H/2+3.5}" text-anchor="middle">${sn+1}</text>`:""}</g>`; }).join("");
+  const labels = layers.map((l,i)=>`<text class="layer" x="${pos[l[0]][0]}" y="16">${i===0?"source":"step "+i}</text>`).join("");
+  let cols;
+  if(S.hl && COLS[S.hl]) cols = `<div class="cols"><div class="t">${S.hl} · column lineage</div>${COLS[S.hl].map(([c,f]) => `<div class="r"><span>${esc(c)}</span><span>${f?"← "+esc(f):""}</span></div>`).join("")}</div>`;
+  else cols = `<div class="cols" style="color:var(--muted)">Click a table. Its makers and readers light up in the cells, and its column lineage appears here.</div>`;
+  cols = storyPanel() + cols;
+  return `<div class="gbar"><button data-z="fit" class="${GZ.mode==="fit"?"on":""}">fit</button><button data-z="1">100%</button><button data-z="-">−</button><button data-z="+">+</button><span id="zpct">${Math.round(GZ.scale*100)}%</span><span class="sp">${LINEAGE.length} edges · <kbd data-act="zen">⇧G</kbd></span></div>
+  <div id="gwrap"><div id="graph"><svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${labels}${edges}${nodes}</svg></div></div>
+  <div class="legend"><span><i></i>ds_lineage</span><span><i class="ctl"></i>ctl_lineage (IF / WHERE / BY)</span><span style="border:1px dashed var(--focus);padding:0 6px;border-radius:4px">focused cell</span><span style="border:1px dashed var(--warn);padding:0 6px;border-radius:4px">needed, not run</span><span><i style="border:0;width:7px;height:7px;border-radius:50%;background:var(--good)"></i>ran</span></div>${cols}`;
+}
+function applyZoom(root){
+  if(!root) return;
+  const g = root.querySelector("#graph"), wrap = root.querySelector("#gwrap"); if(!g||!wrap) return;
+  const svg = g.querySelector("svg"); let bw=+svg.getAttribute("width"), bh=+svg.getAttribute("height");
+  try{ const bb=svg.getBBox(); bw=Math.max(bw, bb.x+bb.width); bh=Math.max(bh, bb.y+bb.height); }catch(e){}   // exp_42 2026-09-08: the declared svg size under-reports what it draws
+  const natural = bw+28, naturalH = bh+28;
+  if(GZ.mode==="fit") GZ.scale = Math.max(.3, Math.min(1.6, (wrap.clientWidth||natural)/natural, (wrap.clientHeight||naturalH)/naturalH));
+  g.style.transform = `scale(${GZ.scale})`; g.style.width = natural+"px"; g.style.height = naturalH+"px";
+  g.style.marginRight = (natural*(GZ.scale-1))+"px"; g.style.marginBottom = (naturalH*(GZ.scale-1))+"px";   // reserve the scaled box so the pane scrolls instead of clipping
+  const pct = root.querySelector("#zpct"); if(pct) pct.textContent = Math.round(GZ.scale*100)+"%";
+  root.querySelectorAll(".gbar button").forEach(b=>b.classList.toggle("on", b.dataset.z==="fit"&&GZ.mode==="fit"));
+}
+function bindZoom(root){
+  root.querySelectorAll(".gbar button").forEach(b => b.addEventListener("click", () => {
+    const z=b.dataset.z; if(z==="fit") GZ.mode="fit"; else { GZ.mode="manual"; if(z==="1") GZ.scale=1; else if(z==="+") GZ.scale=Math.min(2.5,GZ.scale*1.2); else GZ.scale=Math.max(.3,GZ.scale/1.2); }
+    applyZoom(root);
+  }));
+}
+function setStory(t){
+  if(!t){ clearSel(); return; }
+  S.story = [...ancestors(t), t]; S.hl = t; S.data = t; S.dsort = null;
+  S.bottom = true; S.tab = "data";
+  setSel(S.story.map(makerOf), "story of "+t.replace("sales.",""));
+  if(t) toast(`story of ${t.replace("sales.","")}: ${S.story.map(x=>x.replace("sales.","")).join(" → ")}`);
+}
+function storyPanel(){
+  if(!S.story) return "";
+  const t=S.story.at(-1);
+  const steps = S.story.map((n,k) => { const m=makerOf(n); const b=BLOCKS[m]; const ins=LINEAGE.filter(([o,i])=>o===n && S.story.includes(i)); const cols=(COLS[n]||[]).filter(([c])=>!c.startsWith("ctl")).map(([c,f])=>f?`${c} ← ${f}`:c);
+    return `<div class="step" data-goto="${m}"><span class="sn">${k+1}</span><div><div class="st"><b>${n.replace("sales.","")}</b> <small>${b?b.kind+" · block "+b.n+" · L"+b.lines:"source"}</small></div><div class="sd">${ins.length?"from "+ins.map(([o,i,c])=>`${i.replace("sales.","")}${c?" (decides rows)":""}`).join(", "):"the source table (DATALINES)"}${cols.length?" · "+cols.join(", "):""}</div></div>${b&&S.ran.has(m)?`<span class="pill good"><i></i>ran</span>`:`<span class="pill idle">not run</span>`}</div>`; }).join("");
+  return `<div class="story"><div class="t">Backward story · how ${t.replace("sales.","")} comes to be <span class="pill idle" style="margin-left:auto">${S.story.length} steps</span><kbd data-act="clear_hl">esc</kbd></div>${steps}</div>`;
+}
+function bindGraph(root){
+  root.querySelectorAll("#graph .node").forEach(n => {
+    n.addEventListener("click", e => { if(e.shiftKey){ const t=n.dataset.n; setSel([...ancestors(t), t].map(makerOf), t.replace("sales.",""), true); S.data=t; renderBottom(); return; } setStory(S.story && S.story.at(-1)===n.dataset.n ? null : n.dataset.n); });
+    n.addEventListener("dblclick", () => { const m=makerOf(n.dataset.n); if(m>=0){ S.focus=m; if(S.view==="ide") setView("ide"); renderCells(); renderRight(); renderZen(); } });
+  });
+  root.querySelectorAll("#graph .hit").forEach(p => p.addEventListener("click", e => { const [i,o]=p.dataset.e.split("|"); setSel([makerOf(i), makerOf(o)], `${i.replace("sales.","")} → ${o.replace("sales.","")}`, e.shiftKey); }));
+  root.querySelectorAll(".story .step").forEach(el => el.addEventListener("click", () => { S.focus=+el.dataset.goto; if(S.view==="ide") setView("ide"); renderCells(); renderRight(); renderZen(); }));
+}
+function renderZen(){ const z=$("#zen"); $("#center").classList.toggle("zen", S.zen); if(!S.zen){ z.innerHTML=""; return; } z.innerHTML = graph(); bindGraph(z); bindZoom(z); applyZoom(z); }
+// exp_42 2026-09-08: the Cells dock is a lineage tree. A block sits under the maker of what it reads (the deepest one when it reads
+// several); depth = lineage step. Click a row: its backward story (everything before it) stays solid, everything else goes transparent.
+function cellDepth(){
+  const depth={}; const d=(i,seen=new Set())=>{ if(depth[i]!==undefined) return depth[i]; if(seen.has(i)) return 0; seen.add(i);
+    const ms=(BLOCKS[i].reads||[]).map(makerOf).filter(k=>k>=0 && k!==i); depth[i]= ms.length ? 1+Math.max(...ms.map(k=>d(k,seen))) : 0; return depth[i]; };
+  BLOCKS.forEach((_,i)=>d(i)); return depth;
+}
+function cellTree(){
+  const depth=cellDepth(); const parent=BLOCKS.map((b,i)=>{ const ms=(b.reads||[]).map(makerOf).filter(k=>k>=0 && k!==i); if(!ms.length) return -1; return ms.reduce((a,k)=>depth[k]>depth[a]?k:a, ms[0]); });
+  const kids=BLOCKS.map(()=>[]); parent.forEach((p,i)=>{ if(p>=0) kids[p].push(i); });
+  const rows=[]; const walk=(i,lvl,last,prefix)=>{ rows.push({i,lvl,last,prefix}); kids[i].forEach((k,j)=>walk(k,lvl+1,j===kids[i].length-1,prefix+(lvl?(last?"   ":"│  "):""))); };
+  parent.forEach((p,i)=>{ if(p<0) walk(i,0,true,""); });
+  return rows;
+}
+function outline(){
+  const keep = S.sel ? new Set(S.sel.blocks) : null; const order = S.story ? S.story.map(makerOf) : [];
+  return `<div class="ol tree">` + cellTree().map(({i,lvl,last,prefix}) => { const b=BLOCKS[i];
+    const st = S.ran.has(i) ? (warnOf(b)?`<span class="pill warn"><i></i>0 obs</span>`:b.out?`<span class="pill good"><i></i>match</span>`:`<span class="pill idle">—</span>`) : `<span class="pill idle">idle</span>`;
+    const k=order.indexOf(i); const num = k>=0 ? `<span class="n step">${k+1}</span>` : `<span class="n">${String(b.n).padStart(2,"0")}</span>`;
+    const glyph = lvl ? `<span class="tree">${prefix}${last?"└─ ":"├─ "}</span>` : "";
+    return `<div class="r${i===S.focus?" on":""}${keep&&!keep.has(i)?" dim":""}${k>=0?" story":""}" data-i="${i}" title="${esc(b.writes?"click: story of "+b.writes+" (before it solid, after it transparent) · esc clears":"click: focus")}">${num}<span class="name">${glyph}${b.name}<small>${b.kind} · L${b.lines}${b.reads&&b.reads.length?" · reads "+b.reads.map(r=>r.replace("sales.","")).join(", "):""}</small></span>${st}</div>`;
+  }).join("") + `</div>`;
+}
+function bindOutline(){ document.querySelectorAll(".ol .r").forEach(r => r.addEventListener("click", () => { const i=+r.dataset.i, b=BLOCKS[i]; S.focus=i;
+  if(b.writes && makerOf(b.writes)===i){ if(S.story && S.story[S.story.length-1]===b.writes){ clearSel(); return; } setStory(b.writes); }
+  else { const up=(b.reads||[]).flatMap(t=>[...ancestors(t),t]).map(makerOf).filter(k=>k>=0); if(up.length) setSel([...new Set([...up,i])], "before "+b.name); else { renderCells(); renderRight(); } } })); }
+
+// ---------------------------------------------------------------- bottom split
+const KNOWN = ["run_all", "run_loops", "convert", "fold", "diff", "compare", "ls"];
+const ALLOW = Object.fromEntries(KNOWN.map(k=>[k,true]));
+function runCmd(line){
+  line=line.trim(); const [c,...rest] = line.split(/\s+/); if(!c) return;
+  S.hist.unshift(line); S.histIdx=-1;
+  S.term.push(`<span class="prompt">bench ›</span> ${esc(line)}`);
+  const focused = BLOCKS[S.focus];
+  let arg = rest.join(" "), note = "";
+  if((c==="fold"||c==="diff") && !arg && focused){ arg = focused.id; note = " (focused)"; }
+  S.term.push(`<span class="dim">… ${c==="run_all"||c==="run_loops"?"this takes a while (Spark)":"running"}</span>`); renderBottom();
+  api("/api/term", {cmd:c, args:arg, stem:PROGRAM.stem, block:focused?focused.id:null}).then(r => {
+    S.term.pop();
+    if(r.refused){ S.term.push(`<span class="err">not allowed:</span> ${esc(c)}${r.suggestion?` · did you mean <kbd data-cmd="${esc([r.suggestion,...rest].join(" "))}">${r.suggestion}</kbd>?`:` · known commands: ${r.known.join(" ")}`}`); }
+    else {
+      (r.lines||[]).forEach((l,k) => { let out = esc(l); if(k===0) out += note;
+        (r.links||[]).forEach(({table, block}) => { const m = BLOCKS.findIndex(b=>b.id===block); if(m>=0 && out.includes(table)) out = out.replace(table, `<span class="link" data-goto="${m}" title="focus this pair">${table}</span>`); });
+        if(/PASS|identical|== rust|match\b/.test(l) && !/DIFFERS|FAIL|differs/.test(l)) out = out.replace(/(PASS|identical|prolog == rust|match)/, '<span class="ok">$1</span>');
+        if(/DIFFERS|FAIL|differs|ERROR/.test(l)) out = `<span class="err">${out}</span>`;
+        S.term.push(out); });
+      if(c==="convert" && arg) loadProgram(arg);
+      if(c==="diff" && focused){ const m=BLOCKS.findIndex(b=>b.id===arg); if(m>=0) run(m,true); }
+      if(c==="compare" && PROGRAM.stem) api("/api/listing?stem="+encodeURIComponent(PROGRAM.stem)).then(l=>{ S.listing=l; if(S.tab==="dm") renderBottom(); }).catch(()=>{});
+    }
+    renderBottom();
+  }).catch(e => { S.term.pop(); S.term.push(`<span class="err">${esc(e.message)}</span>`); renderBottom(); });
+  renderBottom();
+}
+async function sendListing(text){
+  if(!PROGRAM.stem){ toast("open a program first"); return; }
+  if(!text.trim()){ toast("paste the PROC PRINT listing first"); return; }
+  try{ S.listing = await api("/api/listing", {stem:PROGRAM.stem, text}); const n=Object.values(S.listing.tables); const ok=n.filter(t=>t.verdict==="match").length;
+    log(ok===n.length?"ir":"warn", `SAS listing: ${ok}/${n.length} tables match the file-level Spark CSVs`); toast(`SAS listing: ${ok}/${n.length} match`); S.tab="dm"; renderBottom(); }
+  catch(e){ toast("listing: "+e.message); log("warn", "listing: "+e.message); }
+}
+function log(w,m,i){ const t=new Date(); S.log.push([t.toTimeString().slice(0,8), w, m, i]); if(S.bottom) renderBottom(); }
+const selNote = (shown, all, what) => S.sel ? `<div class="selnote">${what}: <b>${shown} of ${all}</b> · ${esc(S.sel.label)} · <kbd data-act="escape">esc</kbd> shows all</div>` : "";
+function dataPanel(){
+  const t=S.data; if(!t) return `<div class="term dim">Click a table in the graph to view its rows here.</div>`;
+  const m=makerOf(t), b=BLOCKS[m]; if(!b) return `<div class="term dim">${esc(t)} is a source table (DATALINES).</div>`;
+  const src = S.dside==="left" ? b.left : b.out;
+  let bar = `<div class="dbar"><b>${esc(t)}</b><span>${b.kind} · block ${b.n} · L${b.lines}</span>`;
+  if(!S.ran.has(m)) return bar + `<button data-goto-run="${m}">run it (upstream first)</button><span>not run yet</span></div>`;
+  if(!src) return bar + `<span>ran · ${esc(b.match||"")} · no table</span></div>`;
+  bar += `<button class="${S.dside==="right"?"on":""}" data-dside="right">spark</button><button class="${S.dside==="left"?"on":""}" data-dside="left">${b.leftEngine||S.engine} interp</button><button class="${S.draw?"on":""}" data-draw="1">raw csv</button><button data-copy="1">copy csv</button><span>${src.rows.length} rows · ${src.cols.length} cols${S.dsort?` · sorted by ${esc(src.cols[S.dsort.c])}`:""}</span></div>`;
+  const csv = [src.cols, ...src.rows].map(r=>r.map(v=>/[",\n]/.test(v)?`"${String(v).replace(/"/g,'""')}"`:v).join(",")).join("\n");
+  if(S.draw) return bar + `<textarea id="rawcsv" spellcheck="false" style="width:100%;height:220px;box-sizing:border-box;font-size:11.5px">${esc(csv)}</textarea>`;
+  let rows = src.rows.map((r,i)=>[i+1, ...r]);
+  if(S.dsort){ const c=S.dsort.c+1, d=S.dsort.d; rows.sort((a,b)=>{ const x=a[c], y=b[c]; const nx=parseFloat(x), ny=parseFloat(y); const r = (!isNaN(nx)&&!isNaN(ny)) ? nx-ny : String(x).localeCompare(String(y)); return d*r; }); }
+  return bar + `<div class="dgrid" style="overflow:auto;max-height:320px"><table><tr><th class="obs">Obs</th>${src.cols.map((c,k)=>`<th data-col="${k}" class="${S.dsort&&S.dsort.c===k?(S.dsort.d>0?"s":"sd"):""}">${esc(c)}</th>`).join("")}</tr>${rows.map(r=>`<tr>${r.map((v,k)=>`<td class="${k?"":"obs"}">${esc(String(v))}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${src.cols.length+1}" style="color:var(--muted)">0 observations</td></tr>`}</table></div>`;
+}
+function renderBottom(){
+  const b = $("#bottom"); b.classList.toggle("open", S.bottom); b.classList.toggle("min", S.bmin); $("#bminKey").textContent = S.bmin ? "⌃" : "⌄";
+  renderBstat();
+  document.querySelectorAll("#rail button").forEach(x => { if(x.dataset.panel==="log") x.classList.toggle("on", S.bottom); });
+  if(!S.bottom) return;
+  document.querySelectorAll("#bottom .tabs button[data-tab]").forEach(x => x.classList.toggle("on", x.dataset.tab===S.tab));
+  $("#termin").style.display = (S.tab==="term" && !S.bmin) ? "flex" : "none";
+  let h = "";
+  $("#storyTab").hidden = !S.story; $("#dataTab").hidden = !S.data;
+  if(S.tab==="story"){
+    if(!S.story) h=`<div class="term dim">Click a table in the graph, or press <kbd>s</kbd> on a cell, to see its backward story here.</div>`;
+    else h = S.story.map((n,k)=>{ const m=makerOf(n); const b=BLOCKS[m]; const ins=LINEAGE.filter(([o,i])=>o===n && S.story.includes(i)).map(([o,i,c])=>i.replace("sales.","")+(c?" (decides rows)":""));
+      return `<div class="outblock"><div class="h"><span class="sn" style="display:inline-block;width:18px;height:18px;border-radius:50%;background:var(--ir);color:#fff;font-weight:700;line-height:18px;text-align:center;margin-right:6px">${k+1}</span><b data-goto="${m}" title="focus this cell">${n}</b> · ${b?b.kind+" · block "+b.n:"source"}${ins.length?" · from "+ins.join(", "):" · DATALINES"}${b&&S.ran.has(m)?"":' · <span style="color:var(--warn)">not run yet</span>'}</div>${b&&b.out?(S.ran.has(m)?table(b.out):`<span style="color:var(--muted)">run it to see the rows (⌃⏎ runs upstream first)</span>`):`<span style="color:var(--muted)">no table</span>`}</div>`; }).join("");
+  } else if(S.tab==="data"){
+    h = dataPanel();
+  } else if(S.tab==="out"){
+    const outs = S.outs.filter(o => inSel(BLOCKS.findIndex(b=>b.name===o.title.split(/\s+/)[0])));
+    h = selNote(outs.length, S.outs.length, "outputs") + (outs.length ? outs.slice().reverse().map(o=>`<div class="outblock"><div class="h"><b data-title="${esc(o.title)}" title="go to this cell"># %% ${o.title}</b> · ${o.where||sessionLabel()}${o.ms!=null?` · ${Math.round(o.ms)} ms`:""}${o.pending?` · <span style="color:var(--warn)">running…</span>`:""}</div>${o.out?table(o.out):o.text?`<pre class="${o.rc?"err":""}" style="margin:0;white-space:pre-wrap;font-size:11.5px">${esc(String(o.text))}</pre>`:o.pending?"":`<span style="color:var(--muted)">no table (declaration)</span>`}</div>`).join("") : `<div class="term dim">${S.outs.length?"No output for the selected blocks yet.":"Nothing yet. In IDE view put the cursor in a <kbd># %%</kbd> cell and press <kbd>⌃⏎</kbd>."}</div>`);
+  } else if(S.tab==="term"){
+    h = `<div class="term"><span class="dim">only known commands run here · </span>` + KNOWN.map(k=>`<kbd data-cmd="${k}">${k}</kbd>`).join(" ") + `\n` + S.term.join("\n") + `</div>`;
+  } else if(S.tab==="log"){
+    const rows = S.log.filter(([,,,i]) => i==null ? !S.sel : inSel(i));
+    h = selNote(rows.length, S.log.length, "log rows") + (rows.length ? rows.map(([t,w,m]) => `<div class="logrow"><span class="t">${t}</span><span class="w ${w}">${w==="ir"?"match":w}</span><span>${esc(m)}</span></div>`).join("") : `<div class="term dim">${S.log.length?"No log rows for the selected blocks.":"Nothing yet. Press <kbd>e</kbd> on a pair."}</div>`);
+  } else {
+    const rows = BLOCKS.filter((b,i)=>S.ran.has(i)&&b.out);
+    const L = S.listing || {loaded:false, tables:{}};
+    const lpill = b => { const t=L.tables[(b.name||"").split(".").pop()]; if(!L.loaded) return `<span class="pill warn"><i></i>awaited</span>`;
+      if(!t) return `<span class="pill idle" title="not in the pasted listing"><i></i>not listed</span>`;
+      const cls = t.verdict==="match"?"good":t.verdict==="differs"?"bad":"warn";
+      const why = t.why || (t.verdict==="match" ? `${t.sas_rows} SAS rows == ${t.py_rows} Spark rows (${t.csv||""})` : `${t.n_mismatch||0} rows differ: sas ${t.sas_rows} / spark ${t.py_rows}`);
+      return `<span class="pill ${cls}" title="${esc(why)}"><i></i>${t.verdict}</span>`; };
+    h = `<div class="dm"><table><tr><th>table</th><th>${S.engine} interp</th><th>spark</th><th>rows</th><th>bytes</th><th>SAS listing</th></tr>` +
+      (rows.length ? rows.map(b=>`<tr><td class="mono">${b.name}</td><td${warnOf(b)?' style="color:var(--warn)"':""}>${b.out.rows.length} rows</td><td${warnOf(b)?' style="color:var(--warn)"':""}>${b.out.rows.length} rows</td><td>${b.out.rows.length}</td><td><span class="pill good"><i></i>equal</span>${warnOf(b)?` <span class="pill warn" title="${esc(b.warn||"")}"><i></i>0 obs · <u data-path="corpus/sas/test_vishnu_testdata_fixed.sas" style="cursor:pointer">fixed variant</u></span>`:""}</td><td>${lpill(b)}</td></tr>`).join("") : `<tr><td colspan="6" style="color:var(--muted)">Run a pair first.</td></tr>`) + `</table>`;
+    const nOk = Object.values(L.tables).filter(t=>t.verdict==="match").length, nAll = Object.keys(L.tables).length;
+    h += `<div class="listing" style="margin-top:10px;font-size:11.5px;color:var(--muted)">` +
+      (L.loaded ? `SAS listing <b style="color:var(--text)">${esc(L.source||"")}</b> · ${nOk}/${nAll} tables match the file-level Spark CSVs (out/pyspark_ravi) · ` : `No SAS listing yet: run <span class="mono">testdata/test_vishnu_testdata.sas</span> in SAS OnDemand and paste the PROC PRINT output here. `) +
+      `<u id="listingToggle" style="cursor:pointer">${L.loaded?"paste another":"paste listing"}</u>` +
+      `<div id="listingBox" hidden style="margin-top:6px"><textarea id="listingText" rows="6" style="width:100%;box-sizing:border-box;font-size:11px" placeholder="sales_data\nObs  sale_id  sale_amount  date\n  1  001  0  01/01/2023\n..."></textarea>` +
+      `<div style="margin-top:4px;display:flex;gap:8px;align-items:center"><button id="listingSend">compare</button><span>or in the terminal: <kbd>compare &lt;listing.txt&gt;</kbd></span></div></div></div></div>`;
+  }
+  $("#bottomBody").innerHTML = h;
+  if(S.tab==="term"||S.tab==="log"){ const bb=$("#bottomBody"); bb.scrollTop = bb.scrollHeight; }
+  const lt = $("#listingToggle"); if(lt){ lt.addEventListener("click", () => { const b=$("#listingBox"); b.hidden=!b.hidden; if(!b.hidden){ const ta=$("#listingText"); ta.addEventListener("focus", ()=>setMode("PASTE")); ta.focus(); ta.addEventListener("blur", ()=>setMode("COMMAND")); ta.addEventListener("keydown", e=>e.stopPropagation()); } });
+    $("#listingSend").addEventListener("click", () => sendListing($("#listingText").value)); }
+  $("#bottomBody").querySelectorAll(".outblock .h b[data-title]").forEach(el => el.addEventListener("click", () => gotoCell(el.dataset.title)));
+  $("#bottomBody").querySelectorAll("[data-cmd]").forEach(el => el.addEventListener("click", () => runCmd(el.dataset.cmd)));
+  $("#bottomBody").querySelectorAll("[data-goto]").forEach(el => el.addEventListener("click", () => { S.focus=+el.dataset.goto; if(S.view==="ide") setView("ide"); else { renderCells(); renderRight(); } }));
+  $("#bottomBody").querySelectorAll("[data-path]").forEach(el => el.addEventListener("click", () => openFile(el.dataset.path)));
+  $("#bottomBody").querySelectorAll("[data-dside]").forEach(el => el.addEventListener("click", () => { S.dside=el.dataset.dside; renderBottom(); }));
+  $("#bottomBody").querySelectorAll("[data-draw]").forEach(el => el.addEventListener("click", () => { S.draw=!S.draw; renderBottom(); }));
+  $("#bottomBody").querySelectorAll("[data-copy]").forEach(el => el.addEventListener("click", () => { S.draw=true; renderBottom(); const ta=$("#rawcsv"); ta.select(); try{ navigator.clipboard.writeText(ta.value); toast("CSV copied"); }catch(e){ toast("select all and copy"); } }));
+  $("#bottomBody").querySelectorAll(".dgrid th[data-col]").forEach(el => el.addEventListener("click", () => { const c=+el.dataset.col; S.dsort = S.dsort&&S.dsort.c===c ? (S.dsort.d>0?{c,d:-1}:null) : {c,d:1}; renderBottom(); }));
+  $("#bottomBody").querySelectorAll("[data-goto-run]").forEach(el => el.addEventListener("click", () => { const m=+el.dataset.gotoRun; S.focus=m; runChain([...deps(m), m]).then(()=>{ S.tab="data"; renderBottom(); }); }));
+  const rc=$("#rawcsv"); if(rc){ rc.addEventListener("focus", ()=>setMode("PASTE")); rc.addEventListener("blur", ()=>setMode("COMMAND")); rc.addEventListener("keydown", e=>e.stopPropagation()); }
+  if(S.tab==="term"){ const body=$("#bottomBody"); body.scrollTop = body.scrollHeight; }
+}
+document.querySelectorAll("#bottom .tabs button[data-tab]").forEach(x => x.addEventListener("click", () => { S.tab=x.dataset.tab; renderBottom(); }));
+$("#cmd").addEventListener("keydown", e => {
+  const t=e.target;
+  if(e.key==="Enter"){ runCmd(t.value); t.value=""; t._draft=""; }
+  else if(e.key==="Escape"){ t.blur(); setMode("COMMAND"); }
+  else if(e.key==="ArrowUp"){ e.preventDefault(); if(S.histIdx<0) t._draft=t.value; if(S.histIdx<S.hist.length-1){ S.histIdx++; t.value=S.hist[S.histIdx]; } }
+  else if(e.key==="ArrowDown"){ e.preventDefault(); if(S.histIdx>0){ S.histIdx--; t.value=S.hist[S.histIdx]; } else if(S.histIdx===0){ S.histIdx=-1; t.value=t._draft||""; } }
+  else if(e.key==="Tab"){ e.preventDefault(); const parts=t.value.split(/\s+/); const word=parts[parts.length-1]||"";
+    const pool = parts.length>1 && parts[0]==="convert" ? ALLFILES.map(f=>f.label) : Object.keys(ALLOW);
+    const opts = pool.filter(k=>k.startsWith(word) || fuzzy(word,k)!==null).sort((a,b)=>(b.startsWith(word)-a.startsWith(word))||a.localeCompare(b));
+    if(!opts.length) return; t._tab = (t._tabWord===word && t._tab!=null) ? (t._tab+1)%opts.length : 0; parts[parts.length-1]=opts[t._tab]; t.value=parts.join(" ")+(parts.length===1?" ":""); t._tabWord=t.value.split(/\s+/).pop(); }
+});
+$("#cmd").addEventListener("focus", () => setMode("TERMINAL"));
+$("#cmd").addEventListener("blur", () => setMode("COMMAND"));
+
+// ---------------------------------------------------------------- rail, engine, keys
+document.querySelectorAll("#rail button").forEach(x => x.addEventListener("click", () => panel(x.dataset.panel)));
+document.querySelectorAll("#top .engine button").forEach(x => x.addEventListener("click", () => setEngine(x.dataset.eng)));
+function setEngine(e){ S.engine=e; document.querySelectorAll("#top .engine button").forEach(x=>x.classList.toggle("on",x.dataset.eng===e)); renderTop(); renderCells(); toast(`engine: ${e} runs the left column from here on`); }
+function panel(p){
+  if(p==="files"){ S.left = S.left==="files" ? null : "files"; renderLeft(); }
+  else if(p==="graph"||p==="cells"||p==="console"){ if(S.right===p && !S.text){ toast("one buffer stays · press j or i to bring the text back"); return; } S.right = S.right===p ? null : p; renderRight(); if(p==="console"&&S.right) setTimeout(()=>{ const t=$("#conin"); if(t) t.focus(); },30); }
+  else if(p==="log"){ if(S.bottom && !S.bmin && S.tab==="term"){ S.bottom=false; } else { S.bottom=true; S.bmin=false; S.tab="term"; } renderBottom(); if(S.bottom) setTimeout(()=>$("#cmd").focus(),50); }
+  else if(p==="help"){ $("#help").classList.toggle("open"); }
+}
+function setMode(m){ S.mode=m; const el=$("#mode"); el.textContent=m; el.classList.toggle("edit", m!=="COMMAND"); }
+function toast(t){ const el=$("#toast"); el.textContent=t; el.classList.add("on"); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("on"),1600); }
+
+// ---------------------------------------------------------------- IDE view: one buffer, cells only where a line starts with "# %%"
+const plain = h => h.replace(/<[^>]+>/g,"").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&");
+const cellText = b => `# %% ${b.name}   (${b.kind}, SAS L${b.lines})\n${b.pyText}\n`;
+function fullIdeText(){ return BLOCKS.map(cellText).join("\n"); }
+function ideText(){ return selBlocks().map(i=>BLOCKS[i]).map(cellText).join("\n"); }
+function ideRegions(){
+  const lines = $("#buf").value.split("\n"); const starts=[];
+  lines.forEach((l,i)=>{ if(/^\s*# %%/.test(l)) starts.push(i); });
+  return starts.map((st,k)=>({start:st, end:(starts[k+1]??lines.length)-1, title:lines[st].replace(/^\s*# %%\s*/,"").trim()||("cell "+(k+1)), idx:k}));
+}
+function regionAt(line){ return ideRegions().find(r=>line>=r.start && line<=r.end) || null; }
+function curLine(){ const t=$("#buf"); return t.value.slice(0, t.selectionStart).split("\n").length-1; }
+const PYKW=/\b(def|return|import|from|as|if|elif|else|for|in|lambda|True|False|None|with|and|or|not|class|try|except|pass)\b/;
+function highlight(src){
+  return src.split("\n").map(line => {
+    if(/^\s*# %%/.test(line)) return `<span class="hdr">${esc(line)}</span>`;
+    const re=/(#.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|"""[^]*?""")|\b(def|return|import|from|as|if|elif|else|for|in|lambda|True|False|None|with|and|or|not|class|try|except|pass)\b|\b(\d+(?:\.\d+)?)\b|\b([A-Za-z_]\w*)(?=\()/g;
+    let out="", last=0, m;
+    while((m=re.exec(line))){
+      out+=esc(line.slice(last,m.index)); last=m.index+m[0].length;
+      const cls=m[1]?"c":m[2]?"s":m[3]?"k":m[4]?"n":"f"; out+=`<span class="${cls}">${esc(m[0])}</span>`;
+    }
+    return out+esc(line.slice(last));
+  }).join("\n");
+}
+function renderIde(){
+  const t=$("#buf"); if(!t.value){ t.value = ideText(); } $("#ideName").textContent = (ideKey()||"buffer") + (S.sel&&!S.ideFile?`  · ${S.sel.blocks.length} of ${BLOCKS.length} cells (${S.sel.label}) · esc shows all`:""); bufTag();
+  $("#hl").innerHTML = highlight(t.value)+"\n"; $("#hl").scrollTop=t.scrollTop; $("#hl").scrollLeft=t.scrollLeft;
+  const lines=t.value.split("\n"); const regs=ideRegions(); const cur=regionAt(S.line);
+  $("#gutter").innerHTML = lines.map((l,i)=>{ const r=regs.find(r=>i>=r.start&&i<=r.end); const cls=[/^\s*# %%/.test(l)?"mark":"", cur&&r&&r.start===cur.start?"cur":"", r&&S.ideRan.has(r.title)?"ran":""].filter(Boolean).join(" "); return `<div class="${cls}">${i+1}</div>`; }).join("");
+  $("#gutter").scrollTop = t.scrollTop;
+  { const s = cur ? `cell ${cur.idx+1}/${regs.length} · ${cur.title} · lines ${cur.start+1}-${cur.end+1}` : `${regs.length} cells · line ${S.line+1} is outside any cell`; const e=$("#idecur"); e.textContent=s; e.title=s; }
+  const kb = cur ? BLOCKS.find(b=>b.name===cur.title.split(/\s+/)[0]) : null;
+  $("#focusInfo").textContent = cur ? `# %% ${cur.title}${kb?" ↔ block "+kb.id:""}` : `line ${S.line+1}`;
+}
+function gotoLine(n){ const t=$("#buf"); S.line=n; const pos=t.value.split("\n").slice(0,n).join("\n").length+(n?1:0); t.setSelectionRange(pos,pos); renderIde(); const G=$("#gutter"), g=G.children[n]; if(g){ const top=g.getBoundingClientRect().top-G.getBoundingClientRect().top+G.scrollTop; t.scrollTop=Math.max(0,top-60); $("#gutter").scrollTop=t.scrollTop; $("#hl").scrollTop=t.scrollTop; } }
+// exp_42 2026-09-08: renderText — the left buffer is shown when S.text; the viewer takes the whole width otherwise
+function renderText(){ $("#main").classList.toggle("no-text", !S.text); document.querySelectorAll(".viewsw button").forEach(b=>b.classList.toggle("on", S.text && b.dataset.act==="view_"+S.view)); applyZoom($("#rightBody")); }
+function renderBstat(){ const el=$("#bstat"); if(!el) return; const busy=S.busy.size>0; const last=S.log[S.log.length-1];
+  if(busy){ el.innerHTML=`<i class="run"></i>running ${S.busy.size} block${S.busy.size>1?"s":""}`; return; }
+  if(!last){ el.innerHTML=`<i></i>idle`; return; } const [t,w,m]=last; const cls = w==="ir"?"good":w==="warn"?"warn":/error|fail|mismatch|differ/i.test(m)?"bad":""; el.innerHTML=`<i class="${cls}"></i>${esc(m)}<span style="color:var(--faint)">${t}</span>`; }
+function setView(v){
+  if(v!=="page" && v===S.view && S.text){ if(!S.right){ toast("one buffer stays · press g for the graph first"); return; } S.text=false; renderText(); toast(`${v==="ide"?"IDE":"Jupyter"} hidden · ${v==="ide"?"i":"j"} brings it back`); return; }
+  S.text=true; renderText();
+  const was=S.view; if(was==="ide" && v!=="ide") syncIde(); S.view=v; $("#center").classList.toggle("ide", v==="ide"); $("#center").classList.toggle("page", v==="page");
+  if(v==="page"){ toast("page view · j or i returns to the cells"); return; }
+  if(v==="ide" && !S.ideFile && (was!=="ide")) $("#buf").value = ideText();
+  if(v==="ide"){ renderIde(); const r=ideRegions().find(r=>r.title.split(/\s+/)[0]===BLOCKS[S.focus].name); if(r) gotoLine(r.start); }
+  else { if(was==="ide"){ const r=regionAt(S.line); const k=r?BLOCKS.findIndex(b=>b.name===r.title.split(/\s+/)[0]):-1; if(k>=0) S.focus=k; } $("#cells").focus(); renderCells(); renderRight(); }
+  toast(v==="ide" ? "IDE view · cells are the # %% lines" : "Jupyter view · SAS / PySpark pairs");
+}
+function ideRun(){
+  const r=regionAt(S.line); if(!r){ toast("cursor is not inside a # %% cell"); return; }
+  const text=$("#buf").value.split("\n").slice(r.start+1,r.end+1).join("\n").trim();
+  const b=BLOCKS.find(b=>r.title.split(/\s+/)[0]===b.name); S.ideRan.add(r.title);   // exact table name, not a prefix
+  S.bottom=true; S.tab="out";
+  if(b && !S.ideFile){ const i=BLOCKS.indexOf(b); const o={title:r.title, code:text, out:null, ms:null, pending:true}; S.outs.push(o); renderBottom(); run(i,true).then(()=>{ o.out=b.out; o.ms=b.py_ms; o.pending=false; o.where=b.where; o.text=b.match; renderBottom(); }); }
+  else { const sess=SESS.find(x=>x.on); const o={title:r.title, code:text, out:null, ms:null, pending:true}; S.outs.push(o); renderBottom();
+    api("/api/exec", {code:text, session: sess?sess.id:null}).then(res=>{ o.text=res.out||"(no output)"; o.ms=res.ms; o.where=res.where; o.rc=res.rc; o.pending=false; log(res.rc?"warn":"py", `# %% ${r.title}: ${res.where}, ${Math.round(res.ms)} ms${res.rc?" · error":""}`); renderBottom(); }).catch(e=>{ o.text=e.message; o.rc=1; o.pending=false; renderBottom(); }); }
+  renderIde(); toast(`running # %% ${r.title}`);
+}
+function gotoCell(title){
+  const k=BLOCKS.findIndex(b=>b.name===title.split(/\s+/)[0]);
+  if(S.view==="ide"){ const r=ideRegions().find(r=>r.title===title); if(r) gotoLine(r.start); else toast("that # %% cell is gone"); }
+  else if(k>=0){ S.focus=k; renderCells(); renderRight(); } else { setView("ide"); const r=ideRegions().find(r=>r.title===title); if(r) gotoLine(r.start); }
+}
+function ideMove(d){
+  const regs=ideRegions(); const cur=regionAt(S.line); let k = cur ? cur.idx+d : (d>0?0:regs.length-1); k=Math.max(0,Math.min(regs.length-1,k));
+  const r=regs[k]; if(!r) return; gotoLine(r.start);
+}
+$("#buf").addEventListener("input", () => { S.line=curLine(); if(S.ideFile) bufNote(S.ideFile, $("#buf").value); else syncIde(); renderIde(); });
+$("#buf").addEventListener("click", () => { S.line=curLine(); renderIde(); });
+$("#buf").addEventListener("keyup", e => { if(!e.ctrlKey && !e.metaKey && !e.shiftKey || e.key.startsWith("Arrow")){ S.line=curLine(); renderIde(); } });
+$("#buf").addEventListener("scroll", () => { const t=$("#buf"); $("#gutter").scrollTop=t.scrollTop; $("#hl").scrollTop=t.scrollTop; $("#hl").scrollLeft=t.scrollLeft; });
+$("#buf").addEventListener("focus", () => setMode("EDIT"));
+$("#buf").addEventListener("blur", () => setMode("COMMAND"));
+
+// ---------------------------------------------------------------- actions: ONE table drives keys, palette, rail, and every clickable <kbd>
+const ACTIONS = [
+ {id:"run",       label:"Run focused cell",            keys:["⌃","⏎"],    run:()=>{ if(S.view==="ide") return ideRun(); const d=deps(S.focus); const f=S.focus; toast(d.length?`running ${d.map(k=>BLOCKS[k].name.replace("sales.","")).join(" → ")} → ${BLOCKS[f].name.replace("sales.","")} (${d.length} upstream)`:`running block ${BLOCKS[f].n} on both sides`); runChain([...d, f]).then(()=>toast(`block ${BLOCKS[f].n}: ${BLOCKS[f].match}`)); }},
+ {id:"run_deps",  label:"Run upstream, then this",     keys:["d"],        run:()=>{ if(S.view==="ide"){ toast("upstream runs apply in Jupyter view"); return; } act("run"); }},
+ {id:"up_lineage",   label:"Focus an upstream maker",  keys:["["],        run:()=>{ const b=BLOCKS[S.focus]; const rs=(b.reads||[]).map(makerOf).filter(k=>k>=0); if(!rs.length){ toast(b.name+" reads nothing"); return; } S.depIdx=(S.depIdx+1)%rs.length; const k=rs[S.depIdx]; S.hl=BLOCKS[k].writes; S.focus=k; renderCells(); renderRight(); renderZen(); toast(`↑ ${BLOCKS[k].name.replace("sales.","")} → ${b.name.replace("sales.","")} via ${S.hl}`); }},
+ {id:"down_lineage", label:"Focus a downstream reader",keys:["]"],        run:()=>{ const b=BLOCKS[S.focus]; const rs=LINEAGE.filter(([o,i])=>i===b.writes).map(([o])=>makerOf(o)).filter(k=>k>=0); if(!rs.length){ toast("nothing reads "+b.name); return; } S.depIdx=(S.depIdx+1)%rs.length; const k=rs[S.depIdx]; S.hl=b.writes; S.focus=k; renderCells(); renderRight(); renderZen(); toast(`↓ ${b.name.replace("sales.","")} → ${BLOCKS[k].name.replace("sales.","")} via ${S.hl}`); }},
+ {id:"story",     label:"Backward story of focused table", keys:["s"],  run:()=>{ const t=BLOCKS[S.focus].writes; if(!t){ toast("this block makes no table"); return; } setStory(S.story && S.story.at(-1)===t ? null : t); }},
+ {id:"clear_hl",  label:"Clear selection and highlight", keys:[],         run:()=>clearSel()},
+ {id:"save",      label:"Save buffer copy (out/bench/buffers)", keys:["⌘","s"], run:()=>saveBuf()},
+ {id:"tab_data",  label:"Bottom: Data tab (selected table)", keys:[],     run:()=>{ if(!S.data){ const t=BLOCKS[S.focus]&&BLOCKS[S.focus].writes; if(!t){ toast("this block makes no table"); return; } S.data=t; } S.bottom=true; S.tab="data"; renderBottom(); }},
+ {id:"run_next",  label:"Run cell and move to next",   keys:["⇧","⏎"],    run:()=>{ if(S.view==="ide"){ ideRun(); ideMove(1); return; } run(S.focus,true); S.focus=Math.min(BLOCKS.length-1,S.focus+1); renderCells(); renderRight(); }},
+ {id:"view_jupyter", label:"Jupyter view: SAS / PySpark pairs", keys:["j"], run:()=>setView("jupyter")},
+ {id:"view_ide",  label:"IDE view: one buffer, # %% cells", keys:["i"],   run:()=>setView("ide")},
+ {id:"runto",     label:"Run pairs up to here",        keys:["⇧","e"],    run:()=>{ const f=S.focus; toast(`running blocks 1–${f+1} in order…`); runChain([...Array(f+1).keys()]).then(()=>toast(`ran blocks 1–${f+1} on both sides`)); }},
+ {id:"files",     label:"Toggle files dock",           keys:["b"],        run:()=>panel("files")},
+ {id:"cells",     label:"Toggle cells dock",           keys:["c"],        run:()=>panel("cells")},
+ {id:"console",   label:"Toggle console (python / terminal)", keys:["p"], run:()=>panel("console")},
+ {id:"graph",     label:"Toggle lineage graph dock",   keys:["g"],        run:()=>panel("graph")},
+ {id:"zen",       label:"Graph alone / text back",      keys:["⇧","g"],    run:()=>{ if(S.text){ S.right="graph"; S.text=false; renderRight(); toast("graph alone · ⇧G, j or i brings the text back"); } else { S.text=true; renderText(); toast("text back"); } }},
+ {id:"term",      label:"Toggle terminal",             keys:["l"],        run:()=>panel("log")},
+ {id:"split",     label:"Split bottom",                keys:["⌘","⇧","d"],run:()=>{ S.bottom=true; renderBottom(); }},
+ {id:"close",     label:"Close the bottom strip",       keys:["⌃","⇧","c"],run:()=>{ S.bottom=false; renderBottom(); $("#cells").focus(); }},
+ {id:"bmin",      label:"Collapse / expand the bottom strip", keys:[],     run:()=>{ S.bottom=true; S.bmin=!S.bmin; renderBottom(); }},
+ {id:"dock",      label:"Bottom strip: open ⇄ one line", keys:["⌘","j"],  run:()=>{ if(!S.bottom){ S.bottom=true; S.bmin=false; } else S.bmin=!S.bmin; renderBottom(); }},
+ {id:"engine",    label:"Switch engine Rust ⇄ Prolog", keys:["r"],        run:()=>setEngine(S.engine==="rust"?"prolog":"rust")},
+ {id:"next",      label:"Focus next cell",             keys:["↓"],        run:()=>{ if(S.view==="ide") return ideMove(1); S.focus=Math.min(BLOCKS.length-1,S.focus+1); renderCells(); renderRight(); }},
+ {id:"prev",      label:"Focus previous cell",         keys:["↑"],        run:()=>{ if(S.view==="ide") return ideMove(-1); S.focus=Math.max(0,S.focus-1); renderCells(); renderRight(); }},
+ {id:"edit",      label:"Edit focused cell",           keys:["⏎"],        run:()=>{ if(S.view==="ide"){ $("#buf").focus(); return; } setMode("EDIT"); toast("edit mode: esc returns to command mode"); }},
+ {id:"tab_out",   label:"Bottom: Output tab",          keys:[],           run:()=>{ S.bottom=true; S.tab="out"; renderBottom(); }},
+ {id:"tab_story", label:"Bottom: Story tab",           keys:[],           run:()=>{ S.bottom=true; S.tab="story"; renderBottom(); }},
+ {id:"escape",    label:"Back to command mode",        keys:["esc"],      run:()=>{ $("#help").classList.remove("open"); closePal(true); if(S.mode==="COMMAND" && (S.hl||S.story||S.sel||S.data) && !document.querySelector("#help.open,#pal.open")){ act("clear_hl"); return; } if(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName)) document.activeElement.blur(); setMode("COMMAND"); }},
+ {id:"left_only", label:"Show SAS column only",        keys:["1"],        run:()=>setCols("left")},
+ {id:"right_only",label:"Show PySpark column only",    keys:["2"],        run:()=>setCols("right")},
+ {id:"both",      label:"Show both columns",           keys:["0"],        run:()=>setCols("both")},
+ {id:"tab_term",  label:"Bottom: Terminal tab",        keys:[],           run:()=>{ S.bottom=true; S.tab="term"; renderBottom(); }},
+ {id:"tab_log",   label:"Bottom: Log tab",             keys:[],           run:()=>{ S.bottom=true; S.tab="log"; renderBottom(); }},
+ {id:"tab_dm",    label:"Bottom: DataMatch tab",       keys:[],           run:()=>{ S.bottom=true; S.tab="dm"; renderBottom(); }},
+ {id:"theme",     label:"Theme: system → dark → light", keys:["t"],       run:()=>cycleTheme()},
+ {id:"filter",    label:"Filter files",                keys:["/"],        run:()=>{ if(S.left!=="files"){ S.left="files"; renderLeft(); } $("#fsearch").focus(); }},
+ {id:"help",      label:"Show keys",                   keys:["?"],        run:()=>panel("help")},
+ {id:"palette",   label:"Command palette",             keys:["⌘","⇧","p"],run:()=>openPal("cmd")},
+ {id:"finder",    label:"File finder",                 keys:["⌘","p"],    run:()=>openPal("file")},
+ {id:"goto_file", label:"Go to file or folder (top bar)", keys:["⌘","k"],    run:()=>gotoFocus()},
+];
+const act = id => { const a=ACTIONS.find(a=>a.id===id); if(!a) return false; a.run(); return true; };
+function setCols(c){ S.cols=c; const el=$("#cells"); el.classList.toggle("only-left", c==="left"); el.classList.toggle("only-right", c==="right"); toast(c==="both"?"both columns":c==="left"?"SAS only":"PySpark only"); }
+
+// any element with data-act runs its action on click (kbd chips, help rows, drawer headers)
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]"); if(!el) return;
+  e.preventDefault(); e.stopPropagation();
+  if(el.closest("#help")) $("#help").classList.remove("open");
+  act(el.dataset.act);
+});
+
+const PAL = {kind:"cmd", q:"", sel:0};
+let ALLFILES = [];
+// score: substring match beats subsequence; earlier and tighter matches rank higher; null = no match
+function fuzzy(q, s){
+  q=q.toLowerCase(); s=s.toLowerCase(); if(!q) return 0;
+  const sub = s.indexOf(q); if(sub>=0) return 1000 - sub - (s.split(/\s+/).some(w=>w.startsWith(q))?0:50);
+  let i=0, first=-1, last=-1; for(const ch of q){ i=s.indexOf(ch,i); if(i<0) return null; if(first<0) first=i; last=i; i++; }
+  return 500 - (last-first) - first;
+}
+function ranked(list, key){ const q=PAL.q.trim(); return list.map(x=>[fuzzy(q,key(x)),x]).filter(([sc])=>sc!==null).sort((a,b)=>b[0]-a[0]).map(([,x])=>x); }
+// exp_42 2026-09-08: the top-bar file name is a typeahead over files AND folders (⌘K focuses it); no need to open the files dock
+const GOTO = {q:"", sel:0, open:false};
+function gotoItems(){
+  const q=GOTO.q.trim(); const dirs = FILES.map(g=>({label:g.dir+"/", tag:"", k:`${g.items.length} files`, go:()=>openFolder(g.dir)}));
+  const files = ALLFILES.map(f=>({label:f.label, tag:f.tag, k:"", go:()=>openFile(f.label)}));
+  if(!q){ const rec = S.recent.map(r=>({label:r, tag:"", k:"recent", go:()=>openFile(r)})); return rec.concat(dirs).concat(files).slice(0,40); }
+  const score = x => fuzzy(q, x.label); const all = dirs.concat(files).map(x=>[score(x),x]).filter(([sc])=>sc!==null).sort((a,b)=>b[0]-a[0]).map(([,x])=>x);
+  return all.slice(0,40);
+}
+function gotoFocus(){ if(GOTO.open) return; const inp=$("#fileName"); GOTO.prev=inp.value; GOTO.q=""; GOTO.sel=0; inp.value=""; gotoOpen(); inp.focus(); }
+function gotoOpen(){ GOTO.open=true; const r=$("#fileName").getBoundingClientRect(), d=$("#fileDrop"); d.style.left=r.left+"px"; d.style.top=(r.bottom+4)+"px"; d.classList.add("open"); setMode("GOTO"); renderGoto(); }
+function gotoClose(restore){ GOTO.open=false; $("#fileDrop").classList.remove("open"); const inp=$("#fileName"); if(restore!==false && GOTO.prev!==undefined) inp.value=GOTO.prev; inp.blur(); if(S.mode==="GOTO") setMode("COMMAND"); }
+function renderGoto(){
+  const items=gotoItems(); GOTO.sel=Math.min(GOTO.sel, Math.max(0,items.length-1));
+  $("#fileDrop").innerHTML = items.length ? items.map((it,i)=>`<div class="it${i===GOTO.sel?" on":""}" data-i="${i}"><span>${esc(it.label)}${it.tag?`<small class="tag ${it.tag}">${it.tag}</small>`:""}</span><span class="k">${it.k}</span></div>`).join("") : `<div class="none">No file or folder matches.</div>`;
+  $("#fileDrop").querySelectorAll(".it").forEach(el => el.addEventListener("mousedown", e => { e.preventDefault(); const it=gotoItems()[+el.dataset.i]; gotoClose(false); it.go(); }));
+  const on=$("#fileDrop .it.on"); if(on) on.scrollIntoView({block:"nearest"});
+}
+$("#fileName").addEventListener("focus", () => { if(!GOTO.open) gotoFocus(); });
+$("#fileName").addEventListener("blur", () => { if(GOTO.open) gotoClose(true); });
+$("#fileName").addEventListener("input", e => { GOTO.q=e.target.value; GOTO.sel=0; renderGoto(); });
+$("#fileName").addEventListener("keydown", e => {
+  if(e.key==="ArrowDown"){ GOTO.sel++; renderGoto(); e.preventDefault(); }
+  else if(e.key==="ArrowUp"){ GOTO.sel=Math.max(0,GOTO.sel-1); renderGoto(); e.preventDefault(); }
+  else if(e.key==="Enter"){ const it=gotoItems()[GOTO.sel]; gotoClose(false); if(it) it.go(); e.preventDefault(); }
+  else if(e.key==="Escape"){ gotoClose(true); e.preventDefault(); }
+  e.stopPropagation();
+});
+
+function palItems(){
+  if(PAL.kind==="cmd") return ranked(ACTIONS, a=>a.label).map(a=>({label:a.label, keys:a.keys, go:a.run}));
+  return ranked(ALLFILES, f=>f.label).map(f=>({label:f.label, keys:[], tag:f.tag, go:()=>openFile(f.label)}));
+}
+function openPal(kind){ PAL.kind=kind; PAL.q=""; PAL.sel=0; $("#pal").classList.add("open"); const inp=$("#palin"); inp.placeholder = kind==="cmd"?"Type a command…":"Type a file name…"; inp.value=""; renderPal(); inp.focus(); setMode("PALETTE"); }
+function closePal(quiet){ const p=$("#pal"); if(!p.classList.contains("open")) return; p.classList.remove("open"); $("#palin").blur(); setMode("COMMAND"); if(!quiet) $("#cells").focus(); }
+function renderPal(){
+  const items = palItems(); PAL.sel = Math.min(PAL.sel, Math.max(0,items.length-1));
+  $("#pallist").innerHTML = items.length ? items.map((it,i)=>`<div class="it${i===PAL.sel?" on":""}" data-i="${i}"><span>${it.label}${it.tag?`<small class="tag ${it.tag}">${it.tag}</small>`:""}</span><span class="keys">${it.keys.map(k=>`<kbd>${k}</kbd>`).join("")}</span></div>`).join("") : `<div class="none">No match.</div>`;
+  $("#pallist").querySelectorAll(".it").forEach(el => el.addEventListener("click", () => { const it=palItems()[+el.dataset.i]; closePal(); it.go(); }));
+  const on=$("#pallist .it.on"); if(on) on.scrollIntoView({block:"nearest"});
+}
+$("#palin").addEventListener("input", e => { PAL.q=e.target.value; PAL.sel=0; renderPal(); });
+$("#palin").addEventListener("keydown", e => {
+  if(e.key==="ArrowDown"){ PAL.sel++; renderPal(); e.preventDefault(); }
+  else if(e.key==="ArrowUp"){ PAL.sel=Math.max(0,PAL.sel-1); renderPal(); e.preventDefault(); }
+  else if(e.key==="Enter"){ const it=palItems()[PAL.sel]; closePal(); if(it) it.go(); e.preventDefault(); }
+  else if(e.key==="Escape"){ closePal(); e.preventDefault(); }
+  e.stopPropagation();
+});
+$("#pal").addEventListener("mousedown", e => { if(e.target.id==="pal") closePal(); });
+
+// ---------------------------------------------------------------- drag to resize docks (left, right, bottom)
+document.querySelectorAll("[data-grip]").forEach(g => g.addEventListener("mousedown", e => {
+  e.preventDefault(); const which=g.dataset.grip; g.classList.add("on");
+  const L=$("#left"), R=$("#right"), B=$("#bottom");
+  const start = {x:e.clientX, y:e.clientY, l:L.offsetWidth, r:R.offsetWidth, b:B.offsetHeight};
+  const move = ev => {
+    if(which==="left")  L.style.setProperty("--w", Math.max(200, Math.min(600, start.l + ev.clientX-start.x))+"px");
+    if(which==="right"){ R.style.setProperty("--w", Math.max(340, Math.min(1000, start.r - (ev.clientX-start.x)))+"px"); applyZoom($("#rightBody")); }
+  };
+  const up = () => { g.classList.remove("on"); window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+  window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+}));
+window.addEventListener("resize", () => { applyZoom($("#rightBody")); applyZoom($("#zen")); });
+// exp_42 2026-09-08: the graph re-fits whenever its pane changes size (text toggled, strip opened, window resized)
+new ResizeObserver(() => applyZoom($("#rightBody"))).observe($("#right"));
+
+// ---------------------------------------------------------------- keys
+const CHORDS = [
+ {meta:true,  shift:true,  ctrl:null, key:"p", act:"palette"},
+ {meta:true,  shift:false, ctrl:null, key:"p", act:"finder"},
+ {meta:true,  shift:false, ctrl:null, key:"k", act:"goto_file"},
+ {meta:true,  shift:true,  ctrl:null, key:"d", act:"split"},
+ {meta:true,  shift:false, ctrl:null, key:"s", act:"save"},
+ {meta:null,  shift:true,  ctrl:true, key:"c", act:"close"},
+ {meta:true,  shift:false, ctrl:null, key:"j", act:"dock"},
+];
+const SINGLE = {e:"run", E:"runto", b:"files", g:"graph", G:"zen", c:"cells", p:"console", l:"term", "?":"help", r:"engine", t:"theme", "/":"filter", d:"run_deps", "[":"up_lineage", "]":"down_lineage", s:"story", j:"view_jupyter", i:"view_ide", ArrowDown:"next", ArrowUp:"prev", Enter:"edit", "1":"left_only", "2":"right_only", "0":"both"};
+document.addEventListener("keydown", e => {
+  const meta = e.metaKey||e.ctrlKey, lk = e.key.toLowerCase();
+  // Jupyter's run keys work in every mode, including while typing in a cell or the IDE buffer
+  if(e.key==="Enter" && (e.ctrlKey||e.metaKey) && !e.shiftKey){ e.preventDefault(); if(S.view==="ide") S.line=curLine(); act("run"); return; }
+  if(e.key==="Enter" && e.shiftKey && !meta){ e.preventDefault(); if(S.view==="ide") S.line=curLine(); act("run_next"); return; }
+  for(const c of CHORDS){
+    if(c.key!==lk) continue;
+    if(c.meta!==null && c.meta!==meta) continue;
+    if(c.ctrl!==null && c.ctrl!==e.ctrlKey) continue;
+    if(c.shift!==e.shiftKey) continue;
+    e.preventDefault(); act(c.act); return;
+  }
+  if(e.key==="Escape"){ act("escape"); return; }
+  if(S.mode!=="COMMAND" || meta || e.altKey) return;
+  const id = SINGLE[e.key]; if(!id) return;
+  e.preventDefault(); act(id);
+});
+$("#help").addEventListener("click", e => { if(e.target.id==="help") e.target.classList.remove("open"); });
+
+// ---------------------------------------------------------------- jupyter sessions (paste a link; each file gets its own kernel)
+function renderSessions(){
+  $("#sessions").innerHTML = SESS.map((x,i)=>`<span class="sess${x.on?" on":""}${x.error?" err":""}" data-i="${i}" title="${esc(x.url)}\nkernel ${x.kernel}${x.busy?" · busy":" · idle"}${x.error?"\n"+esc(x.error):""}"><i class="${x.busy?"busy":""}"></i>${esc(x.name)}</span>`).join("") + (SESS.length?"":`<span class="sess" title="no kernel attached: the right column runs with .venv python"><i></i>local</span>`)
+    + `<input id="jl" placeholder="paste a Jupyter link: http://host:8888/lab?token=…" spellcheck="false">`;
+  document.querySelectorAll("#sessions .sess[data-i]").forEach(el => el.addEventListener("click", () => { SESS.forEach((x,i)=>x.on=i===+el.dataset.i); renderSessions(); renderCells(); toast(`switched to session ${SESS[+el.dataset.i].name}`); }));
+  const jl = $("#jl");
+  jl.addEventListener("focus", () => setMode("PASTE"));
+  jl.addEventListener("blur", () => setMode("COMMAND"));
+  jl.addEventListener("keydown", e => {
+    if(e.key==="Escape"){ jl.blur(); return; }
+    if(e.key!=="Enter") return;
+    const u = jl.value.trim(); if(!/^https?:\/\/.+/.test(u)){ toast("that is not a Jupyter URL"); return; }
+    jl.disabled=true; toast("attaching …");
+    api("/api/session", {url:u, name:(PROGRAM.stem||"session")+" "+(SESS.length+1)}).then(info => {
+      SESS.forEach(x=>x.on=false); SESS.push({...info, on:true});
+      log("py", `attached ${info.url} · kernel ${info.kernel.slice(0,8)} · cells will execute there`);
+      jl.value=""; renderSessions(); toast("attached · cells now run in that kernel"); renderCells();
+    }).catch(e => { toast("attach failed: "+e.message); log("warn", "attach "+u+": "+e.message); jl.disabled=false; });
+    jl.blur();
+  });
+}
+
+// ---------------------------------------------------------------- first paint: load the last file (or Vishnu's program), nothing runs until asked
+S.right = "graph"; S.bottom = true; S.tab = "term";
+(async () => {
+  await loadFiles(); await loadSessions();
+  let last = "corpus/sas/test_vishnu.sas"; try{ last = localStorage.getItem("bench.last") || last; }catch(e){}
+  await loadProgram(last);
+  window.BENCH_READY = true;
+})();
+const _loadProgram = loadProgram;
+loadProgram = async function(path){ await _loadProgram(path); try{ localStorage.setItem("bench.last", path); }catch(e){} };
+Object.assign(window, {S, act, GZ, ACTIONS, setEngine, ideRegions, setView, filterFiles, highlight, run, runCmd, regionAt, deps, ancestors, setStory, makerOf, loadProgram, openFile, api});
+Object.defineProperty(window, "BLOCKS", {get:()=>BLOCKS}); Object.defineProperty(window, "SESS", {get:()=>SESS}); Object.defineProperty(window, "LINEAGE", {get:()=>LINEAGE}); Object.defineProperty(window, "PROGRAM", {get:()=>PROGRAM});
+</script>
+
+</body></html>
