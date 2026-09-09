@@ -1,4 +1,5 @@
-//! `lineageq_api` — one HTTP API over the exp_005 store, serving both shipping UIs.
+//! `lineageq_api` — one HTTP API over the exp_005 store, fully serving UI1 and pointing
+//! UI2 (the Bench) at its own origin.
 //!
 //! **Why this exists.** Phase 2 replaces two Python backends — `app.py` (UI1's server)
 //! and `convert_api.py` (the Bench) — with one Rust API reading a single DuckDB store
@@ -7,6 +8,12 @@
 //! answers it today and translates the reply into canonical shape (`oracle::forward`).
 //! `GET /api/health` reports which of the twelve questions in plan §6 are landed and
 //! which are still forwarded.
+//!
+//! **One door for UI1, not for UI2 (Ruling 6, 2026-09-09, final review fix wave).** UI1
+//! and the Bench both define `/api/files`, with different response shapes, so one origin
+//! cannot answer both until the Bench's own routes land in Rust (phase C) or are renamed
+//! under a prefix. `GET /bench` (`routes::bench`) is therefore a 302 to `oracle_b`'s own
+//! `/bench`, not a served page — see that module's doc comment.
 //!
 //! **Shape.** `app(state)` builds the router from an `AppState` alone — no globals, no
 //! listener — so `main` can serve it over TCP while a test drives the very same router
@@ -66,6 +73,8 @@ pub fn app(state: AppState) -> Router {
         .route("/api/files", get(routes::files::files))
         .route("/api/search", get(routes::search::search))
         .route("/api/neighborhood", get(routes::neighborhood::neighborhood))
+        // Ruling 6 (2026-09-09, final review fix wave): `/bench` redirects to oracle_b
+        // rather than serving the page itself — see `routes::bench` for why.
         .route("/bench", get(routes::bench::bench))
         // Ruling 5 (2026-09-09, Task 5 fix round 1): every other `/api/*` path forwards
         // to oracle_a instead of 404ing — see `routes::forward` for why a fallback and

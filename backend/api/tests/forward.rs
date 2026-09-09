@@ -19,7 +19,10 @@
 //! closed address, not whatever the machine happens to have open on `8000` right now.
 
 mod support;
+use axum::body::Body;
+use axum::http::Request;
 use support::{closed_addr, get_raw, get_raw_with_oracle_a};
+use tower::ServiceExt;
 
 #[tokio::test]
 async fn a_non_landed_api_path_is_forwarded_not_404() {
@@ -48,4 +51,27 @@ async fn an_unrelated_unmatched_path_still_gets_a_real_404() {
     // anything, is listening on `8000`.
     let res = get_raw("/not-an-api-path").await;
     assert_eq!(res.status, 404);
+}
+
+/// Ruling 6 (2026-09-09, final review fix wave): the fallback forwards GET only. Before
+/// this, a non-GET request to an unlanded `/api/*` path would have been silently
+/// forwarded as a GET via `reqwest::get` — exactly the shape of the Bench's own POST
+/// routes (`/api/save`, `/api/run_block`, `/api/exec`, ...), had they ever reached this
+/// API. They no longer can (the Bench is reached only via oracle_b, straight from
+/// `GET /bench`'s redirect), but the fallback must still fail loudly instead of mangling
+/// a non-GET method into a GET against oracle_a, in case something else ever hits one.
+#[tokio::test]
+async fn a_non_get_method_on_an_unlanded_path_is_rejected_not_mangled() {
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/run_block")
+        .body(Body::empty())
+        .expect("build POST request");
+    let app = lineageq_api::app(lineageq_api::test_state());
+    let res = app.oneshot(req).await.expect("router call");
+    assert_eq!(
+        res.status(),
+        axum::http::StatusCode::METHOD_NOT_ALLOWED,
+        "a non-GET on an unlanded path must be rejected, not silently downgraded to a GET"
+    );
 }

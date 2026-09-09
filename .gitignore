@@ -14,3 +14,5 @@ raw/bench_stack/out/*
 !raw/bench_stack/out/spec/
 !raw/bench_stack/out/grammar/
 backend/target/
+# build output of `lineageq_store convert` / `main.rs`'s default --db, not source
+backend/*.duckdb

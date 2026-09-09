@@ -2,11 +2,32 @@
 
 **Why this folder exists.** Until 2026-09-09 the two UIs read two different corpora through
 two different backends, so they showed different data. This is the single corpus both now
-read, through the Rust API on :8110.
+read — but through two different doors, not one. UI1 reads it through the Rust API on
+:8110 (`GET /api/files`, `/search`, `/neighborhood` from the store; `/edges`, `/blocklinks`,
+`/file` forwarded to oracle_a). The Bench (UI2) reads the same corpus through its own
+Python server on :8042, not through :8110: `GET /bench` on :8110 is only a 302 redirect to
+`{oracle_b}/bench`.
+
+**Why not one door for both (Ruling 6, 2026-09-09).** UI1 and the Bench both define
+`/api/files`, with different response shapes — one origin cannot answer both without
+either landing the Bench's own routes in Rust (phase C) or renaming them under a prefix
+(editing the Bench's 1,300-line `bench.html`, explicitly out of scope here). Unifying the
+Bench's routes is phase C's job, not this track's; do not re-attempt "one door for both"
+without doing one of those two things first.
 
 **Inputs → outputs.** `team_finance/<lang>/raw/` is the source as received; the store
-(`lineageq_store convert <spec> corpus/team_finance <db>`) indexes it into DuckDB and the
-API answers from there.
+indexes it into DuckDB and the API answers from there. Concrete, copy-pasteable build
+command, run from `exp_005_final_ui_v3/`:
+
+```
+backend/target/release/lineageq_store convert raw/bench_stack/out/spec/sas.json corpus/team_finance backend/lineageq.duckdb
+```
+
+Expected output on success: 25 files, 26 blocks, 126 node4, 41 edges. If those counts
+differ, the corpus or the spec has drifted — do not proceed assuming the store is good.
+
+The resulting `backend/lineageq.duckdb` is build output, not source — it is generated from
+`corpus/team_finance/` and the spec every time, and is gitignored (`backend/*.duckdb`).
 
 ## Stages
 

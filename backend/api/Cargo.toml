@@ -2,7 +2,7 @@
 name = "lineageq_api"
 version = "0.1.0"
 edition = "2021"
-description = "One HTTP API over the exp_005 store, serving both shipping UIs."
+description = "One HTTP API over the exp_005 store: fully serves UI1, redirects UI2 (the Bench) to its own origin."
 
 [lib]
 name = "lineageq_api"

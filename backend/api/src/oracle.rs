@@ -18,6 +18,10 @@ use serde_json::{json, Value};
 /// oracle at `base` and return its status and JSON body, translated 1:1 — nothing here
 /// counts as "landing" a route; the store answers none of these.
 ///
+/// GET-only by construction (`reqwest::get`) — its one caller, `routes::forward::fallback`,
+/// rejects any other method before this is reached (Ruling 6), so this never needs a body
+/// or a method parameter of its own.
+///
 /// Never leaks `base` (the oracle's own address) or any filesystem path into the
 /// response: on any failure (connection refused, non-200, a body that isn't JSON) this
 /// returns a short, generic body and `502 Bad Gateway`, and logs the real detail with

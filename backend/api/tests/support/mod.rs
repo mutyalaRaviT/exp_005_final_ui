@@ -52,6 +52,7 @@ pub async fn post(path: &str, body: Value) -> Value {
 pub struct RawRes {
     pub status: u16,
     pub content_type: String,
+    pub location: Option<String>,
     pub body: String,
 }
 
@@ -83,6 +84,11 @@ async fn get_raw_with_state(state: lineageq_api::AppState, path: &str) -> RawRes
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
         .to_string();
+    let location = res
+        .headers()
+        .get(axum::http::header::LOCATION)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
     let bytes = res
         .into_body()
         .collect()
@@ -92,6 +98,7 @@ async fn get_raw_with_state(state: lineageq_api::AppState, path: &str) -> RawRes
     RawRes {
         status,
         content_type,
+        location,
         body: String::from_utf8_lossy(&bytes).to_string(),
     }
 }
