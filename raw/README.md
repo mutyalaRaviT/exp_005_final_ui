@@ -71,6 +71,22 @@ collide with this track's folder READMEs.
    dependency of UI1: without its FastAPI server on `:8000`, UI1 draws nothing. Hence
    `lineage_server/`.
 
+## 2026-09-09 — the old corpora are gone; `bench_stack/run_all.sh` has nothing to run
+
+Task 5 (team-finance-corpus) deletes every competing corpus so the two UIs cannot drift
+apart again: `lineage_server/inputs/ankitha_1/`, `bench_stack/corpus/parts/`,
+`bench_stack/testdata/`, and `bench_stack/corpus/sas/test_vishnu*.sas` — which was the
+whole contents of `bench_stack/corpus/sas/`, so that folder is now empty. `bench_api.py`'s
+`SAS_DIRS` is re-pointed at `corpus/team_finance/sas/raw` (the shared corpus, see
+`corpus/README.md`), so the Bench oracle keeps serving files. `run_all.sh` was never
+re-pointed — that is out of scope for Task 5 — so it still reads `corpus/sas/*.sas`
+(lines 15, 24, 30) and `corpus/sas/test_vishnu_testdata.sas` (line 46), all now missing.
+Running it will fail on step 1. It is retained as **reference only**: read it to see the
+loop's shape (tokenise → fold → Rust → PySpark → DataMatch), do not run it. `explorer.duckdb`
+(+ `.wal`) was NOT deleted, against the original task brief — it was rebuilt in place
+instead (`server/scripts/sync_store.py` against `SAS_ROOTS=corpus/team_finance`) so its
+fileids read `sas/raw/<name>.sas`, matching the Rust API, rather than going blind.
+
 ## Decisions
 
 - **PROVEN ∎** — every source path above was copied on 2026-09-08/09; the sibling-layout

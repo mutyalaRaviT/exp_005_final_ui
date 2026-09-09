@@ -40,6 +40,10 @@ PY = ROOT / ".venv/bin/python"
 RUST = ROOT / "rust_engine/target/release/lineageq_sas"
 JAVA_HOME = os.environ.get("JAVA_HOME_17", "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home")
 BENCH = ROOT / "out/bench"
+# 2026-09-08 team-finance-corpus, Task 5: the one corpus both oracles read now lives
+# outside raw/bench_stack (see corpus/README.md), so confine()'s allow-list grows to
+# include it.
+CORPUS_ROOT = ROOT.parent.parent / "corpus"
 PROGRAMS = {}          # stem -> the open_program() result (blocks, lineage), kept for run_block/term
 _lock = threading.Lock()
 
@@ -51,11 +55,14 @@ def sh(cmd, cwd=ROOT, env=None, timeout=600):
 
 # ---------------------------------------------------------------- files
 def confine(path):
-    """A path under ROOT, or ValueError. The page may only read what the repo holds."""
+    """A path under ROOT or under the shared corpus/ (CORPUS_ROOT), or ValueError. The
+    page may only read what the repo, or the one corpus it shares with the rest of
+    exp_005, holds."""
     p = (ROOT / path).resolve()
-    if ROOT not in p.parents and p != ROOT:
-        raise ValueError(f"path outside the repo: {path}")
-    return p
+    for base in (ROOT, CORPUS_ROOT):
+        if base in p.parents or p == base:
+            return p
+    raise ValueError(f"path outside the repo: {path}")
 
 
 def _kind(p):
@@ -64,7 +71,7 @@ def _kind(p):
 
 def list_files():
     groups = []
-    for d in ["corpus/sas", "corpus/parts", "testdata", "raw", "out/pyspark_pretty", "out/ir/sas", "out/loops/lineage", "notebooks", "reports", "out/bench"]:
+    for d in ["../../corpus/team_finance/sas/raw", "raw", "out/pyspark_pretty", "out/ir/sas", "out/loops/lineage", "notebooks", "reports", "out/bench"]:
         dp = ROOT / d
         if not dp.is_dir():
             continue
@@ -418,7 +425,7 @@ def run_block(stem, block, engine="rust", session_id=None):
 
 
 # ---------------------------------------------------------------- similar programs
-SAS_DIRS = ["corpus/sas", "corpus/parts", "testdata"]   # exp_42 2026-09-08: every SAS folder, not only what run_all.sh parsed
+SAS_DIRS = ["../../corpus/team_finance/sas/raw"]   # 2026-09-09: one corpus, see docs/superpowers/specs/2026-09-09-team-finance-corpus-design.md
 SIG_DIR = BENCH / "sig"
 
 
@@ -602,14 +609,14 @@ def term(cmd, args, stem=None, block=None):
         return {"refused": True, "lines": [f"not allowed: {cmd}"], "suggestion": best[1] if best and best[0] <= 2 else None, "known": known}
     lines, links = [], []
     if cmd == "ls":
-        for d in ["corpus/sas", "testdata"]:
+        for d in SAS_DIRS:
             lines += [f"{d}/{f.name}" for f in sorted((ROOT / d).glob("*.sas"))]
     elif cmd == "run_all":
         rc, o, e = sh(["./run_all.sh"], timeout=900); lines = (o + e).splitlines()[-40:]
     elif cmd == "run_loops":
         rc, o, e = sh(["./loops/run_loops.sh"], timeout=900); lines = (o + e).splitlines()[-40:]
     elif cmd == "convert":
-        path = args or "corpus/sas/test_vishnu.sas"
+        path = args or "../../corpus/team_finance/sas/raw/09_customer_summary.sas"
         p = open_program(path=path)
         r = p["receipts"]
         lines = [f"$ open {path}", f"statements {r['statements']} · folded {r['folded']} · roundtrip {r['roundtrip']} · source_match {r['source_match']}",
@@ -638,7 +645,7 @@ def term(cmd, args, stem=None, block=None):
         elif stem in LISTINGS:
             v = listing_verdicts(stem)
         else:
-            return {"lines": ["no SAS listing yet: run testdata/test_vishnu_testdata.sas in SAS OnDemand, then paste the listing in the DataMatch tab or: compare <listing.txt>"], "links": []}
+            return {"lines": ["no SAS listing yet: run corpus/team_finance/sas/raw/09_customer_summary.sas in SAS OnDemand, then paste the listing in the DataMatch tab or: compare <listing.txt>"], "links": []}
         lines = [f"$ compare {v['source']}  (SAS listing vs file-level Spark CSVs, {FILE_CSV_DIR.relative_to(ROOT)})"]
         for t, r in v["tables"].items():
             lines.append(f"{t}  {r['verdict']}  " + (r.get("why") or f"sas {r['sas_rows']} rows / pyspark {r.get('py_rows')} rows" + (f", {r['n_mismatch']} differ" if r.get("n_mismatch") else "")))

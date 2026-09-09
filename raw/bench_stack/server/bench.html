@@ -668,9 +668,9 @@ function renderLeft(){
   if(S.recent.length) h += `<div class="dir">Recent</div>` + S.recent.map(n=>`<div class="f" data-path="${n}">${n.split("/").pop()}<span class="tag ${n.endsWith(".py")?"py":n.endsWith(".sas")?"sas":"ir"}">${n.endsWith(".py")?"py":n.endsWith(".sas")?"sas":"ir"}</span></div>`).join("");
   FILES.forEach(g => { h += `<div class="dir" data-dir="${g.dir}" title="open ${g.dir}/ as a page">${g.dir}</div>` + g.items.map(it => `<div class="f${it.path===PROGRAM.path?" on":""}" data-path="${it.path}">${it.name}${it.kind?`<span class="tag ${it.kind}">${it.kind}</span>`:""}</div>`).join(""); });
   h += `<div class="dir">Similar to ${esc((PROGRAM.path||"").split("/").pop()||"this program")}</div>`;
-  if(!SIMILAR.length) h += `<div class="empty">no other SAS program to compare (corpus/sas, corpus/parts, testdata)</div>`;
+  if(!SIMILAR.length) h += `<div class="empty">no other SAS program to compare (corpus/team_finance/sas/raw)</div>`;
   SIMILAR.forEach(([n,s,why]) => { h += `<div class="sim" data-path="${n}" title="${why}"><span>${n.split("/").pop()}</span><span>${Math.round(s*100)}%</span><div class="bar"><i style="width:${s*100}%"></i></div><small style="grid-column:1/-1">${why}</small></div>`; });
-  h += `<div class="dir" style="margin-top:12px">score</div><div style="padding:2px 12px 10px 22px;font-size:11.5px;color:var(--muted)">Jaccard over block shapes ∪ lineage edges from node/4, over every SAS file in corpus/sas, corpus/parts and testdata (files the loop never parsed are folded once by the Rust engine into out/bench/sig). Same rules for SAS and PySpark, so a converted program can be matched back to its source.</div></div>`;
+  h += `<div class="dir" style="margin-top:12px">score</div><div style="padding:2px 12px 10px 22px;font-size:11.5px;color:var(--muted)">Jaccard over block shapes ∪ lineage edges from node/4, over every SAS file in corpus/team_finance/sas/raw (files the loop never parsed are folded once by the Rust engine into out/bench/sig). Same rules for SAS and PySpark, so a converted program can be matched back to its source.</div></div>`;
   $("#leftBody").innerHTML = h;
   const inp=$("#fsearch");
   inp.addEventListener("focus", ()=>setMode("FILTER")); inp.addEventListener("blur", ()=>setMode("COMMAND"));

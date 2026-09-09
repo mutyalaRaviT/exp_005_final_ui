@@ -19,6 +19,7 @@ and **inside a file** (the exp_42 Bench). Opened 2026-09-08 on the owner's brief
 | `frontend/` | TypeScript. `ui_across_file_ui/` (files, blocks, tables across a folder; from `node4_viz`), `ui_file_ide/` (one file: SAS ⇄ PySpark cells, table graph, strip; from the Bench), `shared/` (design tokens, URL state, API client). |
 | `rules/` | `sas_pack/`, `py_pyspark_pack/`, and `*/test_data_gen/`: pyDSL spec, its JSON, the generated `.pl`, the node/4 schema, interfaces, generators. Only what the engines read. |
 | `build_bin/tauri_builder/` | Desktop build: one binary with the backend inside and the two UIs as windows. |
+| `corpus/` | `team_finance/{sas,hive}/{raw,auto_convert,work,final_match}` — the one corpus both UIs read; `perf/` for the big fixtures. See `corpus/README.md`. |
 | `docs/` | Obsidian medallion vault. One dimension: `plan/`. Later dimensions: `backend/`, `frontend/`, `rules/`. |
 | `tools/` | `wiki_from_git.py` (planned): doc comments, commit messages and git notes → bronze pages. |
 

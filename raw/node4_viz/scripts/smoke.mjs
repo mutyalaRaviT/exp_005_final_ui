@@ -1,7 +1,9 @@
 // scripts/smoke.mjs — needs `npm run dev` on :5174 and the API on :8000.
 import { chromium } from 'playwright'
 
-const URL = process.env.SMOKE_URL ?? 'http://localhost:5174/?file=ankitha_1%2F04_build_accounts.sas&up=1&down=1'
+// 2026-09-09, Task 5 (team-finance-corpus): fileid updated from `ankitha_1/...` to
+// `sas/raw/...` to match the rebuilt oracle (raw/lineage_server/output/explorer.duckdb).
+const URL = process.env.SMOKE_URL ?? 'http://localhost:5174/?file=sas%2Fraw%2F04_build_accounts.sas&up=1&down=1'
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } })
 const fail = (m) => { console.error('SMOKE FAIL:', m); process.exitCode = 1 }
@@ -13,7 +15,7 @@ console.log('file nodes:', files)
 if (files !== 11) fail(`expected 11 file nodes, got ${files}`)
 await page.screenshot({ path: '../plots/node4_viz_ankitha_04.png' })
 
-await page.locator('[data-cid="file:ankitha_1/04_build_accounts.sas"] .rf-toggle').click()
+await page.locator('[data-cid="file:sas/raw/04_build_accounts.sas"] .rf-toggle').click()
 await page.waitForSelector('.rf-group.kind-blockCluster', { timeout: 15000 })
 const blocks = await page.locator('.rf-group.kind-blockCluster').count()
 const occs = await page.locator('.rf-occ').count()

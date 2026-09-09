@@ -22,6 +22,10 @@ Later dimensions, opened when their first page exists: `backend`, `frontend`, `r
 ## Ledger
 
 - 2026-09-08 — track opened. Pages: [[gold_draft_exp_005_plan]], [[raw_sources_to_copy]], [[bronze_perf_receipts_exp42]].
+- 2026-09-09 — one local corpus. The two UIs read two different corpora through two
+  different backends until today; see `corpus/README.md` and the plan/spec at
+  `docs/superpowers/plans/2026-09-09-team-finance-corpus.md` /
+  `docs/superpowers/specs/2026-09-09-team-finance-corpus-design.md`.
 
 ## Story
 
