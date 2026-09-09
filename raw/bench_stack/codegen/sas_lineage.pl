@@ -1,5 +1,13 @@
 % codegen/sas_lineage.pl — SAS node/4 -> column lineage facts (exp_42, 2026-09-07).
 %
+% Fix round 1 (2026-09-09): every proj(...) pattern in this file was arity-2
+% (proj(Expr,AliasOpt)) while pipeline/specs/sas.py's PROJ has built arity-3
+% (proj(Expr,AliasOpt,LengthOpt)) since task 5b's LENGTH support — this file was
+% never touched or tested in 5b, so every proj/2 clause here silently matched
+% nothing. run_all.sh step 4's Prolog-vs-Rust byte-diff caught it: this file was
+% dropping the entire body of every CREATE TABLE AS SELECT. Fixed by widening
+% every proj/2 to proj/3 (the third arg unused here, matched with `_`).
+%
 % Why: loop 2. One clause per SAS step shape says which output column comes
 % from which input column, and which input columns decide the rows. The input
 % is ONLY the node/4 fact file; the SAS text is never read. rust_engine/src/
@@ -65,7 +73,7 @@ select_lineage(K, select_core(Projs, From, Joins, WhereOpt, GroupOpt, HavingOpt)
     forall(member(J, Joins),
            ( J =.. [_, Src, On], from_ds(Src, KJ), reads(K, KJ),
              expr_cols(On, OnCs), controls(K, KI, OnCs), controls(K, KJ, OnCs) )),
-    findall(C, ( member(proj(E, A), Projs), proj_lineage(K, KI, E, A, C) ), Cs0), flatten(Cs0, Cols), set_schema(K, Cols),
+    findall(C, ( member(proj(E, A, _), Projs), proj_lineage(K, KI, E, A, C) ), Cs0), flatten(Cs0, Cols), set_schema(K, Cols),
     ( WhereOpt = some(W) -> cond_lineage(K, KI, W) ; true ),
     ( GroupOpt = some(Keys) -> forall(member(G, Keys), (expr_cols(G, GCs), controls(K, KI, GCs))) ; true ),
     ( HavingOpt = some(H) -> cond_lineage(K, KI, H) ; true ).
@@ -84,7 +92,7 @@ cond_lineage(K, KI, W) :-
     expr_cols(W, Cs), controls(K, KI, Cs),
     forall(sub_term_of(subquery_expr(select_core(Projs, From, _, _, _, _)), W),
            ( from_ds(From, KS), reads(K, KS),
-             findall(C, ( member(proj(E, _), Projs), expr_cols(E, ECs), member(C, ECs) ), SCs), controls(K, KS, SCs) )).
+             findall(C, ( member(proj(E, _, _), Projs), expr_cols(E, ECs), member(C, ECs) ), SCs), controls(K, KS, SCs) )).
 
 sub_term_of(X, T) :- X = T.
 sub_term_of(X, T) :- compound(T), T =.. [_|As], member(A, As), sub_term_of(X, A).

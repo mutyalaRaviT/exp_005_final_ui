@@ -1,5 +1,13 @@
 % codegen/sas_interp.pl — the executable node/4: run a SAS program's node/4 on data (exp_42, 2026-09-07).
 %
+% Fix round 1 (2026-09-09): every proj(...) pattern in this file was arity-2
+% (proj(Expr,AliasOpt)) while pipeline/specs/sas.py's PROJ has built arity-3
+% (proj(Expr,AliasOpt,LengthOpt)) since task 5b's LENGTH support — this file was
+% never touched or tested in 5b, so every proj/2 clause here silently matched
+% nothing. run_all.sh step 4's Prolog-vs-Rust byte-diff caught it: this file was
+% dropping the entire body of every CREATE TABLE AS SELECT. Fixed by widening
+% every proj/2 to proj/3 (the third arg unused here, matched with `_`).
+%
 % Why: loops 3 and 4 need the SAS side to RUN, and SAS is not on this machine.
 % exp_009's idea: an interpreter over the IR proves the parse by the answers it
 % produces. This file executes the same node/4 the PySpark was generated from,
@@ -174,7 +182,7 @@ inner_join(C0, R0, C1, R1, On, Cols, Rows) :-
     append(C0, C1, Cols),
     findall(Row, ( member(A, R0), member(B, R1), append(A, B, Row), eval(On, Cols, Row, V), truthy(V) ), Rows).
 
-has_agg(Projs) :- member(proj(E, _), Projs), is_agg(E), !.
+has_agg(Projs) :- member(proj(E, _, _), Projs), is_agg(E), !.
 is_agg(call(N, _)) :- lower(N, L), memberchk(L, [sum, avg, mean, max, min, count]).
 
 % GROUP BY: groups in the order their key first appears (Spark's single-partition order is
@@ -185,7 +193,7 @@ group_rows(Keys, Cols, Rows, Groups) :-
     findall(G, ( member(KV, KVs), findall(R, member(KV-R, Pairs), G) ), Groups).
 
 % one output row from one group (a plain SELECT is a group of one row)
-project(Projs, Cols, Group, Row) :- findall(V, ( member(proj(E, _), Projs), proj_values(E, Cols, Group, Vs), member(V, Vs) ), Row).
+project(Projs, Cols, Group, Row) :- findall(V, ( member(proj(E, _, _), Projs), proj_values(E, Cols, Group, Vs), member(V, Vs) ), Row).
 proj_values(star, _, [R|_], R) :- !.
 % task 5c: COUNT(DISTINCT x) — the aggregate's one arg may itself be
 % distinct(Inner); dedup the per-row values before handing them to
@@ -198,7 +206,7 @@ proj_values(E, Cols, Group, [V]) :-
     aggregate(LN, Xs, V).
 proj_values(E, Cols, [R|_], [V]) :- eval(E, Cols, R, V).
 
-out_cols(Projs, Cols, Out) :- findall(C, ( member(proj(E, A), Projs), out_col(E, A, Cols, C) ), Cs), flatten(Cs, Out).
+out_cols(Projs, Cols, Out) :- findall(C, ( member(proj(E, A, _), Projs), out_col(E, A, Cols, C) ), Cs), flatten(Cs, Out).
 out_col(star, none, Cols, Cols) :- !.
 out_col(E, some(A), Cols, col(L, T)) :- !, lower(A, L), expr_type(E, Cols, T).
 out_col(col(N), none, Cols, col(L, T)) :- !, lower(N, L), ( memberchk(col(L, T), Cols) -> true ; T = num ).

@@ -1,5 +1,13 @@
 % codegen/sas_pyspark.pl — SAS node/4 -> PySpark, in Prolog (exp_42, 2026-09-05).
 %
+% Fix round 1 (2026-09-09): every proj(...) pattern in this file was arity-2
+% (proj(Expr,AliasOpt)) while pipeline/specs/sas.py's PROJ has built arity-3
+% (proj(Expr,AliasOpt,LengthOpt)) since task 5b's LENGTH support — this file was
+% never touched or tested in 5b, so every proj/2 clause here silently matched
+% nothing. run_all.sh step 4's Prolog-vs-Rust byte-diff caught it: this file was
+% dropping the entire body of every CREATE TABLE AS SELECT. Fixed by widening
+% every proj/2 to proj/3 (the third arg unused here, matched with `_`).
+%
 % Why: the conversion RULES live here as clauses a person can read one at a
 % time: one clause per SAS statement shape, one clause per expression
 % functor. The input is ONLY the node/4 fact file the fold harness wrote
@@ -176,9 +184,9 @@ having_txt(none, "", P, P).
 having_txt(some(C), T, P0, P) :- px(C, X, P0, P), format(atom(T), ".filter(~w)", [X]).
 
 % SELECT list -> .select / .agg / .groupBy(...).agg
-select_txt([proj(star, none)], none, ".select(\"*\")", P, P) :- !.
+select_txt([proj(star, none, _)], none, ".select(\"*\")", P, P) :- !.
 select_txt(Cols, none, T, P0, P) :-
-    ( member(proj(E, _), Cols), is_agg(E) ) ->
+    ( member(proj(E, _, _), Cols), is_agg(E) ) ->
         ( maplist_pre(proj_txt, Cols, Ts, P0, P), atomic_list_concat(Ts, ", ", TT), format(atom(T), ".agg(~w)", [TT]) )
     ;   ( maplist_pre(proj_txt, Cols, Ts, P0, P), atomic_list_concat(Ts, ", ", TT), format(atom(T), ".select(~w)", [TT]) ).
 select_txt(Cols, some(Keys), T, P0, P) :-
@@ -187,13 +195,13 @@ select_txt(Cols, some(Keys), T, P0, P) :-
     include(agg_proj, Cols, Aggs), maplist_pre(proj_txt, Aggs, ATs, P0, P), atomic_list_concat(ATs, ", ", AggTxt),
     format(atom(T), ".groupBy(~w).agg(~w)", [KeysTxt, AggTxt]).
 
-agg_proj(proj(E, _)) :- is_agg(E).
-key_txt(Key, Cols, T) :- ( member(proj(E, some(A)), Cols), same_expr(E, Key) -> px0(Key, KP), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [KP, LA]) ; px0(Key, T) ).
+agg_proj(proj(E, _, _)) :- is_agg(E).
+key_txt(Key, Cols, T) :- ( member(proj(E, some(A), _), Cols), same_expr(E, Key) -> px0(Key, KP), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [KP, LA]) ; px0(Key, T) ).
 same_expr(A, B) :- lower_term(A, LA), lower_term(B, LB), LA == LB.
 
-proj_txt(proj(star, none), "F.col(\"*\")", P, P).
-proj_txt(proj(E, none), T, P0, P) :- px(E, T, P0, P).
-proj_txt(proj(E, some(A)), T, P0, P) :- px(E, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
+proj_txt(proj(star, none, _), "F.col(\"*\")", P, P).
+proj_txt(proj(E, none, _), T, P0, P) :- px(E, T, P0, P).
+proj_txt(proj(E, some(A), _), T, P0, P) :- px(E, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
 
 maplist_pre(_, [], [], P, P).
 maplist_pre(G, [X|Xs], [Y|Ys], P0, P) :- call(G, X, Y, P0, P1), maplist_pre(G, Xs, Ys, P1, P).
@@ -202,7 +210,7 @@ is_agg(call(N, _)) :- lower(N, L), memberchk(L, [sum, avg, mean, max, min, count
 
 % output columns of a core — for the schema table
 core_out_cols(select_core(Cols, From, _, _, _, _), Out) :-
-    findall(C, ( member(proj(E, A), Cols), proj_col(E, A, From, C) ), Cs), flatten(Cs, Out).
+    findall(C, ( member(proj(E, A, _), Cols), proj_col(E, A, From, C) ), Cs), flatten(Cs, Out).
 proj_col(_, some(A), _, L) :- !, lower(A, L).
 proj_col(col(N), none, _, L) :- !, lower(N, L).
 proj_col(star, none, table(D, _), Cols) :- ds_key(D, K), schema(K, Cols), !.

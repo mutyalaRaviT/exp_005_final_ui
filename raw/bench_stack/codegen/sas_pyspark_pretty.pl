@@ -1,5 +1,13 @@
 % codegen/sas_pyspark_pretty.pl — SAS node/4 -> PySpark a person would write.
 %
+% Fix round 1 (2026-09-09): every proj(...) pattern in this file was arity-2
+% (proj(Expr,AliasOpt)) while pipeline/specs/sas.py's PROJ has built arity-3
+% (proj(Expr,AliasOpt,LengthOpt)) since task 5b's LENGTH support — this file was
+% never touched or tested in 5b, so every proj/2 clause here silently matched
+% nothing. run_all.sh step 4's Prolog-vs-Rust byte-diff caught it: this file was
+% dropping the entire body of every CREATE TABLE AS SELECT. Fixed by widening
+% every proj/2 to proj/3 (the third arg unused here, matched with `_`).
+%
 % Why: codegen/sas_pyspark.pl is the plain printer (easy to prove). This one
 % prints the SAME node/4 for a reader: named DataFrames, the SAS statements of
 % each step as a comment above the code (sliced from the source by the trace's
@@ -220,11 +228,11 @@ from_txt(subquery(Core, AliasOpt), T, P0, P) :-
     ( AliasOpt = some(A) -> lower(A, LA), format(atom(T), "(~w~w).alias(\"~w\")", [S, ST, LA]) ; format(atom(T), "(~w~w)", [S, ST]) ).
 
 % SELECT list -> [] | [.select(...)] | [.agg(...)] | [.groupBy(...), .agg(...)]
-select_steps([proj(star, none)], none, [], P, P) :- !.
+select_steps([proj(star, none, _)], none, [], P, P) :- !.
 select_steps(Cols, none, [Step], P0, P) :-
-    (   member(proj(E, _), Cols), is_agg(E)
+    (   member(proj(E, _, _), Cols), is_agg(E)
     ->  maplist_pre(agg_item, Cols, Items, P0, P), call_lines("agg", Items, Step)
-    ;   ( forall(member(proj(E, A), Cols), (E = col(_), A == none)) -> maplist_pre(sel_item, Cols, Items, P0, P), atomic_list_concat(Items, ", ", IT), format(atom(Step), ".select(~w)", [IT])
+    ;   ( forall(member(proj(E, A, _), Cols), (E = col(_), A == none)) -> maplist_pre(sel_item, Cols, Items, P0, P), atomic_list_concat(Items, ", ", IT), format(atom(Step), ".select(~w)", [IT])
         ; maplist_pre(sel_item, Cols, Items, P0, P), call_lines("select", Items, Step) )
     ).
 select_steps(Cols, some(Keys), [GStep, AStep], P0, P) :-
@@ -238,17 +246,17 @@ call_lines(Name, Items, Step) :-
     findall(L, ( member(I, Items), format(atom(L), "    ~w,", [I]) ), Ls), atomic_list_concat(Ls, "\n", Body),
     format(atom(Step), ".~w(\n~w\n)", [Name, Body]).
 
-agg_proj(proj(E, _)) :- is_agg(E).
-key_txt(Key, Cols, T) :- member(proj(E, some(A)), Cols), same_expr(E, Key), !, pe(Key, sub, KP, [], _), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [KP, LA]).
+agg_proj(proj(E, _, _)) :- is_agg(E).
+key_txt(Key, Cols, T) :- member(proj(E, some(A), _), Cols), same_expr(E, Key), !, pe(Key, sub, KP, [], _), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [KP, LA]).
 key_txt(Key, _, T) :- key_txt0(Key, T).
 key_txt0(col(N), T) :- !, lower(N, L), format(atom(T), "\"~w\"", [L]).
 key_txt0(E, T) :- pe(E, sub, T, [], _).
 same_expr(A, B) :- lower_term(A, LA), lower_term(B, LB), LA == LB.
 
-sel_item(proj(col(N), none), T, P, P) :- !, lower(N, L), format(atom(T), "\"~w\"", [L]).
-sel_item(proj(star, none), "\"*\"", P, P) :- !.
-sel_item(proj(E, none), T, P0, P) :- pe(E, sub, T, P0, P).
-sel_item(proj(E, some(A)), T, P0, P) :- pe(E, sub, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
+sel_item(proj(col(N), none, _), T, P, P) :- !, lower(N, L), format(atom(T), "\"~w\"", [L]).
+sel_item(proj(star, none, _), "\"*\"", P, P) :- !.
+sel_item(proj(E, none, _), T, P0, P) :- pe(E, sub, T, P0, P).
+sel_item(proj(E, some(A), _), T, P0, P) :- pe(E, sub, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
 agg_item(P, T, P0, P1) :- sel_item(P, T, P0, P1).
 
 maplist_pre(_, [], [], P, P).
@@ -257,7 +265,7 @@ maplist_pre(G, [X|Xs], [Y|Ys], P0, P) :- call(G, X, Y, P0, P1), maplist_pre(G, X
 is_agg(call(N, _)) :- lower(N, L), memberchk(L, [sum, avg, mean, max, min, count, std, var, nmiss]).
 
 core_out_cols(select_core(Cols, From, _, _, _, _), Out) :-
-    findall(C, ( member(proj(E, A), Cols), proj_col(E, A, From, C) ), Cs), flatten(Cs, Out).
+    findall(C, ( member(proj(E, A, _), Cols), proj_col(E, A, From, C) ), Cs), flatten(Cs, Out).
 proj_col(_, some(A), _, L) :- !, lower(A, L).
 proj_col(col(N), none, _, L) :- !, lower(N, L).
 proj_col(star, none, table(D, _), Cols) :- ds_key(D, K), schema(K, Cols), !.
@@ -285,7 +293,7 @@ pe(in(A, Items), _, T, P0, P) :- wrap(A, X, P0, P), maplist([lit(V), S]>>py_lit(
 % (run_all.sh step 4) would have caught.
 pe(subquery_expr(Core), _, Name, P0, P) :-
     scalar_var(Core, Name0), unique_scalar(Name0, Name),
-    (   Core = select_core([proj(E, _)], table(D, none), [], none, none, none), ( E = col(C) ; E = call(_, _), fail )
+    (   Core = select_core([proj(E, _, _)], table(D, none), [], none, none, none), ( E = col(C) ; E = call(_, _), fail )
     ->  pyvar(D, DV), lower(C, LC), format(atom(Line), "~w = scalar(~w, \"~w\")", [Name, DV, LC]), P1 = P0
     ;   core_parts(Core, S, Steps, P0, P1), atomic_list_concat(Steps, ST), format(atom(Line), "~w = scalar(~w~w)", [Name, S, ST])
     ),
@@ -310,8 +318,8 @@ binop(mul, "*"). binop(div, "/"). binop(add, "+"). binop(sub, "-").
 binop(eq, "=="). binop(ne, "!="). binop(lt, "<"). binop(le, "<="). binop(gt, ">"). binop(ge, ">=").
 binop(and, "&"). binop(or, "|").
 
-scalar_var(select_core([proj(_, some(A))|_], _, _, _, _, _), N) :- !, lower(A, L), format(atom(N), "~w_value", [L]).
-scalar_var(select_core([proj(col(C), none)|_], _, _, _, _, _), N) :- !, lower(C, L), format(atom(N), "~w_value", [L]).
+scalar_var(select_core([proj(_, some(A), _)|_], _, _, _, _, _), N) :- !, lower(A, L), format(atom(N), "~w_value", [L]).
+scalar_var(select_core([proj(col(C), none, _)|_], _, _, _, _, _), N) :- !, lower(C, L), format(atom(N), "~w_value", [L]).
 scalar_var(_, subquery_value).
 unique_scalar(N0, N) :- ( scalar_name(N0) -> between(2, 99, I), format(atom(N), "~w_~w", [N0, I]), \+ scalar_name(N), ! ; N = N0 ), assertz(scalar_name(N)).
 
