@@ -14,5 +14,13 @@ n_sas=$(ls "$root/sas/raw"/*.sas 2>/dev/null | wc -l | tr -d ' ')
 n_hql=$(ls "$root/hive/raw"/*.hql 2>/dev/null | wc -l | tr -d ' ')
 [[ "$n_sas" == 25 ]] || { echo "sas/raw: expected 25 .sas, found $n_sas"; fail=1 }
 [[ "$n_hql" == 6  ]] || { echo "hive/raw: expected 6 .hql, found $n_hql"; fail=1 }
+for stem in 09_customer_summary 15_join_risk_txn 18_dashboard_mart; do
+  for stage in auto_convert work final_match; do
+    [[ -f "$root/sas/$stage/$stem.py" ]] || { echo "MISSING sas/$stage/$stem.py"; fail=1 }
+  done
+  v="$root/sas/final_match/$stem.verdict.json"
+  [[ -f "$v" ]] || { echo "MISSING $v"; fail=1 }
+  python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$v" 2>/dev/null || { echo "BAD JSON $v"; fail=1 }
+done
 (( fail )) && { echo "corpus check FAILED"; exit 1 }
 echo "corpus check ok: 25 sas, 6 hql, 8 stage folders"

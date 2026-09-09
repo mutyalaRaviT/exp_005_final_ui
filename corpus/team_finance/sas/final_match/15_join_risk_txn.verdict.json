@@ -1,0 +1,8 @@
+{
+  "stem": "15_join_risk_txn",
+  "accepted": false,
+  "left_engine": "rust",
+  "rows_compared": 0,
+  "rows_matched": 0,
+  "note": "seeded by tools/build_stages.sh; no DataMatch run yet (source lines: 27)"
+}
