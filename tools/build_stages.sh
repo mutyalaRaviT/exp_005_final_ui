@@ -10,6 +10,7 @@ eng="$here/raw/bench_stack/rust_engine/target/release/lineageq_sas"
 spec="$here/raw/bench_stack/out/spec/sas.json"
 pre="$here/raw/bench_stack/codegen/sas_runtime_preamble.py"
 tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
 for stem in 09_customer_summary 15_join_risk_txn 18_dashboard_mart; do
   "$eng" "$spec" "$tf/raw/$stem.sas" "$tmp" "$pre" "$pre" >/dev/null
   cp "$tmp/${stem}_pretty_rust.py" "$tf/auto_convert/$stem.py"
@@ -30,4 +31,3 @@ EOJ
   fi
   echo "staged $stem"
 done
-rm -rf "$tmp"
