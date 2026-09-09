@@ -30,3 +30,4 @@ across-files canvas (exp_003 `node4_viz`) proved that asking a store for a neigh
 graph fast at any size. Measured at 1000 blocks, the Bench's whole-file open and whole-page redraw
 break down. This track joins the two: convert once into a store with Rust, ask small questions from
 TypeScript, and draw only what is on screen.
+- 2026-09-09 — store design. Page: [[silver_duckdb_store_design]] (silver; the owner promotes). The strawman already meets phase 1's pass mark (1.09 s convert, 1.7 ms `file()`, 1.05 ms `blocks(0,40)` on `big_1000.sas`); the page corrects what it stores.
