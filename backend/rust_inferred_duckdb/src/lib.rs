@@ -13,6 +13,7 @@
 //! The engine is called in-process through the `rules_converter` library, so nothing is
 //! written to disk and re-parsed on the way.
 
+pub mod lineage_blocks;
 pub mod schema;
 
 use duckdb::{params, Connection};
@@ -271,23 +272,12 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
         });
     }
 
-    // file-level edges, from ds_lineage(OUT, IN)
-    let all: Vec<(String, &term::Term)> = stmts
-        .iter()
-        .enumerate()
-        .filter_map(|(i, _)| terms[i].as_ref().map(|t| (ids[i].clone(), t)))
-        .collect();
-    let facts = lineage::sas::run(&all);
-    let mut edges = Vec::new();
-    for line in facts.text().lines() {
-        if let Some(rest) = line.strip_prefix("ds_lineage(") {
-            let parts: Vec<&str> = rest.split('\'').filter(|s| !s.trim().is_empty() && *s != "," && *s != ").").collect();
-            if parts.len() >= 2 {
-                // ds_lineage(OUT, IN) -> the edge runs IN -> OUT
-                edges.push((parts[1].to_string(), parts[0].to_string(), "ds".to_string(), String::new()));
-            }
-        }
-    }
+    // per-block edges, from ds_lineage(OUT, IN), attributed to the block that made them
+    let edges: Vec<(String, String, String, String)> =
+        crate::lineage_blocks::edges_per_block(&ids, &terms)
+            .into_iter()
+            .map(|e| (e.src, e.dst, e.kind, e.block_id))
+            .collect();
 
     let _ = fileid;
     Ok(Folded {
