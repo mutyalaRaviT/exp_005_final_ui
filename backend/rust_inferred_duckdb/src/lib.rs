@@ -177,6 +177,47 @@ pub struct BlockRow {
     pub warn: bool,
 }
 
+/// The table named by a block's own head term, straight from the fold — used only as a
+/// fallback when `ds_lineage` has nothing to say (see the call site). Mirrors exactly the
+/// two shapes `lineage::sas::step` itself matches on: a `DATA` step's target, or a
+/// `PROC SQL` block's `CREATE TABLE AS`.
+fn block_write_target(bn: &[(String, &term::Term)]) -> Option<String> {
+    for (_, t) in bn {
+        match t.functor() {
+            ("data", 1) | ("create_table_as", 2) => return Some(lineage::ds_key(&t.args()[0])),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Ruling D9. `emit::Emitter::program` and `emit_pretty::Pretty::program` are ports of
+/// `codegen/*.pl` and refuse an unmapped SAS construct (e.g. `today()`, no
+/// `raw/bench_stack/codegen/*.pl` rule for it either) by panicking — that is how the
+/// engine signals "no rule for this", not a bug. Prolog is the reference and Rust mirrors
+/// it (owner rule, exp_42): we do not add a mapping Prolog doesn't have (that was the
+/// previous agent's mistake — see the Task 5 brief). But a library must not abort its
+/// caller's process over a per-block gap, and Task 6b puts `convert` behind HTTP, so a
+/// panic here would take the API down. `catch_unwind` is the right tool: the panic *is*
+/// the failure signal, so catching it is catching the real outcome, not working around
+/// one. A hook swap around the call keeps the default panic handler from spamming stderr
+/// for every warn block on a real corpus — `main` still hears about it, just via the
+/// return value instead of a printed backtrace. The caller stores empty text and sets
+/// `warn = true` on `Err`; the panic message becomes the finding the Task 5 report lists.
+fn catch_emit<F: FnOnce() -> String + std::panic::UnwindSafe>(f: F) -> Result<String, String> {
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let result = std::panic::catch_unwind(f);
+    std::panic::set_hook(prev_hook);
+    result.map_err(|payload| {
+        payload
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+            .unwrap_or_else(|| "panic with non-string payload".to_string())
+    })
+}
+
 fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, String> {
     let t0 = Instant::now();
     let (stmts, terms, ids) = fold_file(spec, text);
@@ -260,16 +301,36 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
             .iter()
             .filter_map(|i| terms[*i].as_ref().map(|t| (bid.clone(), t)))
             .collect();
+        // What this block writes. `ds_lineage` only fires when the block also *reads*
+        // another table (lineage.rs's `step`), so a block that only writes — a DATA step
+        // seeded from `datalines`, with no `SET`/`MERGE` — leaves no ds_lineage fact even
+        // though it plainly names its own output right in the block's own head term. Ask
+        // that term directly before giving up, so `tables`/`search()` (Task 5) don't lose
+        // every seed table in a corpus.
         let name = lineage::sas::run(&bn)
             .text()
             .lines()
             .find(|l| l.starts_with("ds_lineage("))
             .and_then(|l| l.split('\'').nth(1).map(|s| s.to_string()))
+            .or_else(|| block_write_target(&bn))
             .unwrap_or_default();
 
         let bnodes: Vec<emit::Node> = nodes.iter().filter(|nd| &nd.block == bid).cloned().collect();
-        let py_text = emit::Emitter::new().program(&bnodes, "");
-        let py_pretty = emit_pretty::Pretty::new(text, &bnodes).program("");
+        let emit_bnodes = bnodes.clone();
+        let emit_result = catch_emit(move || emit::Emitter::new().program(&emit_bnodes, ""));
+        let pretty_bnodes = bnodes.clone();
+        let pretty_result = catch_emit(move || emit_pretty::Pretty::new(text, &pretty_bnodes).program(""));
+        let mut warn = false;
+        if let Err(msg) = &emit_result {
+            warn = true;
+            eprintln!("LINEAGEQ warn: {} block {} (emit): {}", fileid, bid, msg);
+        }
+        if let Err(msg) = &pretty_result {
+            warn = true;
+            eprintln!("LINEAGEQ warn: {} block {} (emit_pretty): {}", fileid, bid, msg);
+        }
+        let py_text = emit_result.unwrap_or_default();
+        let py_pretty = pretty_result.unwrap_or_default();
 
         blocks.push(BlockRow {
             block_id: bid.clone(),
@@ -281,7 +342,7 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
             sas_text,
             py_text,
             py_pretty,
-            warn: false,
+            warn,
         });
     }
 
