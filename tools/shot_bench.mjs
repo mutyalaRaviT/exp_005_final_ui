@@ -5,8 +5,8 @@ const pg = await b.newPage({ viewport:{width:2000,height:1200} });
 const errs=[]; pg.on('console', m=>{ if(m.type()==='error') errs.push(m.text()); });
 await pg.goto(BASE+'/bench', { waitUntil:'networkidle' });
 await pg.waitForTimeout(1500);
-// open the file the owner's baseline shows
-await pg.evaluate(() => window.openFile('testdata/test_vishnu_testdata_fixed.sas'));
+// open a file from the corpus (2026-09-09, Task 5 fix round 1: testdata/ is deleted)
+await pg.evaluate(() => window.openFile('../../corpus/team_finance/sas/raw/09_customer_summary.sas'));
 await pg.waitForTimeout(6000);
 const cells = await pg.$$eval('.cell, .blk', n=>n.length).catch(()=>0);
 const pills = await pg.$$eval('#top .pill', n=>n.map(x=>x.textContent.trim())).catch(()=>[]);

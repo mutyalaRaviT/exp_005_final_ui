@@ -67,6 +67,11 @@ pub fn app(state: AppState) -> Router {
         .route("/api/search", get(routes::search::search))
         .route("/api/neighborhood", get(routes::neighborhood::neighborhood))
         .route("/bench", get(routes::bench::bench))
+        // Ruling 5 (2026-09-09, Task 5 fix round 1): every other `/api/*` path forwards
+        // to oracle_a instead of 404ing — see `routes::forward` for why a fallback and
+        // not nine more named routes. Landing a route for real still means moving its
+        // name into `LANDED` and adding its own `.route()` above, same as always.
+        .fallback(routes::forward::fallback)
         .with_state(state)
 }
 

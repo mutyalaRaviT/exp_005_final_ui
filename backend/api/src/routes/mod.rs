@@ -4,6 +4,7 @@
 
 pub mod bench;
 pub mod files;
+pub mod forward;
 pub mod health;
 pub mod neighborhood;
 pub mod search;

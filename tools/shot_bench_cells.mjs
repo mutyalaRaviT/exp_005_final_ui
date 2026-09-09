@@ -5,7 +5,8 @@ const pg=await b.newPage({viewport:{width:2000,height:1200}});
 const errs=[]; pg.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
 await pg.goto(BASE+'/bench',{waitUntil:'networkidle'});
 await pg.waitForTimeout(1200);
-await pg.evaluate(()=>window.openFile('testdata/test_vishnu_testdata_fixed.sas'));
+// 2026-09-09, Task 5 fix round 1: testdata/ is deleted; open a file from the corpus
+await pg.evaluate(()=>window.openFile('../../corpus/team_finance/sas/raw/09_customer_summary.sas'));
 await pg.waitForTimeout(6000);
 await pg.keyboard.press('c');            // cells view
 await pg.waitForTimeout(2500);

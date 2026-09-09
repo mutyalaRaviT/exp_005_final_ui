@@ -87,6 +87,12 @@ loop's shape (tokenise → fold → Rust → PySpark → DataMatch), do not run 
 instead (`server/scripts/sync_store.py` against `SAS_ROOTS=corpus/team_finance`) so its
 fileids read `sas/raw/<name>.sas`, matching the Rust API, rather than going blind.
 
+`tools/diff_route.py`'s `ankitha_files()` (lines 292-293) globs
+`raw/lineage_server/inputs/ankitha_1/` for its `--corpus ankitha` mode; that directory is
+also deleted, and `Path.glob` on a missing directory returns empty rather than raising, so
+that mode now silently degrades to 0 files instead of failing loudly. Not fixed (out of
+scope, same as `run_all.sh` above) — recorded here so it isn't a surprise later.
+
 ## Decisions
 
 - **PROVEN ∎** — every source path above was copied on 2026-09-08/09; the sibling-layout
