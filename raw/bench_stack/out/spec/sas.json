@@ -492,6 +492,29 @@
    ]
   },
   {
+   "name": "length",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "LENGTH"
+    },
+    {
+     "t": "list",
+     "field": "vars",
+     "parts": [
+      {
+       "t": "rule",
+       "field": "v",
+       "name": "length_var"
+      }
+     ],
+     "min": 1,
+     "sep": []
+    }
+   ]
+  },
+  {
    "name": "datalines",
    "assign": false,
    "parts": [
@@ -835,6 +858,42 @@
         ]
        }
       ]
+     }
+    ]
+   }
+  ],
+  "length_var": [
+   {
+    "functor": "clen",
+    "parts": [
+     {
+      "t": "cap",
+      "field": "name",
+      "kind": "ident"
+     },
+     {
+      "t": "sym",
+      "text": "$"
+     },
+     {
+      "t": "cap",
+      "field": "n",
+      "kind": "expr"
+     }
+    ]
+   },
+   {
+    "functor": "nlen",
+    "parts": [
+     {
+      "t": "cap",
+      "field": "name",
+      "kind": "ident"
+     },
+     {
+      "t": "cap",
+      "field": "n",
+      "kind": "expr"
      }
     ]
    }

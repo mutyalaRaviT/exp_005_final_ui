@@ -32,6 +32,7 @@ Term vocabulary (what node/4 holds — read this once, the terms then read thems
         Cols  = [proj(Expr, none|some(Alias), none|some(Length)) ...]
         From  = table(ds(..), none|some(Alias)) | subquery(select_core(..), none|some(Alias))
         JoinOpt = none | some(left_join(Src,On)) | some(inner_join(Src,On))   -- at most one JOIN
+    length([clen(Var,N)|nlen(Var,N)])   LENGTH var $ n ... — storage length
     empty                          a lone `;`
     run | quit
     Expressions: col(N), lit(V), star, missing (a lone `.`), call(Name, [Args]), paren(E),
@@ -154,6 +155,10 @@ RULES = {
         rule_alt("nvar", ident("name"), opt(sym(":"), group("informat", ident("name"), sym("."))),
                  doc="a numeric variable, optionally read with :informat."),
     ],
+    "length_var": [
+        rule_alt("clen", ident("name"), sym("$"), expr("n"), doc="a character variable's length: name $ n"),
+        rule_alt("nlen", ident("name"), expr("n"), doc="a numeric variable's length: name n"),
+    ],
     "from_source": [
         rule_alt("table", rule_ref("ds", "dsname"), opt(ident("as")), doc="a dataset, optionally aliased"),
         rule_alt("subquery", sym("("), rule_ref("core", "select_core"), sym(")"), opt(ident("as")),
@@ -224,6 +229,11 @@ STATEMENTS = [
               doc="INPUT v $ v v :informat. — list input"),
     statement("format", kw("FORMAT"), ident("var"), group("fmt", ident("name"), sym(".")),
               doc="FORMAT var fmt."),
+    # task 5b: LENGTH var $ n ... — storage length for one or more DATA-step
+    # variables; general per length_var's two alternatives (char with $, or
+    # bare numeric), though every occurrence in this corpus is char.
+    statement("length", kw("LENGTH"), sep_list("vars", [], rule_ref("v", "length_var"), min=1),
+              doc="LENGTH var $ n [var $ n | var n ...] — declares variable storage length"),
     statement("datalines", raw("rows", "datalines"), doc="DATALINES; rows ;"),
     statement("set", kw("SET"), rule_ref("in", "dsname"), doc="SET lib.ds"),
     statement("subset_if", kw("IF"), expr("cond"), doc="a subsetting IF: keep the row when cond is true"),
