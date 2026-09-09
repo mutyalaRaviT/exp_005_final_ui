@@ -29,16 +29,18 @@ Term vocabulary (what node/4 holds — read this once, the terms then read thems
     by([Key ...])
     proc_sql
     create_table_as(ds(..), select_stmt([select_core(Cols, From, JoinOpt, WhereOpt, GroupByOpt, HavingOpt) ...], OrderByOpt, LimitOpt))
-        Cols  = [proj(Expr, none|some(Alias)) ...]
+        Cols  = [proj(Expr, none|some(Alias), none|some(Length)) ...]
         From  = table(ds(..), none|some(Alias)) | subquery(select_core(..), none|some(Alias))
+        JoinOpt = none | some(left_join(Src,On)) | some(inner_join(Src,On))   -- at most one JOIN
     empty                          a lone `;`
     run | quit
-    Expressions: col(N), lit(V), star, call(Name, [Args]), paren(E), subquery_expr(select_core(..)),
+    Expressions: col(N), lit(V), star, missing (a lone `.`), call(Name, [Args]), paren(E),
+        case_expr([when(Cond,Then)...], none|some(Else)), subquery_expr(select_core(..)),
         neg/1, mul/div/add/sub/cat, eq/ne/lt/le/gt/ge, in(E, [..]), not/1, and/or.
 """
 from pipeline.pydsl.pydsl_lib import (
     leaf, level, ladder, one_of, prefix, list_rhs, form,
-    kw, sym, ident, expr, group, comma_list, sep_list, opt, raw,
+    kw, sym, ident, expr, group, comma_list, sep_list, opt, raw, choice,
     statement, rule_alt, rule_ref, parts_form, rule_form,
 )
 
@@ -64,6 +66,10 @@ KEYWORDS = [
     "proc", "sql", "create", "table", "as", "select", "from", "where",
     "group", "having", "order", "union", "all", "join", "on", "desc", "asc", "limit",
     "then", "and", "or", "not", "in", "eq", "ne", "lt", "le", "gt", "ge",
+    # task 5b (2026-09-09), create_table_as family: LEFT/INNER JOIN (this
+    # corpus never writes a bare JOIN), CASE/WHEN/THEN.../END, and LENGTH —
+    # PROC SQL's trailing `AS alias LENGTH=n` on one SELECT-list item.
+    "left", "inner", "case", "when", "else", "end", "length",
 ]
 
 # ------------------------------------------------------ expression ladder
@@ -92,7 +98,29 @@ EXPR_LADDER = ladder(
 
 STAR_FORM = parts_form("star", sym("*"), doc="the bare `*` in SELECT * / COUNT(*)")
 
+# task 5b (2026-09-09): CASE WHEN ... END, same shape hive.py already proved
+# (pipeline/specs/hive.py's CASE_WHEN/CASE_FORM) — copied here, not re-derived,
+# since 13_risk_flags.sas and 17_compliance_check.sas both need it:
+#   CASE WHEN c.risk_score >= 0.75 THEN 'HIGH' WHEN ... ELSE 'LOW' END
+CASE_WHEN = group("when", kw("WHEN"), expr("cond"), kw("THEN"), expr("then"),
+                   doc="one WHEN cond THEN e branch inside a CASE")
+CASE_FORM = parts_form(
+    "case_expr", kw("CASE"),
+    sep_list("whens", [], CASE_WHEN, min=1),
+    opt(kw("ELSE"), expr("else")),
+    kw("END"),
+    doc="CASE WHEN cond THEN e [WHEN cond THEN e ...] [ELSE e] END")
+
+# task 5b: a lone `.` in a SELECT list is SAS's numeric missing value, not a
+# stray dot — 25_final_pack.sas's third UNION ALL branch writes `. ,` where a
+# real column would go. `.` is otherwise only ever a bare symbol token here
+# (lib.dataset, alias.col are both matched from the WORD side, not from `.`),
+# so this atom form cannot collide with them.
+MISSING_FORM = parts_form("missing", sym("."), doc="a lone `.` — the SAS numeric missing value")
+
 EXPR_FORMS = [
+    CASE_FORM,
+    MISSING_FORM,
     STAR_FORM,
     form("paren", "( E )", doc="a source parenthesis, kept in the term"),
     form("call", "ID ( ARGS )", doc="function or aggregate call: MONTH(date), SUM(x), AVG(x), MAX(x), MIN(x)"),
@@ -108,7 +136,13 @@ EXPR_LEAVES = [
 ]
 
 # ------------------------------------------------------------ sub-shapes
-PROJ = group("proj", expr("e"), opt(kw("AS"), ident("as")), doc="one SELECT-list item, optionally renamed")
+# task 5b: `AS alias` and a trailing `LENGTH=n` are independent optional
+# tails (SAS PROC SQL lets a projection set an explicit output-column length:
+# `'BRANCH' as metric_type length=12`) — two Opts in one parts sequence is
+# already how select_core's own WHERE/GROUP BY/HAVING coexist below, so this
+# is the same, proven shape, not a new pattern.
+PROJ = group("proj", expr("e"), opt(kw("AS"), ident("as")), opt(kw("LENGTH"), sym("="), expr("len")),
+             doc="one SELECT-list item, optionally renamed and/or given an explicit output LENGTH")
 
 RULES = {
     "dsname": [
@@ -125,25 +159,59 @@ RULES = {
         rule_alt("subquery", sym("("), rule_ref("core", "select_core"), sym(")"), opt(ident("as")),
                  doc="a parenthesised SELECT in FROM"),
     ],
+    # task 5b: at most one JOIN per select_core (unchanged from before — the
+    # Rust lineage engine (rust_rules_converter/src/lineage.rs select_lineage)
+    # reads select_core's join field positionally as `some(J)`/`none` with
+    # J's own args()[0]/args()[1] read blindly as (src, on); it does not
+    # check J's functor name, so left_join/2 and inner_join/2 both work
+    # there unmodified — but J's ARITY must stay 2 (src, on), which is why
+    # bare/LEFT/INNER JOIN all keep the same two-argument shape and CROSS
+    # JOIN (which SAS/this corpus writes with no ON at all — see
+    # 17_compliance_check.sas) is deliberately NOT one of these alternatives:
+    # an arity-1 cross_join(src) would make that same Rust code panic on
+    # `j.args()[1]` the moment anyone ran the `lineage` subcommand on it, and
+    # fixing that is a Rust-side change this task does not make. A file with
+    # more than one JOIN (04_build_accounts.sas, 11_branch_rollup.sas,
+    # 15/22/24) still fails to fold — same Rust constraint: select_core has
+    # room for exactly one join, not a list of them.
+    #
+    # Only LEFT/INNER (both explicitly qualified — this corpus never writes a
+    # bare `JOIN`) are alternatives here, and deliberately so: a bare-JOIN
+    # alternative sharing the "inner_join" functor with the explicit INNER
+    # alternative would make the two structurally IDENTICAL (same functor,
+    # same arity, source keywords contribute no term argument), so print
+    # could not tell them apart and would always emit whichever alternative
+    # is listed first — silently rewriting a source `JOIN` to `INNER JOIN`
+    # and breaking the source-rebuild law. Since nothing in this corpus
+    # writes a bare JOIN, that alternative would be untested AND unsound, so
+    # it is left out rather than added on faith.
+    "join_clause": [
+        rule_alt("left_join", kw("LEFT"), kw("JOIN"), rule_ref("src", "from_source"), kw("ON"), expr("on"),
+                 doc="LEFT JOIN src ON e"),
+        rule_alt("inner_join", kw("INNER"), kw("JOIN"), rule_ref("src", "from_source"), kw("ON"), expr("on"),
+                 doc="INNER JOIN src ON e"),
+    ],
     "select_core": [
         rule_alt(
             "select_core",
             kw("SELECT"), comma_list("cols", PROJ, min=1),
             kw("FROM"), rule_ref("from", "from_source"),
-            opt(kw("JOIN"), group("join", rule_ref("src", "from_source"), kw("ON"), expr("on"))),
+            opt(rule_ref("j", "join_clause")),
             opt(kw("WHERE"), expr("where")),
             opt(kw("GROUP"), kw("BY"), comma_list("groupby", expr("k"), min=1)),
             opt(kw("HAVING"), expr("having")),
-            doc="SELECT cols FROM src [JOIN src ON e] [WHERE e] [GROUP BY e,...] [HAVING e]",
+            doc="SELECT cols FROM src [[LEFT|INNER] JOIN src ON e] [WHERE e] [GROUP BY e,...] [HAVING e]",
         ),
     ],
     "select_stmt": [
         rule_alt(
             "select_stmt",
             sep_list("cores", [kw("UNION"), kw("ALL")], rule_ref("core", "select_core"), min=1),
-            opt(kw("ORDER"), kw("BY"), comma_list("orderby", expr("k"), min=1)),
+            opt(kw("ORDER"), kw("BY"),
+                group("orderby", expr("key"), choice("dir", {"ASC": "asc", "DESC": "desc"}, default="asc"))),
             opt(kw("LIMIT"), expr("n")),
-            doc="select_core (UNION ALL select_core)* [ORDER BY k,...]",
+            doc="select_core (UNION ALL select_core)* [ORDER BY key [ASC|DESC]] [LIMIT n] — "
+                "one ORDER BY key, same as pipeline/specs/hive.py's own select_stmt",
         ),
     ],
 }
