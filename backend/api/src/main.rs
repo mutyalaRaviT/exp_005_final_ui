@@ -18,7 +18,11 @@ fn parse_flags() -> Flags {
     let mut db = PathBuf::from("lineageq.duckdb");
     let mut oracle_a = "http://127.0.0.1:8000".to_string();
     let mut oracle_b = "http://127.0.0.1:8042".to_string();
-    let mut port: u16 = 8100;
+    // Default :8110, not :8100 — :8100 is already held on the dev machine by an
+    // unrelated long-running server (deck_server.py), and a default that silently
+    // fails to bind (or worse, gets mistaken for ours, as :5174/:8042 once were) is a
+    // trap for whoever runs this next. See the Task 3 report for the ruling.
+    let mut port: u16 = 8110;
 
     let args: Vec<String> = std::env::args().collect();
     let mut i = 1;
