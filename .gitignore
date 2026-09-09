@@ -13,3 +13,4 @@ raw/bench_stack/rust_engine/target/
 raw/bench_stack/out/*
 !raw/bench_stack/out/spec/
 !raw/bench_stack/out/grammar/
+backend/target/

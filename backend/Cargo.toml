@@ -1,0 +1,14 @@
+# The exp_005 backend, one Cargo workspace.
+# rust_rules_converter is the engine copied from exp_42; rust_inferred_duckdb is the
+# store that phase 1 adds around it.
+[workspace]
+resolver = "2"
+members = ["rust_rules_converter", "rust_inferred_duckdb"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+
+[profile.release]
+debug = false
