@@ -54,7 +54,8 @@
   "dlm",
   "truncover",
   "datalines",
-  "output"
+  "output",
+  "distinct"
  ],
  "statement_end": [
   ";"
@@ -124,6 +125,11 @@
     {
      "spelling": "-",
      "functor": "neg",
+     "kind": "prefix"
+    },
+    {
+     "spelling": "distinct",
+     "functor": "distinct",
      "kind": "prefix"
     }
    ]
@@ -1149,14 +1155,17 @@
       "name": "from_source"
      },
      {
-      "t": "opt",
+      "t": "list",
+      "field": "joins",
       "parts": [
        {
         "t": "rule",
         "field": "j",
         "name": "join_clause"
        }
-      ]
+      ],
+      "min": 0,
+      "sep": []
      },
      {
       "t": "opt",

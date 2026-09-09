@@ -126,67 +126,67 @@ raw_text(Kind, Body, [Text]) :-
     atomic_list_concat([Kind, ';\n', Body, '\n'], Text).
 
 % ============================================================ statements
-stmt_libname(libname(Lib189,Path190)) --> [tok(keyword,K188)], { downcase_atom(K188,'libname') }, [tok(word,Lib189)], expr(Path190), [tok(symbol,';')].
+stmt_libname(libname(Lib191,Path192)) --> [tok(keyword,K190)], { downcase_atom(K190,'libname') }, [tok(word,Lib191)], expr(Path192), [tok(symbol,';')].
 stmt(T) --> stmt_libname(T).
 
-stmt_data(data(Out196)) --> [tok(keyword,K195)], { downcase_atom(K195,'data') }, rule_dsname(Out196), [tok(symbol,';')].
+stmt_data(data(Out198)) --> [tok(keyword,K197)], { downcase_atom(K197,'data') }, rule_dsname(Out198), [tok(symbol,';')].
 stmt(T) --> stmt_data(T).
 
-stmt_input(input(L205)) --> [tok(keyword,K200)], { downcase_atom(K200,'input') }, cl_9(L205), [tok(symbol,';')].
+stmt_input(input(L207)) --> [tok(keyword,K202)], { downcase_atom(K202,'input') }, cl_10(L207), [tok(symbol,';')].
 stmt(T) --> stmt_input(T).
 
-stmt_format(format(Var210,G214)) --> [tok(keyword,K209)], { downcase_atom(K209,'format') }, [tok(word,Var210)], grp_10(G214), [tok(symbol,';')].
+stmt_format(format(Var212,G216)) --> [tok(keyword,K211)], { downcase_atom(K211,'format') }, [tok(word,Var212)], grp_11(G216), [tok(symbol,';')].
 stmt(T) --> stmt_format(T).
 
-stmt_length(length(L224)) --> [tok(keyword,K219)], { downcase_atom(K219,'length') }, cl_11(L224), [tok(symbol,';')].
+stmt_length(length(L226)) --> [tok(keyword,K221)], { downcase_atom(K221,'length') }, cl_12(L226), [tok(symbol,';')].
 stmt(T) --> stmt_length(T).
 
-stmt_infile(infile(Dlm232)) --> [tok(keyword,K228)], { downcase_atom(K228,'infile') }, [tok(keyword,K229)], { downcase_atom(K229,'datalines') }, [tok(keyword,K230)], { downcase_atom(K230,'dsd') }, [tok(keyword,K231)], { downcase_atom(K231,'dlm') }, [tok(symbol,'=')], expr(Dlm232), [tok(keyword,K233)], { downcase_atom(K233,'truncover') }, [tok(symbol,';')].
+stmt_infile(infile(Dlm234)) --> [tok(keyword,K230)], { downcase_atom(K230,'infile') }, [tok(keyword,K231)], { downcase_atom(K231,'datalines') }, [tok(keyword,K232)], { downcase_atom(K232,'dsd') }, [tok(keyword,K233)], { downcase_atom(K233,'dlm') }, [tok(symbol,'=')], expr(Dlm234), [tok(keyword,K235)], { downcase_atom(K235,'truncover') }, [tok(symbol,';')].
 stmt(T) --> stmt_infile(T).
 
-stmt_datalines(datalines(Rows237)) --> [tok(datalines,R238)], { raw_body(R238, Rows237) }.
+stmt_datalines(datalines(Rows239)) --> [tok(datalines,R240)], { raw_body(R240, Rows239) }.
 stmt(T) --> stmt_datalines(T).
 
-stmt_set(set(In243)) --> [tok(keyword,K242)], { downcase_atom(K242,'set') }, rule_dsname(In243), [tok(symbol,';')].
+stmt_set(set(In245)) --> [tok(keyword,K244)], { downcase_atom(K244,'set') }, rule_dsname(In245), [tok(symbol,';')].
 stmt(T) --> stmt_set(T).
 
-stmt_subset_if(subset_if(Cond248)) --> [tok(keyword,K247)], { downcase_atom(K247,'if') }, expr(Cond248), [tok(symbol,';')].
+stmt_subset_if(subset_if(Cond250)) --> [tok(keyword,K249)], { downcase_atom(K249,'if') }, expr(Cond250), [tok(symbol,';')].
 stmt(T) --> stmt_subset_if(T).
 
-stmt_if_then_set(if_then_set(Var253,Val254,In257)) --> [tok(keyword,K252)], { downcase_atom(K252,'if') }, [tok(word,Var253)], [tok(symbol,'=')], expr(Val254), [tok(keyword,K255)], { downcase_atom(K255,'then') }, [tok(keyword,K256)], { downcase_atom(K256,'set') }, rule_dsname(In257), [tok(symbol,';')].
+stmt_if_then_set(if_then_set(Var255,Val256,In259)) --> [tok(keyword,K254)], { downcase_atom(K254,'if') }, [tok(word,Var255)], [tok(symbol,'=')], expr(Val256), [tok(keyword,K257)], { downcase_atom(K257,'then') }, [tok(keyword,K258)], { downcase_atom(K258,'set') }, rule_dsname(In259), [tok(symbol,';')].
 stmt(T) --> stmt_if_then_set(T).
 
-stmt_assign(assign(Var264,Val265)) --> [tok(word,Var264)], [tok(symbol,'=')], expr(Val265), [tok(symbol,';')].
+stmt_assign(assign(Var266,Val267)) --> [tok(word,Var266)], [tok(symbol,'=')], expr(Val267), [tok(symbol,';')].
 stmt(T) --> stmt_assign(T).
 
-stmt_output(output) --> [tok(keyword,K270)], { downcase_atom(K270,'output') }, [tok(symbol,';')].
+stmt_output(output) --> [tok(keyword,K272)], { downcase_atom(K272,'output') }, [tok(symbol,';')].
 stmt(T) --> stmt_output(T).
 
-stmt_merge(merge(L286)) --> [tok(keyword,K272)], { downcase_atom(K272,'merge') }, cl_12(L286), [tok(symbol,';')].
+stmt_merge(merge(L288)) --> [tok(keyword,K274)], { downcase_atom(K274,'merge') }, cl_13(L288), [tok(symbol,';')].
 stmt(T) --> stmt_merge(T).
 
-stmt_by(by(L294)) --> [tok(keyword,K290)], { downcase_atom(K290,'by') }, cl_14(L294), [tok(symbol,';')].
+stmt_by(by(L296)) --> [tok(keyword,K292)], { downcase_atom(K292,'by') }, cl_15(L296), [tok(symbol,';')].
 stmt(T) --> stmt_by(T).
 
-stmt_proc_sql(proc_sql) --> [tok(keyword,K298)], { downcase_atom(K298,'proc') }, [tok(keyword,K299)], { downcase_atom(K299,'sql') }, [tok(symbol,';')].
+stmt_proc_sql(proc_sql) --> [tok(keyword,K300)], { downcase_atom(K300,'proc') }, [tok(keyword,K301)], { downcase_atom(K301,'sql') }, [tok(symbol,';')].
 stmt(T) --> stmt_proc_sql(T).
 
-stmt_create_table_as(create_table_as(Out303,Select305)) --> [tok(keyword,K301)], { downcase_atom(K301,'create') }, [tok(keyword,K302)], { downcase_atom(K302,'table') }, rule_dsname(Out303), [tok(keyword,K304)], { downcase_atom(K304,'as') }, rule_select_stmt(Select305), [tok(symbol,';')].
+stmt_create_table_as(create_table_as(Out305,Select307)) --> [tok(keyword,K303)], { downcase_atom(K303,'create') }, [tok(keyword,K304)], { downcase_atom(K304,'table') }, rule_dsname(Out305), [tok(keyword,K306)], { downcase_atom(K306,'as') }, rule_select_stmt(Select307), [tok(symbol,';')].
 stmt(T) --> stmt_create_table_as(T).
 
-stmt_proc_print(proc_print(In314)) --> [tok(keyword,K311)], { downcase_atom(K311,'proc') }, [tok(keyword,K312)], { downcase_atom(K312,'print') }, [tok(keyword,K313)], { downcase_atom(K313,'data') }, [tok(symbol,'=')], rule_dsname(In314), [tok(symbol,';')].
+stmt_proc_print(proc_print(In316)) --> [tok(keyword,K313)], { downcase_atom(K313,'proc') }, [tok(keyword,K314)], { downcase_atom(K314,'print') }, [tok(keyword,K315)], { downcase_atom(K315,'data') }, [tok(symbol,'=')], rule_dsname(In316), [tok(symbol,';')].
 stmt(T) --> stmt_proc_print(T).
 
-stmt_title(title(Text319)) --> [tok(keyword,K318)], { downcase_atom(K318,'title') }, expr(Text319), [tok(symbol,';')].
+stmt_title(title(Text321)) --> [tok(keyword,K320)], { downcase_atom(K320,'title') }, expr(Text321), [tok(symbol,';')].
 stmt(T) --> stmt_title(T).
 
 stmt_empty(empty) --> [tok(symbol,';')].
 stmt(T) --> stmt_empty(T).
 
-stmt_run(run) --> [tok(keyword,K324)], { downcase_atom(K324,'run') }, [tok(symbol,';')].
+stmt_run(run) --> [tok(keyword,K326)], { downcase_atom(K326,'run') }, [tok(symbol,';')].
 stmt(T) --> stmt_run(T).
 
-stmt_quit(quit) --> [tok(keyword,K326)], { downcase_atom(K326,'quit') }, [tok(symbol,';')].
+stmt_quit(quit) --> [tok(keyword,K328)], { downcase_atom(K328,'quit') }, [tok(symbol,';')].
 stmt(T) --> stmt_quit(T).
 
 % ---- statement auxiliaries (comma_list / group sub-nonterminals) ----
@@ -204,34 +204,39 @@ cl_4_item(G114) --> grp_5(G114).
 cl_4([X|Xs]) --> cl_4_item(X), cl_4_rest(Xs).
 cl_4_rest([X|Xs]) --> [tok(symbol,',')], cl_4_item(X), cl_4_rest(Xs).
 cl_4_rest([]) --> [].
-cl_6_item(K127) --> expr(K127).
+cl_6_item(J122) --> rule_join_clause(J122).
 cl_6([X|Xs]) --> cl_6_item(X), cl_6_rest(Xs).
-cl_6_rest([X|Xs]) --> [tok(symbol,',')], cl_6_item(X), cl_6_rest(Xs).
+cl_6_rest([X|Xs]) --> cl_6_item(X), cl_6_rest(Xs).
 cl_6_rest([]) --> [].
-cl_7_item(Core156) --> rule_select_core(Core156).
+cl_6([]) --> [].
+cl_7_item(K131) --> expr(K131).
 cl_7([X|Xs]) --> cl_7_item(X), cl_7_rest(Xs).
-cl_7_rest([X|Xs]) --> [tok(keyword,K157)], { downcase_atom(K157,'union') }, [tok(keyword,K158)], { downcase_atom(K158,'all') }, cl_7_item(X), cl_7_rest(Xs).
+cl_7_rest([X|Xs]) --> [tok(symbol,',')], cl_7_item(X), cl_7_rest(Xs).
 cl_7_rest([]) --> [].
-grp_8(orderby(Key165,C166)) --> expr(Key165), ( ( [tok(keyword,K167)], { downcase_atom(K167,'asc') }, { C166=asc } ) ; ( [tok(keyword,K168)], { downcase_atom(K168,'desc') }, { C166=desc } ) ; ( { C166=asc } ) ).
-cl_9_item(V201) --> rule_input_var(V201).
-cl_9([X|Xs]) --> cl_9_item(X), cl_9_rest(Xs).
-cl_9_rest([X|Xs]) --> cl_9_item(X), cl_9_rest(Xs).
-cl_9_rest([]) --> [].
-grp_10(fmt(Name211)) --> [tok(word,Name211)], [tok(symbol,'.')].
-cl_11_item(V220) --> rule_length_var(V220).
-cl_11([X|Xs]) --> cl_11_item(X), cl_11_rest(Xs).
-cl_11_rest([X|Xs]) --> cl_11_item(X), cl_11_rest(Xs).
-cl_11_rest([]) --> [].
-grp_13(src(Ds273,some(Flag275))) --> rule_dsname(Ds273), [tok(symbol,'(')], [tok(keyword,K274)], { downcase_atom(K274,'in') }, [tok(symbol,'=')], [tok(word,Flag275)], [tok(symbol,')')].
-grp_13(src(Ds273,none)) --> rule_dsname(Ds273).
-cl_12_item(G282) --> grp_13(G282).
+cl_8_item(Core158) --> rule_select_core(Core158).
+cl_8([X|Xs]) --> cl_8_item(X), cl_8_rest(Xs).
+cl_8_rest([X|Xs]) --> [tok(keyword,K159)], { downcase_atom(K159,'union') }, [tok(keyword,K160)], { downcase_atom(K160,'all') }, cl_8_item(X), cl_8_rest(Xs).
+cl_8_rest([]) --> [].
+grp_9(orderby(Key167,C168)) --> expr(Key167), ( ( [tok(keyword,K169)], { downcase_atom(K169,'asc') }, { C168=asc } ) ; ( [tok(keyword,K170)], { downcase_atom(K170,'desc') }, { C168=desc } ) ; ( { C168=asc } ) ).
+cl_10_item(V203) --> rule_input_var(V203).
+cl_10([X|Xs]) --> cl_10_item(X), cl_10_rest(Xs).
+cl_10_rest([X|Xs]) --> cl_10_item(X), cl_10_rest(Xs).
+cl_10_rest([]) --> [].
+grp_11(fmt(Name213)) --> [tok(word,Name213)], [tok(symbol,'.')].
+cl_12_item(V222) --> rule_length_var(V222).
 cl_12([X|Xs]) --> cl_12_item(X), cl_12_rest(Xs).
 cl_12_rest([X|Xs]) --> cl_12_item(X), cl_12_rest(Xs).
 cl_12_rest([]) --> [].
-cl_14_item(K291) --> [tok(word,K291)].
-cl_14([X|Xs]) --> cl_14_item(X), cl_14_rest(Xs).
-cl_14_rest([X|Xs]) --> cl_14_item(X), cl_14_rest(Xs).
-cl_14_rest([]) --> [].
+grp_14(src(Ds275,some(Flag277))) --> rule_dsname(Ds275), [tok(symbol,'(')], [tok(keyword,K276)], { downcase_atom(K276,'in') }, [tok(symbol,'=')], [tok(word,Flag277)], [tok(symbol,')')].
+grp_14(src(Ds275,none)) --> rule_dsname(Ds275).
+cl_13_item(G284) --> grp_14(G284).
+cl_13([X|Xs]) --> cl_13_item(X), cl_13_rest(Xs).
+cl_13_rest([X|Xs]) --> cl_13_item(X), cl_13_rest(Xs).
+cl_13_rest([]) --> [].
+cl_15_item(K293) --> [tok(word,K293)].
+cl_15([X|Xs]) --> cl_15_item(X), cl_15_rest(Xs).
+cl_15_rest([X|Xs]) --> cl_15_item(X), cl_15_rest(Xs).
+cl_15_rest([]) --> [].
 
 % ============================================================ named rules
 rule_dsname(ds(Lib28,Name29)) --> [tok(word,Lib28)], [tok(symbol,'.')], [tok(word,Name29)].
@@ -252,27 +257,19 @@ rule_from_source(subquery(Core64,none)) --> [tok(symbol,'(')], rule_select_core(
 rule_join_clause(left_join(Src80,On82)) --> [tok(keyword,K78)], { downcase_atom(K78,'left') }, [tok(keyword,K79)], { downcase_atom(K79,'join') }, rule_from_source(Src80), [tok(keyword,K81)], { downcase_atom(K81,'on') }, expr(On82).
 rule_join_clause(inner_join(Src85,On87)) --> [tok(keyword,K83)], { downcase_atom(K83,'inner') }, [tok(keyword,K84)], { downcase_atom(K84,'join') }, rule_from_source(Src85), [tok(keyword,K86)], { downcase_atom(K86,'on') }, expr(On87).
 
-rule_select_core(select_core(L119,From121,some(J122),some(Where124),some(L132),some(Having134))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), rule_join_clause(J122), [tok(keyword,K123)], { downcase_atom(K123,'where') }, expr(Where124), [tok(keyword,K125)], { downcase_atom(K125,'group') }, [tok(keyword,K126)], { downcase_atom(K126,'by') }, cl_6(L132), [tok(keyword,K133)], { downcase_atom(K133,'having') }, expr(Having134).
-rule_select_core(select_core(L119,From121,some(J122),some(Where124),some(L132),none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), rule_join_clause(J122), [tok(keyword,K123)], { downcase_atom(K123,'where') }, expr(Where124), [tok(keyword,K125)], { downcase_atom(K125,'group') }, [tok(keyword,K126)], { downcase_atom(K126,'by') }, cl_6(L132).
-rule_select_core(select_core(L119,From121,some(J122),some(Where124),none,some(Having134))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), rule_join_clause(J122), [tok(keyword,K123)], { downcase_atom(K123,'where') }, expr(Where124), [tok(keyword,K133)], { downcase_atom(K133,'having') }, expr(Having134).
-rule_select_core(select_core(L119,From121,some(J122),some(Where124),none,none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), rule_join_clause(J122), [tok(keyword,K123)], { downcase_atom(K123,'where') }, expr(Where124).
-rule_select_core(select_core(L119,From121,some(J122),none,some(L132),some(Having134))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), rule_join_clause(J122), [tok(keyword,K125)], { downcase_atom(K125,'group') }, [tok(keyword,K126)], { downcase_atom(K126,'by') }, cl_6(L132), [tok(keyword,K133)], { downcase_atom(K133,'having') }, expr(Having134).
-rule_select_core(select_core(L119,From121,some(J122),none,some(L132),none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), rule_join_clause(J122), [tok(keyword,K125)], { downcase_atom(K125,'group') }, [tok(keyword,K126)], { downcase_atom(K126,'by') }, cl_6(L132).
-rule_select_core(select_core(L119,From121,some(J122),none,none,some(Having134))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), rule_join_clause(J122), [tok(keyword,K133)], { downcase_atom(K133,'having') }, expr(Having134).
-rule_select_core(select_core(L119,From121,some(J122),none,none,none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), rule_join_clause(J122).
-rule_select_core(select_core(L119,From121,none,some(Where124),some(L132),some(Having134))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), [tok(keyword,K123)], { downcase_atom(K123,'where') }, expr(Where124), [tok(keyword,K125)], { downcase_atom(K125,'group') }, [tok(keyword,K126)], { downcase_atom(K126,'by') }, cl_6(L132), [tok(keyword,K133)], { downcase_atom(K133,'having') }, expr(Having134).
-rule_select_core(select_core(L119,From121,none,some(Where124),some(L132),none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), [tok(keyword,K123)], { downcase_atom(K123,'where') }, expr(Where124), [tok(keyword,K125)], { downcase_atom(K125,'group') }, [tok(keyword,K126)], { downcase_atom(K126,'by') }, cl_6(L132).
-rule_select_core(select_core(L119,From121,none,some(Where124),none,some(Having134))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), [tok(keyword,K123)], { downcase_atom(K123,'where') }, expr(Where124), [tok(keyword,K133)], { downcase_atom(K133,'having') }, expr(Having134).
-rule_select_core(select_core(L119,From121,none,some(Where124),none,none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), [tok(keyword,K123)], { downcase_atom(K123,'where') }, expr(Where124).
-rule_select_core(select_core(L119,From121,none,none,some(L132),some(Having134))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), [tok(keyword,K125)], { downcase_atom(K125,'group') }, [tok(keyword,K126)], { downcase_atom(K126,'by') }, cl_6(L132), [tok(keyword,K133)], { downcase_atom(K133,'having') }, expr(Having134).
-rule_select_core(select_core(L119,From121,none,none,some(L132),none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), [tok(keyword,K125)], { downcase_atom(K125,'group') }, [tok(keyword,K126)], { downcase_atom(K126,'by') }, cl_6(L132).
-rule_select_core(select_core(L119,From121,none,none,none,some(Having134))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), [tok(keyword,K133)], { downcase_atom(K133,'having') }, expr(Having134).
-rule_select_core(select_core(L119,From121,none,none,none,none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121).
+rule_select_core(select_core(L119,From121,L126,some(Where128),some(L136),some(Having138))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), cl_6(L126), [tok(keyword,K127)], { downcase_atom(K127,'where') }, expr(Where128), [tok(keyword,K129)], { downcase_atom(K129,'group') }, [tok(keyword,K130)], { downcase_atom(K130,'by') }, cl_7(L136), [tok(keyword,K137)], { downcase_atom(K137,'having') }, expr(Having138).
+rule_select_core(select_core(L119,From121,L126,some(Where128),some(L136),none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), cl_6(L126), [tok(keyword,K127)], { downcase_atom(K127,'where') }, expr(Where128), [tok(keyword,K129)], { downcase_atom(K129,'group') }, [tok(keyword,K130)], { downcase_atom(K130,'by') }, cl_7(L136).
+rule_select_core(select_core(L119,From121,L126,some(Where128),none,some(Having138))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), cl_6(L126), [tok(keyword,K127)], { downcase_atom(K127,'where') }, expr(Where128), [tok(keyword,K137)], { downcase_atom(K137,'having') }, expr(Having138).
+rule_select_core(select_core(L119,From121,L126,some(Where128),none,none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), cl_6(L126), [tok(keyword,K127)], { downcase_atom(K127,'where') }, expr(Where128).
+rule_select_core(select_core(L119,From121,L126,none,some(L136),some(Having138))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), cl_6(L126), [tok(keyword,K129)], { downcase_atom(K129,'group') }, [tok(keyword,K130)], { downcase_atom(K130,'by') }, cl_7(L136), [tok(keyword,K137)], { downcase_atom(K137,'having') }, expr(Having138).
+rule_select_core(select_core(L119,From121,L126,none,some(L136),none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), cl_6(L126), [tok(keyword,K129)], { downcase_atom(K129,'group') }, [tok(keyword,K130)], { downcase_atom(K130,'by') }, cl_7(L136).
+rule_select_core(select_core(L119,From121,L126,none,none,some(Having138))) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), cl_6(L126), [tok(keyword,K137)], { downcase_atom(K137,'having') }, expr(Having138).
+rule_select_core(select_core(L119,From121,L126,none,none,none)) --> [tok(keyword,K98)], { downcase_atom(K98,'select') }, cl_4(L119), [tok(keyword,K120)], { downcase_atom(K120,'from') }, rule_from_source(From121), cl_6(L126).
 
-rule_select_stmt(select_stmt(L162,some(G174),some(N176))) --> cl_7(L162), [tok(keyword,K163)], { downcase_atom(K163,'order') }, [tok(keyword,K164)], { downcase_atom(K164,'by') }, grp_8(G174), [tok(keyword,K175)], { downcase_atom(K175,'limit') }, expr(N176).
-rule_select_stmt(select_stmt(L162,some(G174),none)) --> cl_7(L162), [tok(keyword,K163)], { downcase_atom(K163,'order') }, [tok(keyword,K164)], { downcase_atom(K164,'by') }, grp_8(G174).
-rule_select_stmt(select_stmt(L162,none,some(N176))) --> cl_7(L162), [tok(keyword,K175)], { downcase_atom(K175,'limit') }, expr(N176).
-rule_select_stmt(select_stmt(L162,none,none)) --> cl_7(L162).
+rule_select_stmt(select_stmt(L164,some(G176),some(N178))) --> cl_8(L164), [tok(keyword,K165)], { downcase_atom(K165,'order') }, [tok(keyword,K166)], { downcase_atom(K166,'by') }, grp_9(G176), [tok(keyword,K177)], { downcase_atom(K177,'limit') }, expr(N178).
+rule_select_stmt(select_stmt(L164,some(G176),none)) --> cl_8(L164), [tok(keyword,K165)], { downcase_atom(K165,'order') }, [tok(keyword,K166)], { downcase_atom(K166,'by') }, grp_9(G176).
+rule_select_stmt(select_stmt(L164,none,some(N178))) --> cl_8(L164), [tok(keyword,K177)], { downcase_atom(K177,'limit') }, expr(N178).
+rule_select_stmt(select_stmt(L164,none,none)) --> cl_8(L164).
 
 
 % ============================================================ expression ladder
@@ -282,8 +279,9 @@ expr(E) --> lvl_or(E).
 lvl_pow(pow(A,B)) --> prim(A), [tok(symbol,'**')], prim(B).
 lvl_pow(E) --> prim(E).
 
-% level unary — unary minus
+% level unary — unary minus; DISTINCT (COUNT(DISTINCT x))
 lvl_unary(neg(E)) --> [tok(symbol,'-')], lvl_unary(E).
+lvl_unary(distinct(E)) --> [tok(keyword,K)], { downcase_atom(K,'distinct') }, lvl_unary(E).
 lvl_unary(E) --> lvl_pow(E).
 
 % level mul
@@ -358,67 +356,67 @@ args_rest([A|As]) --> [tok(symbol,',')], expr(A), args_rest(As).
 args_rest([]) --> [].
 
 % ============================================================ print direction
-print_stmt_libname(libname(Lib191,Path192), T194) :- print_expr(Path192, 0, T193), flatten([['libname'], [Lib191], T193, [';']], T194).
+print_stmt_libname(libname(Lib193,Path194), T196) :- print_expr(Path194, 0, T195), flatten([['libname'], [Lib193], T195, [';']], T196).
 print_stmt(T, Texts) :- print_stmt_libname(T, Texts), !.
 
-print_stmt_data(data(Out197), T199) :- print_rule_dsname(Out197, T198), flatten([['data'], T198, [';']], T199).
+print_stmt_data(data(Out199), T201) :- print_rule_dsname(Out199, T200), flatten([['data'], T200, [';']], T201).
 print_stmt(T, Texts) :- print_stmt_data(T, Texts), !.
 
-print_stmt_input(input(L206), T208) :- cl_9(L206, T207), flatten([['input'], T207, [';']], T208).
+print_stmt_input(input(L208), T210) :- cl_10(L208, T209), flatten([['input'], T209, [';']], T210).
 print_stmt(T, Texts) :- print_stmt_input(T, Texts), !.
 
-print_stmt_format(format(Var215,G216), T218) :- grp_10(G216, T217), flatten([['format'], [Var215], T217, [';']], T218).
+print_stmt_format(format(Var217,G218), T220) :- grp_11(G218, T219), flatten([['format'], [Var217], T219, [';']], T220).
 print_stmt(T, Texts) :- print_stmt_format(T, Texts), !.
 
-print_stmt_length(length(L225), T227) :- cl_11(L225, T226), flatten([['length'], T226, [';']], T227).
+print_stmt_length(length(L227), T229) :- cl_12(L227, T228), flatten([['length'], T228, [';']], T229).
 print_stmt(T, Texts) :- print_stmt_length(T, Texts), !.
 
-print_stmt_infile(infile(Dlm234), T236) :- print_expr(Dlm234, 0, T235), flatten([['infile'], ['datalines'], ['dsd'], ['dlm'], ['='], T235, ['truncover'], [';']], T236).
+print_stmt_infile(infile(Dlm236), T238) :- print_expr(Dlm236, 0, T237), flatten([['infile'], ['datalines'], ['dsd'], ['dlm'], ['='], T237, ['truncover'], [';']], T238).
 print_stmt(T, Texts) :- print_stmt_infile(T, Texts), !.
 
-print_stmt_datalines(datalines(Rows239), T241) :- raw_text('datalines', Rows239, T240), flatten([T240], T241).
+print_stmt_datalines(datalines(Rows241), T243) :- raw_text('datalines', Rows241, T242), flatten([T242], T243).
 print_stmt(T, Texts) :- print_stmt_datalines(T, Texts), !.
 
-print_stmt_set(set(In244), T246) :- print_rule_dsname(In244, T245), flatten([['set'], T245, [';']], T246).
+print_stmt_set(set(In246), T248) :- print_rule_dsname(In246, T247), flatten([['set'], T247, [';']], T248).
 print_stmt(T, Texts) :- print_stmt_set(T, Texts), !.
 
-print_stmt_subset_if(subset_if(Cond249), T251) :- print_expr(Cond249, 0, T250), flatten([['if'], T250, [';']], T251).
+print_stmt_subset_if(subset_if(Cond251), T253) :- print_expr(Cond251, 0, T252), flatten([['if'], T252, [';']], T253).
 print_stmt(T, Texts) :- print_stmt_subset_if(T, Texts), !.
 
-print_stmt_if_then_set(if_then_set(Var258,Val259,In261), T263) :- print_expr(Val259, 0, T260), print_rule_dsname(In261, T262), flatten([['if'], [Var258], ['='], T260, ['then'], ['set'], T262, [';']], T263).
+print_stmt_if_then_set(if_then_set(Var260,Val261,In263), T265) :- print_expr(Val261, 0, T262), print_rule_dsname(In263, T264), flatten([['if'], [Var260], ['='], T262, ['then'], ['set'], T264, [';']], T265).
 print_stmt(T, Texts) :- print_stmt_if_then_set(T, Texts), !.
 
-print_stmt_assign(assign(Var266,Val267), T269) :- print_expr(Val267, 0, T268), flatten([[Var266], ['='], T268, [';']], T269).
+print_stmt_assign(assign(Var268,Val269), T271) :- print_expr(Val269, 0, T270), flatten([[Var268], ['='], T270, [';']], T271).
 print_stmt(T, Texts) :- print_stmt_assign(T, Texts), !.
 
-print_stmt_output(output, T271) :- flatten([['output'], [';']], T271).
+print_stmt_output(output, T273) :- flatten([['output'], [';']], T273).
 print_stmt(T, Texts) :- print_stmt_output(T, Texts), !.
 
-print_stmt_merge(merge(L287), T289) :- cl_12(L287, T288), flatten([['merge'], T288, [';']], T289).
+print_stmt_merge(merge(L289), T291) :- cl_13(L289, T290), flatten([['merge'], T290, [';']], T291).
 print_stmt(T, Texts) :- print_stmt_merge(T, Texts), !.
 
-print_stmt_by(by(L295), T297) :- cl_14(L295, T296), flatten([['by'], T296, [';']], T297).
+print_stmt_by(by(L297), T299) :- cl_15(L297, T298), flatten([['by'], T298, [';']], T299).
 print_stmt(T, Texts) :- print_stmt_by(T, Texts), !.
 
-print_stmt_proc_sql(proc_sql, T300) :- flatten([['proc'], ['sql'], [';']], T300).
+print_stmt_proc_sql(proc_sql, T302) :- flatten([['proc'], ['sql'], [';']], T302).
 print_stmt(T, Texts) :- print_stmt_proc_sql(T, Texts), !.
 
-print_stmt_create_table_as(create_table_as(Out306,Select308), T310) :- print_rule_dsname(Out306, T307), print_rule_select_stmt(Select308, T309), flatten([['create'], ['table'], T307, ['as'], T309, [';']], T310).
+print_stmt_create_table_as(create_table_as(Out308,Select310), T312) :- print_rule_dsname(Out308, T309), print_rule_select_stmt(Select310, T311), flatten([['create'], ['table'], T309, ['as'], T311, [';']], T312).
 print_stmt(T, Texts) :- print_stmt_create_table_as(T, Texts), !.
 
-print_stmt_proc_print(proc_print(In315), T317) :- print_rule_dsname(In315, T316), flatten([['proc'], ['print'], ['data'], ['='], T316, [';']], T317).
+print_stmt_proc_print(proc_print(In317), T319) :- print_rule_dsname(In317, T318), flatten([['proc'], ['print'], ['data'], ['='], T318, [';']], T319).
 print_stmt(T, Texts) :- print_stmt_proc_print(T, Texts), !.
 
-print_stmt_title(title(Text320), T322) :- print_expr(Text320, 0, T321), flatten([['title'], T321, [';']], T322).
+print_stmt_title(title(Text322), T324) :- print_expr(Text322, 0, T323), flatten([['title'], T323, [';']], T324).
 print_stmt(T, Texts) :- print_stmt_title(T, Texts), !.
 
-print_stmt_empty(empty, T323) :- flatten([[';']], T323).
+print_stmt_empty(empty, T325) :- flatten([[';']], T325).
 print_stmt(T, Texts) :- print_stmt_empty(T, Texts), !.
 
-print_stmt_run(run, T325) :- flatten([['run'], [';']], T325).
+print_stmt_run(run, T327) :- flatten([['run'], [';']], T327).
 print_stmt(T, Texts) :- print_stmt_run(T, Texts), !.
 
-print_stmt_quit(quit, T327) :- flatten([['quit'], [';']], T327).
+print_stmt_quit(quit, T329) :- flatten([['quit'], [';']], T329).
 print_stmt(T, Texts) :- print_stmt_quit(T, Texts), !.
 
 % ---- statement auxiliaries (print) ----
@@ -431,27 +429,31 @@ grp_5(proj(E104,O107,O111), T113) :- print_expr(E104, 0, T105), ( O107=some(As10
 cl_4_item(G116, T118) :- grp_5(G116, T117), flatten([T117], T118).
 cl_4([X], Texts) :- !, cl_4_item(X, Texts).
 cl_4([X|Xs], Texts) :- cl_4_item(X, TX), cl_4(Xs, TXs), flatten([TX, [','], TXs], Texts).
-cl_6_item(K129, T131) :- print_expr(K129, 0, T130), flatten([T130], T131).
+cl_6_item(J123, T125) :- print_rule_join_clause(J123, T124), flatten([T124], T125).
 cl_6([X], Texts) :- !, cl_6_item(X, Texts).
-cl_6([X|Xs], Texts) :- cl_6_item(X, TX), cl_6(Xs, TXs), flatten([TX, [','], TXs], Texts).
-cl_7_item(Core159, T161) :- print_rule_select_core(Core159, T160), flatten([T160], T161).
+cl_6([X|Xs], Texts) :- cl_6_item(X, TX), cl_6(Xs, TXs), flatten([TX, TXs], Texts).
+cl_6([], []).
+cl_7_item(K133, T135) :- print_expr(K133, 0, T134), flatten([T134], T135).
 cl_7([X], Texts) :- !, cl_7_item(X, Texts).
-cl_7([X|Xs], Texts) :- cl_7_item(X, TX), cl_7(Xs, TXs), flatten([TX, ['union'], ['all'], TXs], Texts).
-grp_8(orderby(Key169,C171), T173) :- print_expr(Key169, 0, T170), ( C171==desc -> T172=['desc'] ; ( C171==asc -> T172=['asc'] ; fail ) ), flatten([T170, T172], T173).
-cl_9_item(V202, T204) :- print_rule_input_var(V202, T203), flatten([T203], T204).
-cl_9([X], Texts) :- !, cl_9_item(X, Texts).
-cl_9([X|Xs], Texts) :- cl_9_item(X, TX), cl_9(Xs, TXs), flatten([TX, TXs], Texts).
-grp_10(fmt(Name212), T213) :- flatten([[Name212], ['.']], T213).
-cl_11_item(V221, T223) :- print_rule_length_var(V221, T222), flatten([T222], T223).
-cl_11([X], Texts) :- !, cl_11_item(X, Texts).
-cl_11([X|Xs], Texts) :- cl_11_item(X, TX), cl_11(Xs, TXs), flatten([TX, TXs], Texts).
-grp_13(src(Ds276,O279), T281) :- print_rule_dsname(Ds276, T277), ( O279=some(Flag278) -> flatten([['('], ['in'], ['='], [Flag278], [')']], T280) ; T280=[] ), flatten([T277, T280], T281).
-cl_12_item(G283, T285) :- grp_13(G283, T284), flatten([T284], T285).
+cl_7([X|Xs], Texts) :- cl_7_item(X, TX), cl_7(Xs, TXs), flatten([TX, [','], TXs], Texts).
+cl_8_item(Core161, T163) :- print_rule_select_core(Core161, T162), flatten([T162], T163).
+cl_8([X], Texts) :- !, cl_8_item(X, Texts).
+cl_8([X|Xs], Texts) :- cl_8_item(X, TX), cl_8(Xs, TXs), flatten([TX, ['union'], ['all'], TXs], Texts).
+grp_9(orderby(Key171,C173), T175) :- print_expr(Key171, 0, T172), ( C173==desc -> T174=['desc'] ; ( C173==asc -> T174=['asc'] ; fail ) ), flatten([T172, T174], T175).
+cl_10_item(V204, T206) :- print_rule_input_var(V204, T205), flatten([T205], T206).
+cl_10([X], Texts) :- !, cl_10_item(X, Texts).
+cl_10([X|Xs], Texts) :- cl_10_item(X, TX), cl_10(Xs, TXs), flatten([TX, TXs], Texts).
+grp_11(fmt(Name214), T215) :- flatten([[Name214], ['.']], T215).
+cl_12_item(V223, T225) :- print_rule_length_var(V223, T224), flatten([T224], T225).
 cl_12([X], Texts) :- !, cl_12_item(X, Texts).
 cl_12([X|Xs], Texts) :- cl_12_item(X, TX), cl_12(Xs, TXs), flatten([TX, TXs], Texts).
-cl_14_item(K292, T293) :- flatten([[K292]], T293).
-cl_14([X], Texts) :- !, cl_14_item(X, Texts).
-cl_14([X|Xs], Texts) :- cl_14_item(X, TX), cl_14(Xs, TXs), flatten([TX, TXs], Texts).
+grp_14(src(Ds278,O281), T283) :- print_rule_dsname(Ds278, T279), ( O281=some(Flag280) -> flatten([['('], ['in'], ['='], [Flag280], [')']], T282) ; T282=[] ), flatten([T279, T282], T283).
+cl_13_item(G285, T287) :- grp_14(G285, T286), flatten([T286], T287).
+cl_13([X], Texts) :- !, cl_13_item(X, Texts).
+cl_13([X|Xs], Texts) :- cl_13_item(X, TX), cl_13(Xs, TXs), flatten([TX, TXs], Texts).
+cl_15_item(K294, T295) :- flatten([[K294]], T295).
+cl_15([X], Texts) :- !, cl_15_item(X, Texts).
+cl_15([X|Xs], Texts) :- cl_15_item(X, TX), cl_15(Xs, TXs), flatten([TX, TXs], Texts).
 
 % ---- named rules (print) ----
 print_rule_dsname(ds(Lib31,Name32), T33) :- flatten([[Lib31], ['.'], [Name32]], T33).
@@ -469,9 +471,9 @@ print_rule_from_source(subquery(Core72,O75), T77) :- print_rule_select_core(Core
 print_rule_join_clause(left_join(Src88,On90), T92) :- print_rule_from_source(Src88, T89), print_expr(On90, 0, T91), flatten([['left'], ['join'], T89, ['on'], T91], T92).
 print_rule_join_clause(inner_join(Src93,On95), T97) :- print_rule_from_source(Src93, T94), print_expr(On95, 0, T96), flatten([['inner'], ['join'], T94, ['on'], T96], T97).
 
-print_rule_select_core(select_core(L135,From137,O141,O145,O149,O153), T155) :- cl_4(L135, T136), print_rule_from_source(From137, T138), ( O141=some(J139) -> print_rule_join_clause(J139, T140), flatten([T140], T142) ; T142=[] ), ( O145=some(Where143) -> print_expr(Where143, 0, T144), flatten([['where'], T144], T146) ; T146=[] ), ( O149=some(L147) -> cl_6(L147, T148), flatten([['group'], ['by'], T148], T150) ; T150=[] ), ( O153=some(Having151) -> print_expr(Having151, 0, T152), flatten([['having'], T152], T154) ; T154=[] ), flatten([['select'], T136, ['from'], T138, T142, T146, T150, T154], T155).
+print_rule_select_core(select_core(L139,From141,L143,O147,O151,O155), T157) :- cl_4(L139, T140), print_rule_from_source(From141, T142), cl_6(L143, T144), ( O147=some(Where145) -> print_expr(Where145, 0, T146), flatten([['where'], T146], T148) ; T148=[] ), ( O151=some(L149) -> cl_7(L149, T150), flatten([['group'], ['by'], T150], T152) ; T152=[] ), ( O155=some(Having153) -> print_expr(Having153, 0, T154), flatten([['having'], T154], T156) ; T156=[] ), flatten([['select'], T140, ['from'], T142, T144, T148, T152, T156], T157).
 
-print_rule_select_stmt(select_stmt(L177,O181,O185), T187) :- cl_7(L177, T178), ( O181=some(G179) -> grp_8(G179, T180), flatten([['order'], ['by'], T180], T182) ; T182=[] ), ( O185=some(N183) -> print_expr(N183, 0, T184), flatten([['limit'], T184], T186) ; T186=[] ), flatten([T178, T182, T186], T187).
+print_rule_select_stmt(select_stmt(L179,O183,O187), T189) :- cl_8(L179, T180), ( O183=some(G181) -> grp_9(G181, T182), flatten([['order'], ['by'], T182], T184) ; T184=[] ), ( O187=some(N185) -> print_expr(N185, 0, T186), flatten([['limit'], T186], T188) ; T188=[] ), flatten([T180, T184, T188], T189).
 
 
 % precedence table: tightest level highest number
@@ -492,6 +494,7 @@ print_expr(Term, MinPrec, Texts) :-
 
 expr_own(pow(A,B), P, Texts) :- level_prec('pow', P), P1 is P+1, print_expr(A, P1, TA), print_expr(B, P1, TB), flatten([TA, ['**'], TB], Texts).
 expr_own(neg(A), P, Texts) :- level_prec('unary', P), print_expr(A, P, TA), flatten([['-'], TA], Texts).
+expr_own(distinct(A), P, Texts) :- level_prec('unary', P), print_expr(A, P, TA), flatten([['distinct'], TA], Texts).
 expr_own(mul(A,B), P, Texts) :- level_prec('mul', P), print_expr(A, P, TA), P1 is P+1, print_expr(B, P1, TB), flatten([TA, ['*'], TB], Texts).
 expr_own(div(A,B), P, Texts) :- level_prec('mul', P), print_expr(A, P, TA), P1 is P+1, print_expr(B, P1, TB), flatten([TA, ['/'], TB], Texts).
 expr_own(add(A,B), P, Texts) :- level_prec('add', P), print_expr(A, P, TA), P1 is P+1, print_expr(B, P1, TB), flatten([TA, ['+'], TB], Texts).

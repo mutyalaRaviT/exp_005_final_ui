@@ -28,10 +28,14 @@ Term vocabulary (what node/4 holds — read this once, the terms then read thems
     merge([src(ds(..), none|some(Flag)) ...])
     by([Key ...])
     proc_sql
-    create_table_as(ds(..), select_stmt([select_core(Cols, From, JoinOpt, WhereOpt, GroupByOpt, HavingOpt) ...], OrderByOpt, LimitOpt))
+    create_table_as(ds(..), select_stmt([select_core(Cols, From, Joins, WhereOpt, GroupByOpt, HavingOpt) ...], OrderByOpt, LimitOpt))
         Cols  = [proj(Expr, none|some(Alias), none|some(Length)) ...]
         From  = table(ds(..), none|some(Alias)) | subquery(select_core(..), none|some(Alias))
-        JoinOpt = none | some(left_join(Src,On)) | some(inner_join(Src,On))   -- at most one JOIN
+        Joins = [left_join(Src,On) | inner_join(Src,On) ...]   -- task 5c: ZERO OR MORE
+            joins, source order, no separator token (each alternative leads with its own
+            LEFT/INNER keyword) — was `none | some(...)` (at most one) through task 5b;
+            widened because every remaining fold failure in the ankitha corpus was a
+            multi-JOIN create_table_as (see the note at select_core's RULES entry below).
     length([clen(Var,N)|nlen(Var,N)])   LENGTH var $ n ... — storage length
     infile(Dlm)                    INFILE DATALINES DSD DLM='delim' TRUNCOVER
     assign(Var, Val)                var = expr — a DATA-step assignment
@@ -40,7 +44,10 @@ Term vocabulary (what node/4 holds — read this once, the terms then read thems
     run | quit
     Expressions: col(N), lit(V), star, missing (a lone `.`), call(Name, [Args]), paren(E),
         case_expr([when(Cond,Then)...], none|some(Else)), subquery_expr(select_core(..)),
-        neg/1, mul/div/add/sub/cat, eq/ne/lt/le/gt/ge, in(E, [..]), not/1, and/or.
+        neg/1, mul/div/add/sub/cat, eq/ne/lt/le/gt/ge, in(E, [..]), not/1, and/or,
+        distinct/1 (task 5c: COUNT(DISTINCT x) — DISTINCT prefixes an expr, same
+        precedence level as unary minus; the ladder does not gate it to aggregate call
+        args specifically, same permissiveness as `not` elsewhere in this ladder).
 """
 from pipeline.pydsl.pydsl_lib import (
     leaf, level, ladder, one_of, prefix, list_rhs, form,
@@ -82,6 +89,9 @@ KEYWORDS = [
     "infile", "dsd", "dlm", "truncover", "datalines",
     # task 5b, output family: OUTPUT — writes the current PDV row.
     "output",
+    # task 5c: COUNT(DISTINCT x) — grepped the corpus and both regression files for
+    # "distinct" used bare (column/table name); none found.
+    "distinct",
 ]
 
 # ------------------------------------------------------ expression ladder
@@ -91,7 +101,12 @@ KEYWORDS = [
 EXPR_LADDER = ladder(
     level("pow", one_of("**", functor="pow"), assoc="none",
           doc="exponent; one shot (2 ** 3 ** 2 is not folded — not needed here)"),
-    level("unary", prefix("-", functor="neg"), doc="unary minus"),
+    # task 5c: DISTINCT shares this level with unary minus — both are bare prefix
+    # operators, and SAS only ever writes DISTINCT immediately before an aggregate's
+    # argument (COUNT(DISTINCT x)), so binding it this tight never collides with
+    # anything the corpus actually writes.
+    level("unary", prefix("-", functor="neg") + prefix("distinct", functor="distinct"),
+          doc="unary minus; DISTINCT (COUNT(DISTINCT x))"),
     level("mul", one_of("*", "/", functor={"*": "mul", "/": "div"})),
     level("add", one_of("+", "-", functor={"+": "add", "-": "sub"})),
     level("cat", one_of("||", functor="cat"), doc="string concatenation"),
@@ -175,21 +190,27 @@ RULES = {
         rule_alt("subquery", sym("("), rule_ref("core", "select_core"), sym(")"), opt(ident("as")),
                  doc="a parenthesised SELECT in FROM"),
     ],
-    # task 5b: at most one JOIN per select_core (unchanged from before — the
-    # Rust lineage engine (rust_rules_converter/src/lineage.rs select_lineage)
-    # reads select_core's join field positionally as `some(J)`/`none` with
-    # J's own args()[0]/args()[1] read blindly as (src, on); it does not
-    # check J's functor name, so left_join/2 and inner_join/2 both work
-    # there unmodified — but J's ARITY must stay 2 (src, on), which is why
-    # bare/LEFT/INNER JOIN all keep the same two-argument shape and CROSS
-    # JOIN (which SAS/this corpus writes with no ON at all — see
-    # 17_compliance_check.sas) is deliberately NOT one of these alternatives:
-    # an arity-1 cross_join(src) would make that same Rust code panic on
-    # `j.args()[1]` the moment anyone ran the `lineage` subcommand on it, and
-    # fixing that is a Rust-side change this task does not make. A file with
-    # more than one JOIN (04_build_accounts.sas, 11_branch_rollup.sas,
-    # 15/22/24) still fails to fold — same Rust constraint: select_core has
-    # room for exactly one join, not a list of them.
+    # task 5c: ZERO OR MORE JOINs per select_core — task 5b capped this at one
+    # because the Rust lineage engine (rust_rules_converter/src/lineage.rs
+    # select_lineage) read select_core's join field positionally as
+    # `some(J)`/`none`, reading J's own args()[0]/args()[1] blindly as (src, on)
+    # without checking J's functor name. Every remaining fold failure in the
+    # ankitha corpus after 5b was exactly this: a create_table_as with 2+ JOINs
+    # (04_build_accounts.sas's 2nd block, 11_branch_rollup.sas — phase 2's pass
+    # mark 1 — 15_join_risk_txn.sas, 22_marketing_list.sas, 24_ops_alerts.sas).
+    # Fixing it means the FIELD becomes a list: `sep_list("joins", [], ...,
+    # min=0)` repeats join_clause zero or more times with NO separator token
+    # (each alternative already leads with its own LEFT/INNER keyword — the
+    # same "juxtaposition, no separator" shape CASE_FORM's `whens` already
+    # proved for WHEN..THEN clauses). select_core's own ARITY is unchanged (6
+    # args, same position); what changes is what that one arg IS — a Prolog
+    # list instead of `none`/`some(J)` — which is why this is a Rust change,
+    # not just a grammar one: every consumer that unwraps `some(J)` at that
+    # position (lineage.rs, interp.rs, emit.rs, emit_pretty.rs — the last of
+    # which also has a "zero clauses at all" fast-path check that compared the
+    # field to the atom `none`, which must become "list is empty") has to walk
+    # a list instead. See docs/plan for the full consumer list; task 5c's report
+    # names every file touched.
     #
     # Only LEFT/INNER (both explicitly qualified — this corpus never writes a
     # bare `JOIN`) are alternatives here, and deliberately so: a bare-JOIN
@@ -201,6 +222,17 @@ RULES = {
     # and breaking the source-rebuild law. Since nothing in this corpus
     # writes a bare JOIN, that alternative would be untested AND unsound, so
     # it is left out rather than added on faith.
+    #
+    # CROSS JOIN (17_compliance_check.sas, the one remaining fold failure
+    # after this task) is still deliberately NOT one of these alternatives:
+    # SAS/this corpus writes it with no ON clause at all, so it needs an
+    # ARITY-1 term (cross_join(Src)) in the list, not arity-2 — every
+    # consumer above reads J.args()[0]/[1] unconditionally once it sees a
+    # list item, so an arity-1 item would panic, not silently misbehave.
+    # Teaching those four Rust functions (and their four Prolog mirrors) to
+    # branch on J's arity before indexing it is a real fix, but a separate
+    # one from "the list can now hold more than one item" — out of scope
+    # here; see the task 5c report.
     "join_clause": [
         rule_alt("left_join", kw("LEFT"), kw("JOIN"), rule_ref("src", "from_source"), kw("ON"), expr("on"),
                  doc="LEFT JOIN src ON e"),
@@ -212,11 +244,11 @@ RULES = {
             "select_core",
             kw("SELECT"), comma_list("cols", PROJ, min=1),
             kw("FROM"), rule_ref("from", "from_source"),
-            opt(rule_ref("j", "join_clause")),
+            sep_list("joins", [], rule_ref("j", "join_clause"), min=0),
             opt(kw("WHERE"), expr("where")),
             opt(kw("GROUP"), kw("BY"), comma_list("groupby", expr("k"), min=1)),
             opt(kw("HAVING"), expr("having")),
-            doc="SELECT cols FROM src [[LEFT|INNER] JOIN src ON e] [WHERE e] [GROUP BY e,...] [HAVING e]",
+            doc="SELECT cols FROM src ([LEFT|INNER] JOIN src ON e)* [WHERE e] [GROUP BY e,...] [HAVING e]",
         ),
     ],
     "select_stmt": [
