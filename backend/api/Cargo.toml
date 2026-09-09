@@ -1,0 +1,29 @@
+[package]
+name = "lineageq_api"
+version = "0.1.0"
+edition = "2021"
+description = "One HTTP API over the exp_005 store, serving both shipping UIs."
+
+[lib]
+name = "lineageq_api"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lineageq_api"
+path = "src/main.rs"
+
+[dependencies]
+inferred_duckdb = { path = "../rust_inferred_duckdb" }
+rules_converter = { path = "../rust_rules_converter" }
+duckdb = { version = "1.1", features = ["bundled"] }
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process"] }
+reqwest = { version = "0.12", features = ["json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = "1"
+
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }
+http-body-util = "0.1"
+urlencoding = "2"

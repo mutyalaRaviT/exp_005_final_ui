@@ -3,7 +3,7 @@
 # store that phase 1 adds around it.
 [workspace]
 resolver = "2"
-members = ["rust_rules_converter", "rust_inferred_duckdb"]
+members = ["rust_rules_converter", "rust_inferred_duckdb", "api"]
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
