@@ -34,6 +34,7 @@ Term vocabulary (what node/4 holds — read this once, the terms then read thems
         JoinOpt = none | some(left_join(Src,On)) | some(inner_join(Src,On))   -- at most one JOIN
     length([clen(Var,N)|nlen(Var,N)])   LENGTH var $ n ... — storage length
     infile(Dlm)                    INFILE DATALINES DSD DLM='delim' TRUNCOVER
+    assign(Var, Val)                var = expr — a DATA-step assignment
     empty                          a lone `;`
     run | quit
     Expressions: col(N), lit(V), star, missing (a lone `.`), call(Name, [Args]), paren(E),
@@ -252,6 +253,19 @@ STATEMENTS = [
     statement("subset_if", kw("IF"), expr("cond"), doc="a subsetting IF: keep the row when cond is true"),
     statement("if_then_set", kw("IF"), ident("var"), sym("="), expr("val"), kw("THEN"), kw("SET"), rule_ref("in", "dsname"),
               doc="IF _N_ = 1 THEN SET lib.ds — read one row once, its variables are retained on every output row"),
+    # task 5b: a plain DATA-step assignment, `var = expr ;` — status = 'OK',
+    # event_ts = datetime(), run_id = 'FD_TABLE_DEPS'. NOT built with
+    # pydsl_lib's `assign=True` ("REF = <parts>") convenience: this engine's
+    # own Rust side (rust_rules_converter/src/parser.rs, fold()) has
+    # `if st.assign { continue; } // not used by SAS` — every assign=True
+    # statement is unconditionally skipped during fold, so one would never
+    # actually parse here. Writing the same shape by hand instead — a plain
+    # ident() capture, a literal `=`, then expr() — reaches the exact same
+    # term shape's spirit (assign(Var, Val)) through the ordinary piece path
+    # that fold() does not special-case. No other statement here starts with
+    # a bare WORD token, so this cannot be ambiguous with IF/SET/MERGE/etc,
+    # which all start with a keyword.
+    statement("assign", ident("var"), sym("="), expr("val"), doc="var = expr ; — a DATA-step variable assignment"),
     statement("merge", kw("MERGE"),
               sep_list("sources", [], group("src", rule_ref("ds", "dsname"),
                                             opt(sym("("), kw("IN"), sym("="), ident("flag"), sym(")"))), min=1),

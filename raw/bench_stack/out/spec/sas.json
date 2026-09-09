@@ -633,6 +633,26 @@
    ]
   },
   {
+   "name": "assign",
+   "assign": false,
+   "parts": [
+    {
+     "t": "cap",
+     "field": "var",
+     "kind": "ident"
+    },
+    {
+     "t": "sym",
+     "text": "="
+    },
+    {
+     "t": "cap",
+     "field": "val",
+     "kind": "expr"
+    }
+   ]
+  },
+  {
    "name": "merge",
    "assign": false,
    "parts": [
