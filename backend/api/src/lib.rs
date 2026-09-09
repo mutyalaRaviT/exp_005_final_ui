@@ -99,6 +99,26 @@ pub fn app(state: AppState) -> Router {
 /// test suite slow for no benefit to this one. Whichever of those tasks needs `exp42` data
 /// seeds it the same way, here, when it lands.
 pub fn test_state() -> AppState {
+    test_state_with_oracle_a("http://127.0.0.1:8000".to_string())
+}
+
+/// Like `test_state()`, but with `oracle_a` overridden.
+///
+/// **Why this exists (Ruling 5 fix round 2, 2026-09-09).** `test_state()`'s default
+/// `oracle_a` is a real, meaningful address — Ruling 1 exists precisely so something
+/// really does listen on `127.0.0.1:8000` most of the time (this track's own oracle,
+/// `raw/lineage_server`, serving UI1's edges/blocklinks/file until phase C lands them).
+/// A test that needs the `/api/*` fallback's forward attempt to *deterministically fail*
+/// (`tests/forward.rs`, `tests/landed.rs`) must not depend on that address happening to be
+/// unoccupied on whichever machine runs the suite — it was, on the machine this was first
+/// written on, which is exactly how the bug got past both authoring and the first review.
+/// Such a test calls this with an address it knows is closed (see
+/// `tests/support::closed_addr`, which binds an ephemeral port and drops it) instead.
+///
+/// Deliberately not a general "override anything" builder: only `oracle_a` varies here,
+/// because that is the only field any test so far has had a reason to control, and a
+/// narrower helper is harder to misuse for something the plan didn't ask for.
+pub fn test_state_with_oracle_a(oracle_a: String) -> AppState {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -125,7 +145,7 @@ pub fn test_state() -> AppState {
 
     AppState {
         db: std::sync::Arc::new(std::sync::Mutex::new(conn)),
-        oracle_a: "http://127.0.0.1:8000".to_string(),
+        oracle_a,
         oracle_b: "http://127.0.0.1:8042".to_string(),
     }
 }

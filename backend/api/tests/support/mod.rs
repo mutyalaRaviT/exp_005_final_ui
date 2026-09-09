@@ -11,6 +11,16 @@
 //! that bound a port could collide with one of those or, worse, silently read its
 //! response instead of the router's. Each call opens a fresh `test_state()` store, so
 //! tests never share state through the filesystem either.
+//!
+//! **`closed_addr` and `get_raw_with_oracle_a` (Ruling 5 fix round 2, 2026-09-09).** The
+//! router itself never binds a port, but `routes::forward::fallback` makes a *real*
+//! outbound HTTP call to `oracle_a` — and `8000` is a real, meaningful address here
+//! (Ruling 1's oracle usually lives there), not a made-up default. A test asserting what
+//! happens when the fallback's forward fails must not depend on that port happening to be
+//! empty on whichever machine runs the suite; `closed_addr()` hands out an address
+//! guaranteed refused (bind an ephemeral port, read it, drop the listener immediately —
+//! nothing is listening on it a moment later) and `get_raw_with_oracle_a` drives the
+//! router with that address as `oracle_a` instead of the real default.
 
 use axum::body::Body;
 use axum::http::Request;
@@ -48,12 +58,23 @@ pub struct RawRes {
 /// Like `get`, but keeps the bytes and the content type instead of parsing JSON — the
 /// Bench page is HTML, not an answer.
 pub async fn get_raw(path: &str) -> RawRes {
+    get_raw_with_state(lineageq_api::test_state(), path).await
+}
+
+/// Like `get_raw`, but drives the router with `oracle_a` overridden — for a test that
+/// needs the `/api/*` fallback's forward attempt to fail deterministically. Pass
+/// `closed_addr()` for "guaranteed connection-refused, on any machine".
+pub async fn get_raw_with_oracle_a(oracle_a: &str, path: &str) -> RawRes {
+    get_raw_with_state(lineageq_api::test_state_with_oracle_a(oracle_a.to_string()), path).await
+}
+
+async fn get_raw_with_state(state: lineageq_api::AppState, path: &str) -> RawRes {
     let req = Request::builder()
         .method("GET")
         .uri(path)
         .body(Body::empty())
         .expect("build GET request");
-    let app = lineageq_api::app(lineageq_api::test_state());
+    let app = lineageq_api::app(state);
     let res = app.oneshot(req).await.expect("router call");
     let status = res.status().as_u16();
     let content_type = res
@@ -73,6 +94,18 @@ pub async fn get_raw(path: &str) -> RawRes {
         content_type,
         body: String::from_utf8_lossy(&bytes).to_string(),
     }
+}
+
+/// An address nothing is listening on, on any machine: bind an ephemeral port (the OS
+/// picks one that is currently free), read it back, then drop the listener — freeing the
+/// port again immediately, before anything can be sent to it. A test that forwards here
+/// gets a deterministic connection-refused, unlike a fixed port that might genuinely be
+/// serving something real on a given dev machine (see this module's doc comment).
+pub fn closed_addr() -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind an ephemeral port");
+    let port = listener.local_addr().expect("read the assigned port").port();
+    drop(listener);
+    format!("http://127.0.0.1:{port}")
 }
 
 async fn send(req: Request<Body>) -> Value {

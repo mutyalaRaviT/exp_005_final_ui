@@ -6,15 +6,20 @@
 //! own name and doesn't only prove itself as a side effect of the landed/not-landed
 //! table.
 //!
-//! No oracle runs in this test process (`support`'s own doc comment: in-process only, no
-//! `TcpListener::bind`), so the fallback's forward to `oracle_a` (`127.0.0.1:8000`) is
-//! expected to fail with connection-refused — that failure, translated to `502 Bad
-//! Gateway` by `oracle::forward`, is exactly the proof this test wants: not a 404 (the
-//! bug), and specifically the fallback's own unreachable-oracle status (not some other
-//! failure shape), which only a request that actually reached the fallback can produce.
+//! **Fix round 2 (2026-09-09): why `oracle_a` is forced to `support::closed_addr()`, not
+//! left at the real default.** `127.0.0.1:8000` is a real, meaningful address here —
+//! Ruling 1 exists precisely so this track's own oracle usually *does* listen there,
+//! serving UI1's edges/blocklinks/file until phase C lands them. Round 1's version of this
+//! test asserted `status == 502` against the *default* `oracle_a`, which only holds while
+//! nothing answers on `8000` — the everyday, intended state (oracle up) made it fail. A
+//! request the fallback forwards to a live server that answers with anything at all
+//! (200, its own 404, whatever) is still proof the fallback was reached, but `502`
+//! specifically is `oracle::forward`'s *unreachable* signal, so proving "the fallback was
+//! reached" this way requires a forward that is guaranteed to fail — hence a deliberately
+//! closed address, not whatever the machine happens to have open on `8000` right now.
 
 mod support;
-use support::get_raw;
+use support::{closed_addr, get_raw, get_raw_with_oracle_a};
 
 #[tokio::test]
 async fn a_non_landed_api_path_is_forwarded_not_404() {
@@ -22,10 +27,10 @@ async fn a_non_landed_api_path_is_forwarded_not_404() {
     // the exact shape of route Ruling 5 fixes.
     assert!(!lineageq_api::LANDED.contains(&"edges"));
 
-    let res = get_raw("/api/edges?files=sas%2Fraw%2F11_branch_rollup.sas").await;
+    let res = get_raw_with_oracle_a(&closed_addr(), "/api/edges?files=sas%2Fraw%2F11_branch_rollup.sas").await;
 
     assert_ne!(res.status, 404, "a non-landed /api/* path must not 404 — the fallback should have caught it");
-    assert_eq!(res.status, 502, "no oracle runs in tests, so the fallback's forward() must report it unreachable");
+    assert_eq!(res.status, 502, "oracle_a is a deliberately closed port, so the fallback's forward() must report it unreachable");
     assert!(
         res.body.contains("oracle unreachable"),
         "the fallback's failure body should say so in a short, generic way, not leak a URL or path: {}",
@@ -37,7 +42,10 @@ async fn a_non_landed_api_path_is_forwarded_not_404() {
 async fn an_unrelated_unmatched_path_still_gets_a_real_404() {
     // The fallback is confined to `/api/` by hand (axum's own `.fallback()` is otherwise
     // router-wide) — a typo'd or unrelated path must stay a genuine 404, not get
-    // forwarded to an oracle that has no idea what it is.
+    // forwarded to an oracle that has no idea what it is. Doesn't touch oracle_a at all
+    // (the fallback rejects it before ever calling `oracle::forward`), so the default
+    // `test_state()` is fine here — nothing about this assertion depends on what, if
+    // anything, is listening on `8000`.
     let res = get_raw("/not-an-api-path").await;
     assert_eq!(res.status, 404);
 }
