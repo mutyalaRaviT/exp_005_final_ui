@@ -1,0 +1,12 @@
+receipt: task 2, the remaining store columns (2026-09-09)
+
+new columns            files.source, node4.trace_b0/trace_b1, blocks.block_hash
+new tables             run_tables, run_samples, meta(key,value)
+tests                  cargo test -p inferred_duckdb: 3 passed, 0 failed
+                        (lineage_blocks x1, store_columns x2)
+convert timing         /tmp/bigcorpus (big_1000.sas), release build, 3 runs
+                        1094 / 1127 / 1098 ms  (baseline after Task 1: 1078 ms)
+pass mark               < 3 s: met, by a wide margin
+row counts (unchanged)  1 file, 1000 blocks, 3303 node4, 1204 edges
+reconvert semantics     skip key is now (file hash, spec hash); meta.spec_hash
+                        written unconditionally after the file loop
