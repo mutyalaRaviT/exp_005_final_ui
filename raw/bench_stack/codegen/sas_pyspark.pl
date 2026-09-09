@@ -145,9 +145,13 @@ order_txt(some(Keys), T) :- maplist(px0, Keys, Ps), atomic_list_concat(Ps, ", ",
 
 % core_chain(+Core, -ChainTxt, +Pre0, -Pre): Pre collects the lines that must
 % run before the chain (scalar subqueries), in order.
-core_chain(select_core(Cols, From, JoinOpt, WhereOpt, GroupOpt, HavingOpt), Chain, Pre0, Pre) :-
+% task 5c: Joins is a LIST now (was `JoinOpt = none | some(join(Src,On))`);
+% joins_txt/4 concatenates one ".join(...)" per list item, source order,
+% still hardcoded "inner" (this pre-existing simplification — never reading
+% left_join vs inner_join's own functor for the join TYPE — is unchanged).
+core_chain(select_core(Cols, From, Joins, WhereOpt, GroupOpt, HavingOpt), Chain, Pre0, Pre) :-
     from_txt(From, FromTxt, Pre0, Pre1),
-    join_txt(JoinOpt, JoinTxt, Pre1, Pre2),
+    joins_txt(Joins, JoinTxt, Pre1, Pre2),
     where_txt(WhereOpt, WhereTxt, Pre2, Pre3),
     select_txt(Cols, GroupOpt, SelTxt, Pre3, Pre4),
     having_txt(HavingOpt, HavTxt, Pre4, Pre),
@@ -158,8 +162,12 @@ from_txt(table(D, some(A)), T, P, P) :- ds_key(D, K), lower(A, LA), format(atom(
 from_txt(subquery(Core, none), T, P0, P) :- core_chain(Core, C, P0, P), format(atom(T), "(~w)", [C]).
 from_txt(subquery(Core, some(A)), T, P0, P) :- core_chain(Core, C, P0, P), lower(A, LA), format(atom(T), "(~w).alias(\"~w\")", [C, LA]).
 
-join_txt(none, "", P, P).
-join_txt(some(join(Src, On)), T, P0, P) :- from_txt(Src, S, P0, P1), px(On, O, P1, P), format(atom(T), ".join(~w, ~w, \"inner\")", [S, O]).
+joins_txt([], "", P, P).
+joins_txt([J|Js], T, P0, P) :-
+    J =.. [_, Src, On], from_txt(Src, S, P0, P1), px(On, O, P1, P2),
+    format(atom(JT), ".join(~w, ~w, \"inner\")", [S, O]),
+    joins_txt(Js, RestT, P2, P),
+    atomic_list_concat([JT, RestT], T).
 
 where_txt(none, "", P, P).
 where_txt(some(C), T, P0, P) :- px(C, X, P0, P), format(atom(T), ".filter(~w)", [X]).
@@ -220,6 +228,12 @@ px(subquery_expr(Core), T, P0, P) :-
     format(atom(Line), "_scalar~w = scalar(~w)", [N1, Chain]),
     append(P1, [Line], P),
     format(atom(T), "F.lit(_scalar~w)", [N1]).
+% task 5c: COUNT(DISTINCT x) -> F.countDistinct(x) — a special case ahead of
+% the generic call/2 clause below, so the DISTINCT marker never reaches px/4
+% as a bare operand (it has no general PySpark rule of its own; it only
+% means anything as this one wrapper).
+px(call(Name, [distinct(Arg)]), T, P0, P) :-
+    lower(Name, count), !, px(Arg, X, P0, P), format(atom(T), "F.countDistinct(~w)", [X]).
 px(call(Name, Args), T, P0, P) :-
     lower(Name, L), once(sas_fn(L, Py)),
     maplist_pre(px, Args, Xs, P0, P), atomic_list_concat(Xs, ", ", XT),

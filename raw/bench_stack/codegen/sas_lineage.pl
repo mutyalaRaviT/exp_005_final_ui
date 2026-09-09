@@ -54,9 +54,17 @@ var_name(cvar(N), L) :- lower(N, L).
 var_name(nvar(N, _), L) :- lower(N, L).
 
 % ---------------------------------------------------------------- SELECT
-select_lineage(K, select_core(Projs, From, JoinOpt, WhereOpt, GroupOpt, HavingOpt)) :-
+% task 5c: Joins is now a LIST (zero or more left_join(Src,On)/inner_join(Src,On)
+% terms, source order) — was `JoinOpt = none | some(join(Src,On))` (at most one,
+% and under the stale functor name "join" that this file's own grammar never
+% actually produced — left_join/inner_join, see pipeline/specs/sas.py). Every
+% join is read the same way (functor name not checked, matching the Rust
+% mirror lineage.rs::select_lineage): args()[0]/args()[1] as (Src, On).
+select_lineage(K, select_core(Projs, From, Joins, WhereOpt, GroupOpt, HavingOpt)) :-
     from_ds(From, KI), reads(K, KI),
-    ( JoinOpt = some(join(Src, On)) -> from_ds(Src, KJ), reads(K, KJ), expr_cols(On, OnCs), controls(K, KI, OnCs), controls(K, KJ, OnCs) ; true ),
+    forall(member(J, Joins),
+           ( J =.. [_, Src, On], from_ds(Src, KJ), reads(K, KJ),
+             expr_cols(On, OnCs), controls(K, KI, OnCs), controls(K, KJ, OnCs) )),
     findall(C, ( member(proj(E, A), Projs), proj_lineage(K, KI, E, A, C) ), Cs0), flatten(Cs0, Cols), set_schema(K, Cols),
     ( WhereOpt = some(W) -> cond_lineage(K, KI, W) ; true ),
     ( GroupOpt = some(Keys) -> forall(member(G, Keys), (expr_cols(G, GCs), controls(K, KI, GCs))) ; true ),

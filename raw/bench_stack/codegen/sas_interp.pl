@@ -147,9 +147,14 @@ select_stmt(select_stmt([Core|_], OrderOpt, _Limit), Cols, Rows) :-
     select_core(Core, Cols, Rows0),
     ( OrderOpt = some(Keys) -> order_rows(Keys, Cols, Rows0, Rows) ; Rows = Rows0 ).
 
-select_core(select_core(Projs, From, JoinOpt, WhereOpt, GroupOpt, HavingOpt), Cols, Rows) :-
+% task 5c: Joins is a LIST now (was `JoinOpt = none | some(join(Src,On))`, at
+% most one) — every join folds through the running (Cols,Rows) pair left to
+% right, same "inner join" semantics as before (this interpreter never
+% distinguished LEFT from INNER; that pre-existing simplification is
+% unchanged here). rust_engine's interp.rs::select_core is the mirror.
+select_core(select_core(Projs, From, Joins, WhereOpt, GroupOpt, HavingOpt), Cols, Rows) :-
     from_rows(From, C0, R0),
-    ( JoinOpt = some(join(Src, On)) -> from_rows(Src, C1, R1), inner_join(C0, R0, C1, R1, On, CIn, RIn) ; CIn = C0, RIn = R0 ),
+    foldl(apply_join, Joins, C0-R0, CIn-RIn),
     ( WhereOpt = some(W) -> include(row_passes(CIn, [W]), RIn, RW) ; RW = RIn ),
     ( GroupOpt = some(Keys) -> group_rows(Keys, CIn, RW, Groups) ; ( has_agg(Projs) -> Groups = [RW] ; Groups = none ) ),
     ( Groups == none -> findall(Row, ( member(R, RW), project(Projs, CIn, [R], Row) ), Rows0)
@@ -159,6 +164,11 @@ select_core(select_core(Projs, From, JoinOpt, WhereOpt, GroupOpt, HavingOpt), Co
 
 from_rows(table(D, _), Cols, Rows) :- ds_key(D, K), get(K, Cols, Rows).
 from_rows(subquery(Core, _), Cols, Rows) :- select_core(Core, Cols, Rows).
+
+% apply_join/3: one step of the foldl over Joins — J's functor is not
+% checked (left_join/2 and inner_join/2 both read the same way).
+apply_join(J, C0-R0, Cols-Rows) :-
+    J =.. [_, Src, On], from_rows(Src, C1, R1), inner_join(C0, R0, C1, R1, On, Cols, Rows).
 
 inner_join(C0, R0, C1, R1, On, Cols, Rows) :-
     append(C0, C1, Cols),
@@ -177,7 +187,15 @@ group_rows(Keys, Cols, Rows, Groups) :-
 % one output row from one group (a plain SELECT is a group of one row)
 project(Projs, Cols, Group, Row) :- findall(V, ( member(proj(E, _), Projs), proj_values(E, Cols, Group, Vs), member(V, Vs) ), Row).
 proj_values(star, _, [R|_], R) :- !.
-proj_values(E, Cols, Group, [V]) :- is_agg(E), !, E = call(N, [Arg]), lower(N, LN), findall(X, ( member(R, Group), eval(Arg, Cols, R, X) ), Xs), aggregate(LN, Xs, V).
+% task 5c: COUNT(DISTINCT x) — the aggregate's one arg may itself be
+% distinct(Inner); dedup the per-row values before handing them to
+% aggregate/3, same as before for every other aggregate.
+proj_values(E, Cols, Group, [V]) :-
+    is_agg(E), !, E = call(N, [Arg0]), lower(N, LN),
+    ( Arg0 = distinct(Arg) -> DoDistinct = true ; Arg = Arg0, DoDistinct = false ),
+    findall(X, ( member(R, Group), eval(Arg, Cols, R, X) ), Xs0),
+    ( DoDistinct == true -> list_to_set(Xs0, Xs) ; Xs = Xs0 ),
+    aggregate(LN, Xs, V).
 proj_values(E, Cols, [R|_], [V]) :- eval(E, Cols, R, V).
 
 out_cols(Projs, Cols, Out) :- findall(C, ( member(proj(E, A), Projs), out_col(E, A, Cols, C) ), Cs), flatten(Cs, Out).
@@ -221,6 +239,10 @@ eval(col(N), Cols, Row, V) :- !, lower(N, L), value_of(L, Cols, Row, V).
 eval(col(_, N), Cols, Row, V) :- !, lower(N, L), value_of(L, Cols, Row, V).
 eval(lit(X), _, _, X) :- !.
 eval(paren(E), Cols, Row, V) :- !, eval(E, Cols, Row, V).
+% task 5c: proj_values/4 always unwraps distinct(...) itself before calling eval/4
+% (dedup happens at the aggregate, not per row) — this clause is the defensive
+% fallback for any other context that hands eval/4 a bare distinct(E).
+eval(distinct(E), Cols, Row, V) :- !, eval(E, Cols, Row, V).
 eval(neg(E), Cols, Row, V) :- !, eval(E, Cols, Row, X), ( X == missing -> V = missing ; V is -X ).
 eval(not(E), Cols, Row, V) :- !, eval(E, Cols, Row, X), ( truthy(X) -> V = 0 ; V = 1 ).
 eval(and(A, B), Cols, Row, V) :- !, eval(A, Cols, Row, X), eval(B, Cols, Row, Y), ( truthy(X), truthy(Y) -> V = 1 ; V = 0 ).

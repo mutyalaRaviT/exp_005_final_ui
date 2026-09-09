@@ -198,13 +198,20 @@ sql_lines(Out, select_stmt([Core], OrderOpt, _), Lines) :-
     append(Pre, CL, Lines).
 
 % core_parts(+Core, -SourceTxt, -Steps, +Pre0, -Pre)
-core_parts(select_core(Cols, From, JoinOpt, WhereOpt, GroupOpt, HavingOpt), Src, Steps, P0, P) :-
+% task 5c: Joins is a LIST now (was `JoinOpt = none | some(join(JS,On))`);
+% S1 gets one ".join(...)" step per list item, source order — maplist_pre
+% (defined below) already threads Pre through a list this same way.
+core_parts(select_core(Cols, From, Joins, WhereOpt, GroupOpt, HavingOpt), Src, Steps, P0, P) :-
     from_txt(From, Src, P0, P1),
-    ( JoinOpt = some(join(JS, On)) -> from_txt(JS, JT, P1, P2), pe(On, top, OT, P2, P3), format(atom(JStep), ".join(~w, ~w, \"inner\")", [JT, OT]), S1 = [JStep] ; S1 = [], P3 = P1 ),
+    maplist_pre(join_step, Joins, S1, P1, P3),
     ( WhereOpt = some(W) -> pe(W, top, WT, P3, P4), format(atom(WStep), ".filter(~w)", [WT]), S2 = [WStep] ; S2 = [], P4 = P3 ),
     select_steps(Cols, GroupOpt, S3, P4, P5),
     ( HavingOpt = some(H) -> pe(H, top, HT, P5, P), format(atom(HStep), ".filter(~w)", [HT]), S4 = [HStep] ; S4 = [], P = P5 ),
     append([S1, S2, S3, S4], Steps).
+
+join_step(J, JStep, P0, P) :-
+    J =.. [_, JS, On], from_txt(JS, JT, P0, P1), pe(On, top, OT, P1, P),
+    format(atom(JStep), ".join(~w, ~w, \"inner\")", [JT, OT]).
 
 from_txt(table(D, none), T, P, P) :- pyvar(D, T).
 from_txt(table(D, some(A)), T, P, P) :- pyvar(D, V), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [V, LA]).
@@ -269,13 +276,24 @@ pe(neg(E), _, T, P0, P) :- wrap(E, X, P0, P), format(atom(T), "-~w", [X]).
 pe(not(E), _, T, P0, P) :- wrap(E, X, P0, P), format(atom(T), "~~~w", [X]).
 pe(cat(A, B), _, T, P0, P) :- pe(A, arg, X, P0, P1), pe(B, arg, Y, P1, P), format(atom(T), "F.concat(~w, ~w)", [X, Y]).
 pe(in(A, Items), _, T, P0, P) :- wrap(A, X, P0, P), maplist([lit(V), S]>>py_lit(V, S), Items, Ls), atomic_list_concat(Ls, ", ", LT), format(atom(T), "~w.isin([~w])", [X, LT]).
+% task 5c: the "simple" fast-path guard used to compare the JOIN position to
+% the atom `none`; it is a LIST now, so "no join" is `[]`, not `none` — the
+% other three tail positions (WHERE/GROUP BY/HAVING) are unaffected and stay
+% `none`. Getting this wrong would not crash: it would just silently miss the
+% fast path for every 0-join scalar subquery and fall through to the general
+% core_parts branch below, a formatting drift the byte-diff regression check
+% (run_all.sh step 4) would have caught.
 pe(subquery_expr(Core), _, Name, P0, P) :-
     scalar_var(Core, Name0), unique_scalar(Name0, Name),
-    (   Core = select_core([proj(E, _)], table(D, none), none, none, none, none), ( E = col(C) ; E = call(_, _), fail )
+    (   Core = select_core([proj(E, _)], table(D, none), [], none, none, none), ( E = col(C) ; E = call(_, _), fail )
     ->  pyvar(D, DV), lower(C, LC), format(atom(Line), "~w = scalar(~w, \"~w\")", [Name, DV, LC]), P1 = P0
     ;   core_parts(Core, S, Steps, P0, P1), atomic_list_concat(Steps, ST), format(atom(Line), "~w = scalar(~w~w)", [Name, S, ST])
     ),
     append(P1, [Line], P).
+% task 5c: COUNT(DISTINCT x) -> F.countDistinct(x) — ahead of the generic
+% call/2 clause, same reasoning as sas_pyspark.pl's own px/4.
+pe(call(Name, [distinct(Arg)]), _, T, P0, P) :-
+    lower(Name, count), !, pe(Arg, arg, X, P0, P), format(atom(T), "F.countDistinct(~w)", [X]).
 pe(call(Name, Args), _, T, P0, P) :-
     lower(Name, L), once(sas_fn(L, Py)),
     maplist_pre([A, X, Q0, Q]>>pe(A, arg, X, Q0, Q), Args, Xs, P0, P), atomic_list_concat(Xs, ", ", XT),
