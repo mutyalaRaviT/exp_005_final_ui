@@ -14,32 +14,41 @@ async fn empty_query_is_no_hits() {
 #[tokio::test]
 async fn a_table_hit_lists_every_file_it_appears_in() {
     // work.fx_rates is written by 06_seed_fx_rates.sas and read by 07_enrich_fx.sas (Task
-    // 5 brief, "confirmed live"). Today's fold only sees the writer side for this table —
-    // 07_enrich_fx.sas's `PROC SQL CREATE TABLE AS SELECT` fails to fold (a pre-existing
-    // rust_rules_converter gap, out of scope here; see the Task 5 report) — so `edges`
-    // carries no row for it and this hit's `files` is `first_writer_fileid` alone. The
-    // assertion is written to the code, not the aspiration: once that parser gap closes,
-    // `edges` will carry the missing row and this test must grow the second file with it.
+    // 5 brief, "confirmed live"). Task 5b (2026-09-09) closed the parser gap this test used
+    // to document: 07_enrich_fx.sas's `PROC SQL CREATE TABLE AS SELECT` (a single LEFT JOIN,
+    // multi-condition ON, an alias, coalesce()) now folds, so `edges` carries the reader row
+    // too and this hit's `files` grows to both writer and reader — the growth the old
+    // comment on this test predicted.
     let res = get("/api/search?q=fx_rates").await;
     let hits = res["hits"].as_array().unwrap();
     let h = hit(hits, "table", "work.fx_rates").expect("work.fx_rates hit");
     let files: Vec<&str> = h["files"].as_array().unwrap().iter().map(|f| f.as_str().unwrap()).collect();
-    assert_eq!(files, vec!["ankitha_1/06_seed_fx_rates.sas"]);
+    assert_eq!(files, vec!["ankitha_1/06_seed_fx_rates.sas", "ankitha_1/07_enrich_fx.sas"]);
 }
 
 #[tokio::test]
 async fn a_table_hit_unions_edges_and_first_writer() {
     // work.accounts is never the target of a successfully-folded CREATE TABLE AS in this
-    // corpus (04_build_accounts.sas's second block also hits the same parser gap), so it
-    // is absent from `tables` entirely — its only trace is as `src_table` in the edge
-    // 08_daily_balances.sas records. `first_writer_fileid` alone (the brief's warning)
-    // would have missed it completely; this is the case that proves `edges` is load-
-    // bearing here, not `tables` alone.
+    // corpus (04_build_accounts.sas's second block has two JOINs — rust_rules_converter's
+    // lineage engine reads select_core's join field positionally as at most one, so a
+    // second JOIN still fails to fold; see the Task 5b report), so work.accounts is absent
+    // from `tables` entirely — its only trace is as `src_table` in the edges the readers of
+    // work.accounts record. Task 5b's LEFT/INNER JOIN support made three more of those
+    // readers fold (09_customer_summary.sas, 10_product_metrics.sas,
+    // 14_large_txn_report.sas, alongside 08_daily_balances.sas which already folded), so
+    // this hit's `files` grows to all four. `first_writer_fileid` alone (the brief's
+    // warning) would have missed all of them; this is still the case that proves `edges` is
+    // load-bearing here, not `tables` alone.
     let res = get("/api/search?q=work.accounts").await;
     let hits = res["hits"].as_array().unwrap();
     let h = hit(hits, "table", "work.accounts").expect("work.accounts hit via edges");
     let files: Vec<&str> = h["files"].as_array().unwrap().iter().map(|f| f.as_str().unwrap()).collect();
-    assert_eq!(files, vec!["ankitha_1/08_daily_balances.sas"]);
+    assert_eq!(files, vec![
+        "ankitha_1/08_daily_balances.sas",
+        "ankitha_1/09_customer_summary.sas",
+        "ankitha_1/10_product_metrics.sas",
+        "ankitha_1/14_large_txn_report.sas",
+    ]);
 }
 
 #[tokio::test]
