@@ -1,0 +1,1050 @@
+{
+ "name": "sas",
+ "keywords": [
+  "libname",
+  "data",
+  "set",
+  "print",
+  "title",
+  "if",
+  "merge",
+  "by",
+  "input",
+  "format",
+  "run",
+  "quit",
+  "proc",
+  "sql",
+  "create",
+  "table",
+  "as",
+  "select",
+  "from",
+  "where",
+  "group",
+  "having",
+  "order",
+  "union",
+  "all",
+  "join",
+  "on",
+  "desc",
+  "asc",
+  "limit",
+  "then",
+  "and",
+  "or",
+  "not",
+  "in",
+  "eq",
+  "ne",
+  "lt",
+  "le",
+  "gt",
+  "ge"
+ ],
+ "statement_end": [
+  ";"
+ ],
+ "eos_kinds": [
+  "datalines"
+ ],
+ "bracket_pairs": [],
+ "leaves": [
+  {
+   "name": "block_comment",
+   "pattern": "(?s)/\\*.*?\\*/",
+   "kind": "comment"
+  },
+  {
+   "name": "whitespace",
+   "pattern": "[ \\t\\r\\n]+",
+   "kind": "whitespace"
+  },
+  {
+   "name": "datalines",
+   "pattern": "(?i)(?:datalines|cards)[ \\t]*;(?:\\r?\\n[^;\\n]*)*",
+   "kind": "datalines"
+  },
+  {
+   "name": "string_single",
+   "pattern": "'(?:''|[^'])*'",
+   "kind": "string"
+  },
+  {
+   "name": "string_double",
+   "pattern": "\"(?:\"\"|[^\"])*\"",
+   "kind": "string"
+  },
+  {
+   "name": "number",
+   "pattern": "\\d+(?:\\.\\d+)?",
+   "kind": "number"
+  },
+  {
+   "name": "word",
+   "pattern": "[A-Za-z_][A-Za-z0-9_]*",
+   "kind": "word"
+  },
+  {
+   "name": "multi_symbol",
+   "pattern": "<=|>=|\\^=|~=|<>|\\*\\*|\\|\\|",
+   "kind": "symbol"
+  }
+ ],
+ "ladder": [
+  {
+   "name": "pow",
+   "assoc": "none",
+   "ops": [
+    {
+     "spelling": "**",
+     "functor": "pow",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "unary",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "-",
+     "functor": "neg",
+     "kind": "prefix"
+    }
+   ]
+  },
+  {
+   "name": "mul",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "*",
+     "functor": "mul",
+     "kind": "infix"
+    },
+    {
+     "spelling": "/",
+     "functor": "div",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "add",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "+",
+     "functor": "add",
+     "kind": "infix"
+    },
+    {
+     "spelling": "-",
+     "functor": "sub",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "cat",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "||",
+     "functor": "cat",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "cmp",
+   "assoc": "none",
+   "ops": [
+    {
+     "spelling": "=",
+     "functor": "eq",
+     "kind": "infix"
+    },
+    {
+     "spelling": "eq",
+     "functor": "eq",
+     "kind": "infix"
+    },
+    {
+     "spelling": "^=",
+     "functor": "ne",
+     "kind": "infix"
+    },
+    {
+     "spelling": "~=",
+     "functor": "ne",
+     "kind": "infix"
+    },
+    {
+     "spelling": "<>",
+     "functor": "ne",
+     "kind": "infix"
+    },
+    {
+     "spelling": "ne",
+     "functor": "ne",
+     "kind": "infix"
+    },
+    {
+     "spelling": "<",
+     "functor": "lt",
+     "kind": "infix"
+    },
+    {
+     "spelling": "lt",
+     "functor": "lt",
+     "kind": "infix"
+    },
+    {
+     "spelling": "<=",
+     "functor": "le",
+     "kind": "infix"
+    },
+    {
+     "spelling": "le",
+     "functor": "le",
+     "kind": "infix"
+    },
+    {
+     "spelling": ">",
+     "functor": "gt",
+     "kind": "infix"
+    },
+    {
+     "spelling": "gt",
+     "functor": "gt",
+     "kind": "infix"
+    },
+    {
+     "spelling": ">=",
+     "functor": "ge",
+     "kind": "infix"
+    },
+    {
+     "spelling": "ge",
+     "functor": "ge",
+     "kind": "infix"
+    },
+    {
+     "spelling": "in",
+     "functor": "in",
+     "kind": "list_rhs"
+    }
+   ]
+  },
+  {
+   "name": "not",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "not",
+     "functor": "not",
+     "kind": "prefix"
+    }
+   ]
+  },
+  {
+   "name": "and",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "and",
+     "functor": "and",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "or",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "or",
+     "functor": "or",
+     "kind": "infix"
+    }
+   ]
+  }
+ ],
+ "forms": [
+  {
+   "t": "parts",
+   "name": "star",
+   "parts": [
+    {
+     "t": "sym",
+     "text": "*"
+    }
+   ]
+  },
+  {
+   "t": "shape",
+   "name": "paren",
+   "shape": "( E )"
+  },
+  {
+   "t": "shape",
+   "name": "call",
+   "shape": "ID ( ARGS )"
+  },
+  {
+   "t": "shape",
+   "name": "col",
+   "shape": "ID . ID (canonical)"
+  },
+  {
+   "t": "rule",
+   "name": "subquery_expr",
+   "rule": "select_core"
+  }
+ ],
+ "expr_leaves": [
+  {
+   "name": "number",
+   "term": "lit(V)",
+   "double_delim": false,
+   "backslash_escape": true
+  },
+  {
+   "name": "string",
+   "term": "lit(V)",
+   "double_delim": true,
+   "backslash_escape": false
+  },
+  {
+   "name": "word",
+   "term": "col(V)",
+   "double_delim": false,
+   "backslash_escape": true
+  }
+ ],
+ "statements": [
+  {
+   "name": "libname",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "LIBNAME"
+    },
+    {
+     "t": "cap",
+     "field": "lib",
+     "kind": "ident"
+    },
+    {
+     "t": "cap",
+     "field": "path",
+     "kind": "expr"
+    }
+   ]
+  },
+  {
+   "name": "data",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "DATA"
+    },
+    {
+     "t": "rule",
+     "field": "out",
+     "name": "dsname"
+    }
+   ]
+  },
+  {
+   "name": "input",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "INPUT"
+    },
+    {
+     "t": "list",
+     "field": "vars",
+     "parts": [
+      {
+       "t": "rule",
+       "field": "v",
+       "name": "input_var"
+      }
+     ],
+     "min": 1,
+     "sep": []
+    }
+   ]
+  },
+  {
+   "name": "format",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "FORMAT"
+    },
+    {
+     "t": "cap",
+     "field": "var",
+     "kind": "ident"
+    },
+    {
+     "t": "group",
+     "functor": "fmt",
+     "parts": [
+      {
+       "t": "cap",
+       "field": "name",
+       "kind": "ident"
+      },
+      {
+       "t": "sym",
+       "text": "."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "datalines",
+   "assign": false,
+   "parts": [
+    {
+     "t": "cap",
+     "field": "rows",
+     "kind": "raw:datalines"
+    }
+   ]
+  },
+  {
+   "name": "set",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "SET"
+    },
+    {
+     "t": "rule",
+     "field": "in",
+     "name": "dsname"
+    }
+   ]
+  },
+  {
+   "name": "subset_if",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "IF"
+    },
+    {
+     "t": "cap",
+     "field": "cond",
+     "kind": "expr"
+    }
+   ]
+  },
+  {
+   "name": "if_then_set",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "IF"
+    },
+    {
+     "t": "cap",
+     "field": "var",
+     "kind": "ident"
+    },
+    {
+     "t": "sym",
+     "text": "="
+    },
+    {
+     "t": "cap",
+     "field": "val",
+     "kind": "expr"
+    },
+    {
+     "t": "kw",
+     "text": "THEN"
+    },
+    {
+     "t": "kw",
+     "text": "SET"
+    },
+    {
+     "t": "rule",
+     "field": "in",
+     "name": "dsname"
+    }
+   ]
+  },
+  {
+   "name": "merge",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "MERGE"
+    },
+    {
+     "t": "list",
+     "field": "sources",
+     "parts": [
+      {
+       "t": "group",
+       "functor": "src",
+       "parts": [
+        {
+         "t": "rule",
+         "field": "ds",
+         "name": "dsname"
+        },
+        {
+         "t": "opt",
+         "parts": [
+          {
+           "t": "sym",
+           "text": "("
+          },
+          {
+           "t": "kw",
+           "text": "IN"
+          },
+          {
+           "t": "sym",
+           "text": "="
+          },
+          {
+           "t": "cap",
+           "field": "flag",
+           "kind": "ident"
+          },
+          {
+           "t": "sym",
+           "text": ")"
+          }
+         ]
+        }
+       ]
+      }
+     ],
+     "min": 1,
+     "sep": []
+    }
+   ]
+  },
+  {
+   "name": "by",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "BY"
+    },
+    {
+     "t": "list",
+     "field": "keys",
+     "parts": [
+      {
+       "t": "cap",
+       "field": "k",
+       "kind": "ident"
+      }
+     ],
+     "min": 1,
+     "sep": []
+    }
+   ]
+  },
+  {
+   "name": "proc_sql",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "PROC"
+    },
+    {
+     "t": "kw",
+     "text": "SQL"
+    }
+   ]
+  },
+  {
+   "name": "create_table_as",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "CREATE"
+    },
+    {
+     "t": "kw",
+     "text": "TABLE"
+    },
+    {
+     "t": "rule",
+     "field": "out",
+     "name": "dsname"
+    },
+    {
+     "t": "kw",
+     "text": "AS"
+    },
+    {
+     "t": "rule",
+     "field": "select",
+     "name": "select_stmt"
+    }
+   ]
+  },
+  {
+   "name": "proc_print",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "PROC"
+    },
+    {
+     "t": "kw",
+     "text": "PRINT"
+    },
+    {
+     "t": "kw",
+     "text": "DATA"
+    },
+    {
+     "t": "sym",
+     "text": "="
+    },
+    {
+     "t": "rule",
+     "field": "in",
+     "name": "dsname"
+    }
+   ]
+  },
+  {
+   "name": "title",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "TITLE"
+    },
+    {
+     "t": "cap",
+     "field": "text",
+     "kind": "expr"
+    }
+   ]
+  },
+  {
+   "name": "empty",
+   "assign": false,
+   "parts": []
+  },
+  {
+   "name": "run",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "RUN"
+    }
+   ]
+  },
+  {
+   "name": "quit",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "QUIT"
+    }
+   ]
+  }
+ ],
+ "rules": {
+  "dsname": [
+   {
+    "functor": "ds",
+    "parts": [
+     {
+      "t": "cap",
+      "field": "lib",
+      "kind": "ident"
+     },
+     {
+      "t": "sym",
+      "text": "."
+     },
+     {
+      "t": "cap",
+      "field": "name",
+      "kind": "ident"
+     }
+    ]
+   },
+   {
+    "functor": "ds",
+    "parts": [
+     {
+      "t": "cap",
+      "field": "name",
+      "kind": "ident"
+     }
+    ]
+   }
+  ],
+  "input_var": [
+   {
+    "functor": "cvar",
+    "parts": [
+     {
+      "t": "cap",
+      "field": "name",
+      "kind": "ident"
+     },
+     {
+      "t": "sym",
+      "text": "$"
+     }
+    ]
+   },
+   {
+    "functor": "nvar",
+    "parts": [
+     {
+      "t": "cap",
+      "field": "name",
+      "kind": "ident"
+     },
+     {
+      "t": "opt",
+      "parts": [
+       {
+        "t": "sym",
+        "text": ":"
+       },
+       {
+        "t": "group",
+        "functor": "informat",
+        "parts": [
+         {
+          "t": "cap",
+          "field": "name",
+          "kind": "ident"
+         },
+         {
+          "t": "sym",
+          "text": "."
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "from_source": [
+   {
+    "functor": "table",
+    "parts": [
+     {
+      "t": "rule",
+      "field": "ds",
+      "name": "dsname"
+     },
+     {
+      "t": "opt",
+      "parts": [
+       {
+        "t": "cap",
+        "field": "as",
+        "kind": "ident"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "functor": "subquery",
+    "parts": [
+     {
+      "t": "sym",
+      "text": "("
+     },
+     {
+      "t": "rule",
+      "field": "core",
+      "name": "select_core"
+     },
+     {
+      "t": "sym",
+      "text": ")"
+     },
+     {
+      "t": "opt",
+      "parts": [
+       {
+        "t": "cap",
+        "field": "as",
+        "kind": "ident"
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "select_core": [
+   {
+    "functor": "select_core",
+    "parts": [
+     {
+      "t": "kw",
+      "text": "SELECT"
+     },
+     {
+      "t": "list",
+      "field": "cols",
+      "parts": [
+       {
+        "t": "group",
+        "functor": "proj",
+        "parts": [
+         {
+          "t": "cap",
+          "field": "e",
+          "kind": "expr"
+         },
+         {
+          "t": "opt",
+          "parts": [
+           {
+            "t": "kw",
+            "text": "AS"
+           },
+           {
+            "t": "cap",
+            "field": "as",
+            "kind": "ident"
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "min": 1,
+      "sep": [
+       {
+        "t": "sym",
+        "text": ","
+       }
+      ]
+     },
+     {
+      "t": "kw",
+      "text": "FROM"
+     },
+     {
+      "t": "rule",
+      "field": "from",
+      "name": "from_source"
+     },
+     {
+      "t": "opt",
+      "parts": [
+       {
+        "t": "kw",
+        "text": "JOIN"
+       },
+       {
+        "t": "group",
+        "functor": "join",
+        "parts": [
+         {
+          "t": "rule",
+          "field": "src",
+          "name": "from_source"
+         },
+         {
+          "t": "kw",
+          "text": "ON"
+         },
+         {
+          "t": "cap",
+          "field": "on",
+          "kind": "expr"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "t": "opt",
+      "parts": [
+       {
+        "t": "kw",
+        "text": "WHERE"
+       },
+       {
+        "t": "cap",
+        "field": "where",
+        "kind": "expr"
+       }
+      ]
+     },
+     {
+      "t": "opt",
+      "parts": [
+       {
+        "t": "kw",
+        "text": "GROUP"
+       },
+       {
+        "t": "kw",
+        "text": "BY"
+       },
+       {
+        "t": "list",
+        "field": "groupby",
+        "parts": [
+         {
+          "t": "cap",
+          "field": "k",
+          "kind": "expr"
+         }
+        ],
+        "min": 1,
+        "sep": [
+         {
+          "t": "sym",
+          "text": ","
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "t": "opt",
+      "parts": [
+       {
+        "t": "kw",
+        "text": "HAVING"
+       },
+       {
+        "t": "cap",
+        "field": "having",
+        "kind": "expr"
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "select_stmt": [
+   {
+    "functor": "select_stmt",
+    "parts": [
+     {
+      "t": "list",
+      "field": "cores",
+      "parts": [
+       {
+        "t": "rule",
+        "field": "core",
+        "name": "select_core"
+       }
+      ],
+      "min": 1,
+      "sep": [
+       {
+        "t": "kw",
+        "text": "UNION"
+       },
+       {
+        "t": "kw",
+        "text": "ALL"
+       }
+      ]
+     },
+     {
+      "t": "opt",
+      "parts": [
+       {
+        "t": "kw",
+        "text": "ORDER"
+       },
+       {
+        "t": "kw",
+        "text": "BY"
+       },
+       {
+        "t": "list",
+        "field": "orderby",
+        "parts": [
+         {
+          "t": "cap",
+          "field": "k",
+          "kind": "expr"
+         }
+        ],
+        "min": 1,
+        "sep": [
+         {
+          "t": "sym",
+          "text": ","
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "t": "opt",
+      "parts": [
+       {
+        "t": "kw",
+        "text": "LIMIT"
+       },
+       {
+        "t": "cap",
+        "field": "n",
+        "kind": "expr"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "blocks": {
+  "open": [
+   "data",
+   "proc_sql",
+   "proc_print"
+  ],
+  "close": [
+   "run",
+   "quit"
+  ],
+  "single": [
+   "libname"
+  ]
+ }
+}

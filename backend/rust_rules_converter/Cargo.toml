@@ -1,0 +1,18 @@
+[package]
+name = "rules_converter"
+version = "0.1.0"
+edition = "2021"
+description = "The SAS rules engine: tokenise, fold to node/4, print back, emit PySpark, lineage. Copied from exp_42 rust_engine; see src/lib.rs for what moved."
+
+[lib]
+name = "rules_converter"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lineageq_sas"
+path = "src/main.rs"
+
+[dependencies]
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

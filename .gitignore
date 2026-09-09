@@ -6,3 +6,11 @@ __pycache__/
 *.pyc
 .venv/
 .claude/
+raw/*/.venv/
+raw/*/node_modules/
+raw/bench_stack/rust_engine/target/
+# everything the engines WRITE under out/ is output; only spec/ and grammar/ are inputs
+raw/bench_stack/out/*
+!raw/bench_stack/out/spec/
+!raw/bench_stack/out/grammar/
+backend/target/

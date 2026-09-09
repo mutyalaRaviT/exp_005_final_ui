@@ -1,0 +1,19 @@
+[package]
+name = "inferred_duckdb"
+version = "0.1.0"
+edition = "2021"
+description = "The exp_005 store: convert a folder once with the Rust engine, then answer every UI question as a keyed read."
+
+[lib]
+name = "inferred_duckdb"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lineageq_store"
+path = "src/main.rs"
+
+[dependencies]
+rules_converter = { path = "../rust_rules_converter" }
+duckdb = { version = "1.1", features = ["bundled"] }
+serde = { workspace = true }
+serde_json = { workspace = true }

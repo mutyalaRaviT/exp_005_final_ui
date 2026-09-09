@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAS Dependency Explorer</title>
+<style>
+:root {
+  --bg:        #ffffff;
+  --surface:   #fafbfc;
+  --surface-2: #f3f5f8;
+  --border:    #e3e6ea;
+  --line:      #eef0f3;
+  --text:      #1a1a2e;
+  --text-2:    #414456;
+  --dim:       #8a8f9a;
+  --dim-2:     #b8bcc5;
+  --accent:    #5e5184;
+  --green:     #1f7a1f;
+  --yellow:    #a66e00;
+  --red:       #b31c1c;
+  --node-blue: #4f93c9;
+  --font-head: Georgia, Cambria, 'Times New Roman', serif;
+  --font-mono: 'Source Code Pro', 'Menlo', 'Consolas', monospace;
+  --font-body: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-body); font-size: 13px; color: var(--text);
+  background: var(--bg); display: flex; flex-direction: column; overflow: hidden;
+}
+
+/* ========== Header with selection-driven metrics ========== */
+header {
+  flex-shrink: 0; padding: 10px 18px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+}
+header h1 { font-family: var(--font-head); font-weight: normal; font-size: 18px; }
+header .gen { font-size: 10px; color: var(--dim); letter-spacing: 1px; }
+.metrics { display: flex; gap: 10px; margin-left: auto; }
+.metric {
+  min-width: 86px; padding: 4px 10px; background: var(--surface-2);
+  border: 1px solid var(--border); border-radius: 4px; text-align: center;
+}
+.metric .val { font-family: var(--font-mono); font-size: 16px; }
+.metric .lbl { font-size: 9px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+.metric.coverage .val { color: var(--green); }
+
+/* ========== Main: sidebar | graph over detail ========== */
+main { flex: 1; display: flex; min-height: 0; }
+.sidebar {
+  width: 280px; flex-shrink: 0; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; background: var(--surface);
+}
+.sidebar .pane-head {
+  padding: 8px 12px; font-size: 10px; text-transform: uppercase;
+  letter-spacing: 2px; color: var(--dim); border-bottom: 1px solid var(--line);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.sidebar .pane-head button {
+  border: 1px solid var(--border); background: #fff; font-size: 10px;
+  padding: 2px 8px; border-radius: 3px; cursor: pointer; color: var(--text-2);
+}
+.sidebar .pane-head button:hover { border-color: var(--accent); color: var(--accent); }
+#search {
+  margin: 8px 10px; padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: 4px; font-family: var(--font-mono); font-size: 11px; outline: none;
+}
+#search:focus { border-color: var(--accent); }
+#file-list { flex: 1; overflow-y: auto; }
+.file-item {
+  padding: 8px 12px; border-bottom: 1px solid var(--line); cursor: pointer;
+}
+.file-item:hover { background: var(--surface-2); }
+.file-item.selected { background: rgba(94,81,132,0.10); box-shadow: inset 3px 0 0 var(--accent); }
+.file-item.hidden { display: none; }
+.file-item .fname { font-family: var(--font-mono); font-size: 12px; }
+.file-item .frow {
+  display: flex; justify-content: space-between; margin-top: 3px;
+  font-size: 10px; color: var(--dim);
+}
+.badge { padding: 0 6px; border-radius: 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+.badge.converted     { color: var(--green);  background: rgba(31,122,31,0.10); }
+.badge.partial       { color: var(--yellow); background: rgba(166,110,0,0.10); }
+.badge.not_converted { color: var(--red);    background: rgba(179,28,28,0.10); }
+
+.content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* ========== Graph ========== */
+.graph-wrap { flex: 1.4; min-height: 240px; display: flex; flex-direction: column; border-bottom: 2px solid var(--dim-2); }
+.graph-toolbar {
+  flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border);
+}
+.graph-toolbar .label { font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: var(--dim); }
+.graph-toolbar button {
+  border: 1px solid var(--border); background: #fff; color: var(--text-2);
+  font-size: 10px; padding: 4px 10px; border-radius: 3px; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.graph-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+.graph-toolbar select {
+  border: 1px solid var(--border); background: #fff; color: var(--text-2);
+  font-size: 10px; padding: 4px 6px; border-radius: 3px; cursor: pointer;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.graph-toolbar select:hover { border-color: var(--accent); color: var(--accent); }
+.graph-toolbar .hint { margin-left: auto; font-size: 10px; color: var(--dim-2); }
+#cy {
+  flex: 1; min-height: 0;
+  background:
+    radial-gradient(circle at 1px 1px, #dfe4ea 1px, transparent 0);
+  background-size: 18px 18px;
+}
+
+/* ========== Detail panel ========== */
+.detail { flex: 1; min-height: 180px; display: flex; flex-direction: column; }
+.detail-tabs { flex-shrink: 0; display: flex; background: var(--surface); border-bottom: 1px solid var(--border); }
+.dtab {
+  border: none; background: none; padding: 8px 18px; cursor: pointer;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: var(--dim);
+  border-bottom: 2px solid transparent;
+}
+.dtab.active { color: var(--text); border-bottom-color: var(--accent); }
+.detail-body { flex: 1; overflow: auto; background: var(--bg); }
+.detail-body pre {
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.55;
+  padding: 12px 16px; white-space: pre; color: var(--text-2);
+}
+.detail-body pre .code-file-head { color: var(--accent); font-weight: bold; }
+table.edges { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 11px; }
+table.edges th {
+  position: sticky; top: 0; background: var(--surface-2); text-align: left;
+  padding: 6px 12px; font-size: 9px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--dim); border-bottom: 1px solid var(--border);
+}
+table.edges td { padding: 5px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.edges td.arrow { color: var(--dim-2); }
+.empty-note { padding: 24px; color: var(--dim); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SAS Dependency Explorer</h1>
+  <span class="gen" id="generated"></span>
+  <div class="metrics" id="metrics"></div>
+</header>
+
+<main>
+  <aside class="sidebar">
+    <div class="pane-head"><span>Files</span><button id="btn-all">select all</button></div>
+    <input id="search" type="text" placeholder="search file / folder / table..." autocomplete="off">
+    <div id="file-list"></div>
+  </aside>
+
+  <section class="content">
+    <div class="graph-wrap">
+      <div class="graph-toolbar">
+        <span class="label">File dependencies</span>
+        <button id="btn-fit">fit</button>
+        <button id="btn-layout">re-layout</button>
+        <select id="sel-elk-routing" title="ELK edge routing (re-runs layout)">
+          <option value="ORTHOGONAL" selected>elk: orthogonal</option>
+          <option value="POLYLINE">elk: polyline</option>
+          <option value="SPLINES">elk: splines</option>
+        </select>
+        <select id="sel-edge-style" title="cytoscape edge curve style">
+          <option value="taxi" selected>edges: taxi</option>
+          <option value="round-taxi">edges: round-taxi</option>
+          <option value="bezier">edges: bezier</option>
+          <option value="unbundled-bezier">edges: unbundled-bezier</option>
+          <option value="straight">edges: straight</option>
+          <option value="segments">edges: segments</option>
+          <option value="round-segments">edges: round-segments</option>
+        </select>
+        <span class="hint">click = select &middot; cmd/ctrl-click = multi &middot; background = all</span>
+      </div>
+      <div id="cy"></div>
+    </div>
+
+    <div class="detail">
+      <div class="detail-tabs">
+        <button class="dtab active" data-tab="code">SAS Code</button>
+        <button class="dtab" data-tab="block">SAS Block Edges</button>
+        <button class="dtab" data-tab="file">SAS File Edges</button>
+        <button class="dtab" data-tab="project">Project Edges</button>
+      </div>
+      <div class="detail-body" id="detail-body"></div>
+    </div>
+  </section>
+</main>
+
+<script>/*__VENDOR_JS__*/</script>
+<script>
+"use strict";
+/* ============================================================
+ * SAS Dependency Explorer
+ *   data           : embedded JSON (files, project_edges)
+ *   graph          : cytoscape + ELK layered (Sugiyama), left-to-right,
+ *                    compound folder boxes, taxi edge routing
+ *   selection model: default all files selected; clicking narrows
+ * ============================================================ */
+const DATA = /*__DATA_JSON__*/null;
+
+const filesById = new Map(DATA.files.map(f => [f.fileid, f]));
+let selected = new Set(filesById.keys());   // default: select all
+let activeTab = "code";
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function fileMatchesSearch(file, needle) {
+  if (!needle) return true;
+  const hay = [file.name, file.folder, ...file.reads, ...file.writes].join(" ").toLowerCase();
+  return hay.includes(needle.toLowerCase());
+}
+
+/* ---------- header metrics (selection-driven) ---------- */
+function renderMetrics() {
+  const chosen = [...selected].map(id => filesById.get(id));
+  const sum = key => chosen.reduce((n, f) => n + f[key].length, 0);
+  const loc = chosen.reduce((n, f) => n + f.loc, 0);
+  const blocks = chosen.reduce((n, f) => n + f.blocks.length, 0);
+  const parsed = chosen.reduce(
+    (n, f) => n + f.blocks.filter(b => b.status === "PARSED").length, 0);
+  const projectEdges = DATA.project_edges.filter(
+    e => selected.has(e.src_file) || selected.has(e.dst_file)).length;
+  const cells = [
+    ["files", chosen.length], ["loc", loc], ["blocks", blocks],
+    ["in_block_edges", sum("block_edges")],
+    ["in_file_edges", sum("file_edges")],
+    ["in_project_edges", projectEdges],
+  ];
+  $("metrics").innerHTML = cells.map(([lbl, val]) =>
+    `<div class="metric"><div class="val">${val}</div><div class="lbl">${lbl}</div></div>`
+  ).join("") +
+    `<div class="metric coverage"><div class="val">${blocks ? (100 * parsed / blocks).toFixed(0) : 0}%</div>` +
+    `<div class="lbl">converted</div></div>`;
+}
+
+/* ---------- sidebar file list ---------- */
+function renderFileList() {
+  $("file-list").innerHTML = DATA.files.map(f => {
+    const cls = f.conversion_status.replace(" ", "_");
+    return `<div class="file-item" data-id="${f.fileid}">
+      <div class="fname">${esc(f.name)}</div>
+      <div class="frow">
+        <span>${esc(f.folder)} &middot; ${f.blocks.length} blk &middot; ${f.loc} loc</span>
+        <span class="badge ${cls}">${f.conversion_status}</span>
+      </div></div>`;
+  }).join("");
+
+  $("file-list").addEventListener("click", event => {
+    const item = event.target.closest(".file-item");
+    if (item) applySelection(item.dataset.id, event.metaKey || event.ctrlKey);
+  });
+}
+
+function syncFileListSelection() {
+  document.querySelectorAll(".file-item").forEach(item => {
+    item.classList.toggle("selected", selected.has(item.dataset.id));
+  });
+}
+
+/* ---------- cytoscape graph ---------- */
+if (typeof cytoscapeElk !== "undefined") cytoscape.use(cytoscapeElk);
+
+const folders = [...new Set(DATA.files.map(f => f.folder))];
+const elements = [
+  ...folders.map(name => ({ data: { id: "folder:" + name, label: name, isFolder: true } })),
+  ...DATA.files.map(f => ({
+    data: { id: f.fileid, label: f.name.replace(/\.sas$/, ""), parent: "folder:" + f.folder },
+  })),
+  ...DATA.project_edges.map((e, i) => ({
+    data: {
+      id: "pe" + i, source: e.src_file, target: e.dst_file,
+      label: e.tables[0] + (e.tables.length > 1 ? ` +${e.tables.length - 1}` : ""),
+    },
+  })),
+];
+
+const ELK_LAYOUT = {
+  name: "elk",
+  nodeDimensionsIncludeLabels: true,
+  fit: true, padding: 30,
+  elk: {
+    algorithm: "layered",                       // Sugiyama layered layout
+    "elk.direction": "RIGHT",                   // left -> right
+    "elk.edgeRouting": "ORTHOGONAL",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.nodeNodeBetweenLayers": 90,
+    "elk.spacing.nodeNode": 34,
+    "elk.spacing.componentComponent": 50,
+    "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
+  },
+};
+
+const cy = cytoscape({
+  container: $("cy"),
+  elements,
+  boxSelectionEnabled: false,
+  wheelSensitivity: 0.2,
+  style: [
+    { selector: "node:parent", style: {
+        "background-color": "#7fb3d9", "background-opacity": 0.16,
+        "border-color": "#a9c8e2", "border-width": 1, "border-opacity": 0.7,
+        "shape": "round-rectangle", "padding": "22px",
+        "label": "data(label)", "color": "#9aa7b5",
+        "font-size": 11, "font-weight": 600, "text-transform": "uppercase",
+        "text-valign": "top", "text-halign": "center", "text-margin-y": 16,
+    }},
+    { selector: "node:childless", style: {
+        "shape": "round-rectangle", "background-color": "#4f93c9",
+        "border-width": 0, "width": "label", "height": 30, "padding": "10px",
+        "label": "data(label)", "color": "#0d2233",
+        "font-size": 11, "font-weight": 600,
+        "text-valign": "center", "text-halign": "center",
+    }},
+    { selector: "node:childless.picked", style: {
+        "border-width": 2, "border-color": "#1e40af",
+        "background-color": "#3f83b9",
+    }},
+    { selector: "edge", style: {
+        "curve-style": "taxi", "taxi-direction": "rightward",
+        "taxi-turn": 40, "taxi-turn-min-distance": 12, "taxi-radius": 10,
+        "width": 1.6, "line-color": "#aab6c2",
+        "target-arrow-shape": "triangle", "target-arrow-color": "#aab6c2",
+        "arrow-scale": 0.9,
+        "label": "data(label)", "font-size": 9, "color": "#8a8f9a",
+        "text-background-color": "#ffffff", "text-background-opacity": 0.85,
+        "text-background-padding": 2,
+    }},
+    { selector: "edge.highlighted", style: {
+        "line-color": "#5e5184", "target-arrow-color": "#5e5184", "width": 2.2,
+    }},
+    { selector: ".dimmed", style: { "opacity": 0.22 } },
+  ],
+});
+cy.layout(ELK_LAYOUT).run();
+
+cy.on("tap", "node:childless", event => {
+  const original = event.originalEvent || {};
+  applySelection(event.target.id(), original.metaKey || original.ctrlKey);
+});
+cy.on("tap", event => { if (event.target === cy) selectAll(); });
+
+/* ---------- selection ---------- */
+function applySelection(fileid, additive) {
+  const allSelected = selected.size === filesById.size;
+  if (additive && !allSelected) {
+    selected.has(fileid) ? selected.delete(fileid) : selected.add(fileid);
+    if (selected.size === 0) selected = new Set(filesById.keys());
+  } else {
+    selected = new Set([fileid]);
+  }
+  refresh();
+}
+
+function selectAll() {
+  selected = new Set(filesById.keys());
+  refresh();
+}
+
+function refreshGraphClasses() {
+  const allSelected = selected.size === filesById.size;
+  cy.elements().removeClass("dimmed highlighted picked");
+  if (allSelected) return;
+  const picked = cy.nodes(":childless").filter(n => selected.has(n.id()));
+  picked.addClass("picked");
+  const neighborhood = picked.closedNeighborhood();
+  cy.nodes(":childless").not(neighborhood.nodes()).addClass("dimmed");
+  cy.edges().not(neighborhood.edges()).addClass("dimmed");
+  neighborhood.edges().addClass("highlighted");
+  cy.nodes(":parent").forEach(folder => {
+    if (folder.children().not(".dimmed").length === 0) folder.addClass("dimmed");
+  });
+}
+
+/* ---------- detail panel ---------- */
+function edgeTable(rows, kind) {
+  if (!rows.length) return `<div class="empty-note">no ${kind} edges for this selection</div>`;
+  const body = rows.map(r =>
+    `<tr><td>${esc(r.block)}</td><td>${esc(r.src_ref)} &nbsp;${esc(r.src_name)}</td>` +
+    `<td class="arrow">&rarr;</td><td>${esc(r.dst_ref)} &nbsp;${esc(r.dst_name)}</td></tr>`
+  ).join("");
+  return `<table class="edges"><thead><tr><th>block</th><th>source</th><th></th>` +
+         `<th>target</th></tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function renderDetail() {
+  const chosen = DATA.files.filter(f => selected.has(f.fileid));
+  const body = $("detail-body");
+  if (activeTab === "code") {
+    body.innerHTML = "<pre>" + chosen.map(f =>
+      `<span class="code-file-head">===== ${esc(f.name)}  [${esc(f.conversion_status)} ${esc(f.coverage)}] =====</span>\n` +
+      esc(f.code)).join("\n\n") + "</pre>";
+  } else if (activeTab === "block") {
+    body.innerHTML = edgeTable(chosen.flatMap(f => f.block_edges), "block");
+  } else if (activeTab === "file") {
+    body.innerHTML = edgeTable(chosen.flatMap(f => f.file_edges), "file");
+  } else {
+    const rows = DATA.project_edges.filter(
+      e => selected.has(e.src_file) || selected.has(e.dst_file));
+    if (!rows.length) {
+      body.innerHTML = `<div class="empty-note">no project edges for this selection</div>`;
+      return;
+    }
+    body.innerHTML = `<table class="edges"><thead><tr><th>source file</th><th></th>` +
+      `<th>target file</th><th>tables</th></tr></thead><tbody>` +
+      rows.map(e =>
+        `<tr><td>${esc(filesById.get(e.src_file).name)}</td><td class="arrow">&rarr;</td>` +
+        `<td>${esc(filesById.get(e.dst_file).name)}</td><td>${esc(e.tables.join(", "))}</td></tr>`
+      ).join("") + "</tbody></table>";
+  }
+}
+
+/* ---------- wiring ---------- */
+function refresh() {
+  renderMetrics();
+  syncFileListSelection();
+  refreshGraphClasses();
+  renderDetail();
+}
+
+document.querySelectorAll(".dtab").forEach(btn => btn.addEventListener("click", () => {
+  document.querySelectorAll(".dtab").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  activeTab = btn.dataset.tab;
+  renderDetail();
+}));
+
+$("search").addEventListener("input", event => {
+  const needle = event.target.value.trim();
+  document.querySelectorAll(".file-item").forEach(item => {
+    item.classList.toggle("hidden",
+      !fileMatchesSearch(filesById.get(item.dataset.id), needle));
+  });
+});
+
+$("btn-all").addEventListener("click", selectAll);
+$("btn-fit").addEventListener("click", () => cy.fit(undefined, 30));
+$("btn-layout").addEventListener("click", () => cy.layout(ELK_LAYOUT).run());
+$("sel-elk-routing").addEventListener("change", e => {
+  ELK_LAYOUT.elk["elk.edgeRouting"] = e.target.value;
+  cy.layout(ELK_LAYOUT).run();
+});
+$("sel-edge-style").addEventListener("change", e => {
+  cy.style().selector("edge").style("curve-style", e.target.value).update();
+});
+
+$("generated").textContent =
+  `generated ${DATA.generated} · ${DATA.files.length} files · ${DATA.project_edges.length} project edges`;
+renderFileList();
+refresh();
+</script>
+</body>
+</html>
