@@ -11,11 +11,16 @@ import { applyHighlight, ghostForRow, matchingEdgeIds, withoutGhosts } from './e
 import type { EdgeRow } from './api'
 import Toolbar from './components/Toolbar'
 import Banner from './components/Banner'
-import SearchBar from './components/SearchBar'
 import ExplorerTree, { type TreeFile } from './components/ExplorerTree'
 import CodePane from './components/CodePane'
 import EdgesPanel, { type EdgeFocus } from './components/EdgesPanel'
-import Sash from './components/Sash'
+import TopBar, { type View } from './components/TopBar'
+import Rail, { RAIL_ICONS, type RailItem } from './components/Rail'
+import Drawer from './components/Drawer'
+import BottomStrip from './components/BottomStrip'
+import StatusBar from './components/StatusBar'
+import { useTheme } from './useTheme'
+import { useKeys } from './useKeys'
 import { edgeTypes, nodeTypes } from './components/nodeTypes'
 import { readParams, writeParams, type Params } from './urlParams'
 import { HOLA_CMD } from './holaLayout'
@@ -23,13 +28,26 @@ import { START_CMD, useLineageGraph } from './useLineageGraph'
 import { fetchFiles, type SearchHit } from './api'
 import type { FlowEdgeData, FlowNodeData } from './toFlow'
 
-const DEFAULT_EXPLORER_WIDTH = 260
+const DEFAULT_EXPLORER_WIDTH = 270
 const MIN_EXPLORER_WIDTH = 160
 const MAX_EXPLORER_WIDTH = 560
+const DEFAULT_LAYOUT_WIDTH = 300
+const MIN_LAYOUT_WIDTH = 220
+const MAX_LAYOUT_WIDTH = 560
 const MIN_PANEL_HEIGHT = 120
 const MAX_PANEL_HEIGHT = 720
-const MIN_SPLIT_PCT = 20
-const MAX_SPLIT_PCT = 80
+
+/** the bench's own status-line hints, minus the ones only the Bench can service */
+const KEY_HINTS = [
+  { k: 'b', label: 'files' },
+  { k: 'o', label: 'layout' },
+  { k: 'c', label: 'code' },
+  { k: 'e', label: 'edges' },
+  { k: 'l', label: 'log' },
+  { k: '⌘J', label: 'collapse' },
+  { k: 't', label: 'theme' },
+  { k: '?', label: 'keys' },
+]
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
@@ -44,7 +62,9 @@ function decorate(nodes: Node<FlowNodeData>[], edges: Edge<FlowEdgeData>[], row:
   if (!ghost) return { nodes: cleanNodes, edges: applyHighlight(cleanEdges, new Set()) }
   return { nodes: [...cleanNodes, ...ghost.nodes], edges: [...applyHighlight(cleanEdges, new Set()), ghost.edge] }
 }
-const defaultPanelHeight = () => Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.38)
+// the Bench's strip is 220px and never drags; ours scales a little with the
+// window but stays a strip, not a second half of the screen
+const defaultPanelHeight = () => Math.min(300, Math.round((typeof window !== 'undefined' ? window.innerHeight : 800) * 0.26))
 
 function Workbench({ params, setParams }: { params: Params; setParams: (p: Params) => void }) {
   const [selectedFile, setSelectedFile] = useState<string | null>(params.file ?? null)
@@ -59,8 +79,16 @@ function Workbench({ params, setParams }: { params: Params; setParams: (p: Param
   const [allFiles, setAllFiles] = useState<TreeFile[]>([])
   const [explorerFilter, setExplorerFilter] = useState('')
   const [explorerWidth, setExplorerWidth] = useState(DEFAULT_EXPLORER_WIDTH)
-  const [panelHeight, setPanelHeight] = useState(defaultPanelHeight)
-  const [panelSplit, setPanelSplit] = useState(50)
+  const [panelHeight] = useState(defaultPanelHeight)
+  // bench frame: two drawers and the bottom strip, each remembering its own size
+  const [leftOpen, setLeftOpen] = useState(true)
+  const [rightOpen, setRightOpen] = useState(false)
+  const [layoutWidth, setLayoutWidth] = useState(DEFAULT_LAYOUT_WIDTH)
+  const [stripOpen, setStripOpen] = useState(true)
+  const [stripMin, setStripMin] = useState(false)
+  const [stripTab, setStripTab] = useState('code')
+  const [view, setView] = useState<View>('project')
+  const { theme, cycle: cycleTheme } = useTheme()
   const codeViewRef = useRef<HTMLPreElement | null>(null)
   const [settings, setSettingsState] = useState<LayoutSettings>(() => loadSettings())
   const setSettings = useCallback((next: LayoutSettings) => { setSettingsState(next); saveSettings(next) }, [])
@@ -149,7 +177,9 @@ function Workbench({ params, setParams }: { params: Params; setParams: (p: Param
       if (zoomId) rf.fitView({ nodes: [{ id: zoomId }], padding: 0.6, maxZoom: 1.6, duration: dur ? 350 : 0 })
       else rf.fitView({ padding: 0.15, duration: dur ? 300 : 0 })
     }, dur + 50)
-    return () => clearTimeout(t)
+    // stop the glide as well as the fit: a tween frame landing after unmount
+    // calls setNodes on a torn-down tree (it surfaced as a flaky test teardown)
+    return () => { clearTimeout(t); tweenStop.current() }
   }, [g.flow, rf, updateNodeInternals, setNodes, setEdges, settings.animate, withRing])
 
   // a newly picked drawer row re-tints the edges already on the canvas — or, when
@@ -267,55 +297,130 @@ function Workbench({ params, setParams }: { params: Params; setParams: (p: Param
   const hasSeed = Boolean(params.file || params.table)
   const hint = !hasSeed ? 'search a table or file to see its neighborhood' : g.hood && g.hood.nodes.length === 0 ? 'nothing flows into or out of this seed' : undefined
 
+  // every message the graph raised this render, in one list: shown inline as
+  // banners (so an error still shouts) and mirrored into the Log tab.
+  const messages = useMemo(() => {
+    const out: { kind: 'error' | 'info'; text: string }[] = []
+    if (g.status === 'error') out.push({ kind: 'error', text: `API not reachable (${g.error}). Start it with:\n${START_CMD}` })
+    if (g.layoutError) out.push({ kind: 'info', text: `ELK layout failed (${g.layoutError}); showing a plain grid.` })
+    if (g.routeError) out.push({ kind: 'info', text: `libavoid routing failed (${g.routeError}); showing ELK's edges.` })
+    if (g.holaError) out.push({ kind: 'info', text: `HOLA placement failed (${g.holaError}); showing ELK's layout. Start the sidecar with:\n${HOLA_CMD}` })
+    if (g.holaWarnings.length > 0) out.push({ kind: 'info', text: `HOLA fell back on ${g.holaWarnings.length} component(s): ${g.holaWarnings.join(' · ')}` })
+    if (g.failed.size > 0) out.push({ kind: 'info', text: `could not load blocks for ${[...g.failed].join(', ')}` })
+    if (hint && g.status !== 'error') out.push({ kind: 'info', text: hint })
+    return out
+  }, [g.status, g.error, g.layoutError, g.routeError, g.holaError, g.holaWarnings, g.failed, hint])
+
+  // opening a bottom tab always un-collapses the strip: a tab you cannot see is a lie
+  const showTab = useCallback((key: string) => {
+    setStripTab(key)
+    setStripOpen(true)
+    setStripMin(false)
+  }, [])
+  const toggleTab = useCallback((key: string) => {
+    if (stripOpen && !stripMin && stripTab === key) setStripMin(true)
+    else showTab(key)
+  }, [stripOpen, stripMin, stripTab, showTab])
+
+  const keyMap = useMemo(() => ({
+    b: () => setLeftOpen((v) => !v),
+    o: () => setRightOpen((v) => !v),
+    c: () => toggleTab('code'),
+    e: () => toggleTab('edges'),
+    l: () => toggleTab('log'),
+    t: cycleTheme,
+    '?': () => toggleTab('log'),
+    'mod+j': () => (stripOpen ? setStripMin((v) => !v) : setStripOpen(true)),
+  }), [toggleTab, cycleTheme, stripOpen])
+  useKeys(keyMap)
+
+  const nodeCount = g.hood?.nodes.length ?? 0
+  const pills = (
+    <>
+      <span className={`pill ${g.status === 'error' ? 'bad' : g.status === 'loading' ? 'warn' : nodeCount ? 'good' : 'idle'}`} data-cid="pill-status">
+        <i />{g.status === 'loading' ? 'loading' : g.status === 'error' ? 'api down' : nodeCount ? 'graph' : 'no seed'}
+      </span>
+      <span className="pill prog" data-cid="pill-counts"><i />{nodeCount} files · {edges.length} edges</span>
+    </>
+  )
+
+  const railItems: RailItem[] = [
+    { key: 'files', title: 'Files in this project (b)', icon: RAIL_ICONS.files, on: leftOpen, onClick: () => setLeftOpen((v) => !v) },
+    { key: 'options', title: 'Layout controls and legend (o)', icon: RAIL_ICONS.settings, on: rightOpen, onClick: () => setRightOpen((v) => !v) },
+    { key: 'code', title: 'SAS code for the selected file (c)', icon: RAIL_ICONS.code, on: stripOpen && !stripMin && stripTab === 'code', onClick: () => toggleTab('code') },
+    { key: 'edges', title: 'Edges in this neighborhood (e)', icon: RAIL_ICONS.edges, on: stripOpen && !stripMin && stripTab === 'edges', onClick: () => toggleTab('edges') },
+    { key: 'log', title: 'Log (l)', icon: RAIL_ICONS.log, on: stripOpen && !stripMin && stripTab === 'log', onClick: () => toggleTab('log') },
+  ]
+
+  const engineInfo = settings.holaLayout ? 'HOLA + ELK' : settings.avoidRouting ? 'ELK + libavoid' : 'ELK engine'
+  const focusInfo = selectedFile ? `${selectedFile}${highlightBlock ? ` · ${highlightBlock}` : ''}` : 'no file selected'
+
+  const stripTabs = [
+    {
+      key: 'code',
+      label: 'Code',
+      content: <CodePane detail={detail} highlightBlock={highlightBlock} onChipClick={onChipClick} codeViewRef={codeViewRef} />,
+    },
+    {
+      key: 'edges',
+      label: 'Edges',
+      content: <EdgesPanel fileids={hoodFileids} onOpenBlock={onOpenBlock} focus={focus} onClearFocus={() => setFocus(null)} />,
+    },
+    {
+      key: 'log',
+      label: `Log${messages.length ? ` (${messages.length})` : ''}`,
+      content: messages.length === 0
+        ? <div className="logempty" data-cid="log-empty">nothing to report — the graph drew cleanly.</div>
+        : <div data-cid="log-rows">{messages.map((m, i) => (
+            <div className="logrow" key={i}><span className={`w ${m.kind === 'error' ? 'err' : 'info'}`}>{m.kind}</span><span className="m">{m.text}</span></div>
+          ))}</div>,
+    },
+  ]
+
   return (
-    <div className="app-root" data-cid="app">
-      <div className="vscode-shell" data-cid="vscode-shell" style={{ gridTemplateColumns: `${explorerWidth}px 4px 1fr` }}>
-        <ExplorerTree
-          current={currentFiles}
-          all={allFiles}
-          onPick={pickFile}
-          filter={explorerFilter}
-          onFilterChange={setExplorerFilter}
-          selected={selectedFile}
-        />
-        <Sash
-          orientation="vertical"
-          dataCid="sash-explorer"
-          onDrag={(d) => setExplorerWidth((w) => clamp(w + d, MIN_EXPLORER_WIDTH, MAX_EXPLORER_WIDTH))}
-          onReset={() => setExplorerWidth(DEFAULT_EXPLORER_WIDTH)}
-        />
-        <div className="vscode-main" data-cid="vscode-main">
-          <div className="command-bar" data-cid="command-bar">
-            <SearchBar onSelect={onSearchSelect} />
-            <button
-              type="button"
-              className={pinned ? 'pin-toggle pinned' : 'pin-toggle'}
-              data-cid="pin-toggle"
-              aria-pressed={pinned}
-              title={pinned ? 'pinned: clicking a file only changes the code below' : 'pin these results: clicking a file will stop re-centering'}
-              onClick={() => setPinned((v) => !v)}
-            >
-              {pinned ? 'Pinned' : 'Pin'}
-            </button>
-            <SettingsPanel settings={settings} onChange={setSettings} />
-            <Toolbar
-              params={params}
-              onParams={setParams}
-              onExpandAll={g.expandAll}
-              onCollapseAll={g.collapseAll}
-              onFit={() => rf.fitView({ padding: 0.15 })}
-              onRelayout={g.relayout}
-              disabled={!g.hood}
-              hint={g.status === 'loading' ? 'loading…' : undefined}
-            />
-          </div>
-          {g.status === 'error' && <Banner kind="error">{`API not reachable (${g.error}). Start it with:\n${START_CMD}`}</Banner>}
-          {g.layoutError && <Banner kind="info">{`ELK layout failed (${g.layoutError}); showing a plain grid.`}</Banner>}
-          {g.routeError && <Banner kind="info">{`libavoid routing failed (${g.routeError}); showing ELK's edges.`}</Banner>}
-          {g.holaError && <Banner kind="info">{`HOLA placement failed (${g.holaError}); showing ELK's layout. Start the sidecar with:\n${HOLA_CMD}`}</Banner>}
-          {g.holaWarnings.length > 0 && <Banner kind="info">{`HOLA fell back on ${g.holaWarnings.length} component(s): ${g.holaWarnings.join(' · ')}`}</Banner>}
-          {g.failed.size > 0 && <Banner kind="info">{`could not load blocks for ${[...g.failed].join(', ')}`}</Banner>}
-          {hint && g.status !== 'error' && <Banner kind="info">{hint}</Banner>}
+    <div id="app" data-cid="app">
+      <TopBar
+        seed={params.file ?? params.table ?? null}
+        onSelect={onSearchSelect}
+        pills={pills}
+        view={view}
+        onView={setView}
+        params={params}
+        onParams={setParams}
+        onFit={() => rf.fitView({ padding: 0.15 })}
+        onRelayout={g.relayout}
+        disabled={!g.hood}
+        settings={settings}
+        onSettings={setSettings}
+        pinned={pinned}
+        onPin={() => setPinned((v) => !v)}
+        theme={theme}
+        onTheme={cycleTheme}
+      />
+
+      <div id="main" data-cid="main">
+        <Rail items={railItems} />
+        <Drawer
+          side="left"
+          title="Files"
+          hotkey="b"
+          open={leftOpen}
+          width={explorerWidth}
+          onWidth={(d) => setExplorerWidth((w) => clamp(w + d, MIN_EXPLORER_WIDTH, MAX_EXPLORER_WIDTH))}
+          onToggle={() => setLeftOpen(false)}
+        >
+          <ExplorerTree
+            current={currentFiles}
+            all={allFiles}
+            onPick={pickFile}
+            filter={explorerFilter}
+            onFilterChange={setExplorerFilter}
+            selected={selectedFile}
+          />
+        </Drawer>
+
+        <div id="center" data-cid="center">
+          {messages.map((m, i) => <Banner key={i} kind={m.kind}>{m.text}</Banner>)}
           <div className="canvas" data-cid="canvas">
             <ReactFlow
               nodes={nodes}
@@ -337,32 +442,40 @@ function Workbench({ params, setParams }: { params: Params; setParams: (p: Param
               <Controls showInteractive={false} />
             </ReactFlow>
           </div>
-          <Sash
-            orientation="horizontal"
-            dataCid="sash-panel"
-            onDrag={(d) => setPanelHeight((h) => clamp(h - d, MIN_PANEL_HEIGHT, MAX_PANEL_HEIGHT))}
-            onReset={() => setPanelHeight(defaultPanelHeight())}
-          />
-          <div className="bottom-panel" data-cid="bottom-panel" style={{ height: panelHeight }}>
-            <div className="panel-body" data-cid="panel-body" style={{ gridTemplateColumns: `${panelSplit}% 4px 1fr` }}>
-              <div className="panel-half panel-code" data-cid="panel-code">
-                <div className="panel-half-header">SAS Code{selectedFile ? ` — ${selectedFile}` : ''}</div>
-                <CodePane detail={detail} highlightBlock={highlightBlock} onChipClick={onChipClick} codeViewRef={codeViewRef} />
-              </div>
-              <Sash
-                orientation="vertical"
-                dataCid="sash-panel-split"
-                onDrag={(d) => setPanelSplit((pct) => clamp(pct + d / 8, MIN_SPLIT_PCT, MAX_SPLIT_PCT))}
-                onReset={() => setPanelSplit(50)}
-              />
-              <div className="panel-half panel-edges" data-cid="panel-edges">
-                <div className="panel-half-header">Edges</div>
-                <EdgesPanel fileids={hoodFileids} onOpenBlock={onOpenBlock} focus={focus} onClearFocus={() => setFocus(null)} />
-              </div>
-            </div>
-          </div>
         </div>
+
+        <Drawer
+          side="right"
+          title="Layout"
+          hotkey="o"
+          open={rightOpen}
+          width={layoutWidth}
+          onWidth={(d) => setLayoutWidth((w) => clamp(w + d, MIN_LAYOUT_WIDTH, MAX_LAYOUT_WIDTH))}
+          onToggle={() => setRightOpen(false)}
+        >
+          <Toolbar
+            params={params}
+            onParams={setParams}
+            onExpandAll={g.expandAll}
+            onCollapseAll={g.collapseAll}
+            disabled={!g.hood}
+          />
+        </Drawer>
       </div>
+
+      <BottomStrip
+        tabs={stripTabs}
+        active={stripTab}
+        onActive={showTab}
+        open={stripOpen}
+        min={stripMin}
+        height={clamp(panelHeight, MIN_PANEL_HEIGHT, MAX_PANEL_HEIGHT)}
+        onToggleMin={() => setStripMin((v) => !v)}
+        onClose={() => setStripOpen(false)}
+        status={<span className="mono">{selectedFile ?? (g.status === 'loading' ? 'loading…' : `${nodeCount} files`)}</span>}
+      />
+
+      <StatusBar focusInfo={focusInfo} engineInfo={engineInfo} keys={KEY_HINTS} />
     </div>
   )
 }
