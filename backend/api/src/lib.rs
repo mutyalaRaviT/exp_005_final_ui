@@ -51,9 +51,11 @@ pub const ALL_ROUTES: &[&str] = &[
     "run",
 ];
 
-/// Questions answered from the store today. Empty until Task 5 lands `files`/`search`;
-/// each later route task appends to this list as part of landing its route.
-pub const LANDED: &[&str] = &[];
+/// Questions answered from the store today. Task 5 lands `files`/`search`; each later
+/// route task appends to this list as part of landing its route. `tests/landed.rs`
+/// (Ruling D6) fails loudly if this list and the router in `app()` ever disagree about
+/// which routes are actually wired up.
+pub const LANDED: &[&str] = &["files", "search"];
 
 /// Build the router from state alone. Called with a real store + real oracle addresses
 /// by `main`, and with `test_state()` by every integration test — same router, same
@@ -61,14 +63,30 @@ pub const LANDED: &[&str] = &[];
 pub fn app(state: AppState) -> Router {
     Router::new()
         .route("/api/health", get(routes::health::health))
+        .route("/api/files", get(routes::files::files))
+        .route("/api/search", get(routes::search::search))
         .with_state(state)
 }
 
 /// A throwaway store for tests: a fresh DuckDB file under the OS temp dir, unique per
 /// call so parallel test binaries never collide, opened with the same DDL `main` runs
-/// against the real store. Oracle addresses are the same defaults `main` uses; nothing
-/// in a route landed so far dials them, and a test that needs `oracle::forward` is free
-/// to point elsewhere.
+/// against the real store, and seeded with the 25-file `ankitha` corpus (the exact
+/// corpus `tools/diff_route.py`'s `ankitha` route checks against). Oracle addresses are
+/// the same defaults `main` uses; nothing landed so far dials them, and a test that needs
+/// `oracle::forward` is free to point elsewhere.
+///
+/// **Why seeded, not empty.** `support::get`/`post` (`tests/support/mod.rs`) each call
+/// this function fresh and drive the router they build from it — there is no way for a
+/// test to reach into that router's state and convert a corpus into it first. Task 6's
+/// own brief writes `get("/api/neighborhood?file=ankitha_1%2F11_branch_rollup.sas&up=1
+/// &down=1")` with no setup step of its own and expects real data back, so the seeding has
+/// to live here for every route task from this one on to have anything to answer with.
+/// Only `ankitha`: it is what `files`/`search`/`neighborhood`/`blocklinks`/`edges` (Tasks
+/// 5–7) are checked against, and it converts in well under 100 ms. The `exp42` corpus
+/// routes need (Tasks 8–10) include `big_2000.sas`; converting that on every single
+/// `get()`/`post()` call — one per assertion, not per test file — would make every later
+/// test suite slow for no benefit to this one. Whichever of those tasks needs `exp42` data
+/// seeds it the same way, here, when it lands.
 pub fn test_state() -> AppState {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -82,7 +100,17 @@ pub fn test_state() -> AppState {
     let db = std::env::temp_dir().join(format!("lineageq_api_test_{pid}_{nanos}_{n}.duckdb"));
     let _ = std::fs::remove_file(&db);
 
-    let conn = inferred_duckdb::open(&db).expect("open throwaway test store");
+    let mut conn = inferred_duckdb::open(&db).expect("open throwaway test store");
+    let spec = std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../raw/bench_stack/out/spec/sas.json"
+    ));
+    let folder = std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../raw/lineage_server/inputs"
+    ));
+    inferred_duckdb::convert(&mut conn, spec, folder).expect("seed the ankitha corpus into the test store");
+
     AppState {
         db: std::sync::Arc::new(std::sync::Mutex::new(conn)),
         oracle_a: "http://127.0.0.1:8000".to_string(),
