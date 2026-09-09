@@ -18,6 +18,19 @@ const BENCH_HTML: &str = concat!(
     "/../../raw/bench_stack/server/bench.html"
 );
 
+/// Builds the response for a read failure. The absolute path and the `io::Error` go to the
+/// server log — whoever runs the binary can still diagnose it — but never into the HTTP
+/// body: a client-facing error page has no business naming this machine's filesystem
+/// layout. Split out as its own function (rather than inlined in the `match`) so the body
+/// it returns can be asserted on directly, without needing to make the real file read fail.
+pub fn unreadable_response(e: &std::io::Error) -> (StatusCode, &'static str) {
+    eprintln!("bench.html unreadable at {BENCH_HTML}: {e}");
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "bench.html could not be read; see the server log",
+    )
+}
+
 pub async fn bench() -> impl IntoResponse {
     match std::fs::read_to_string(BENCH_HTML) {
         Ok(body) => (
@@ -29,10 +42,6 @@ pub async fn bench() -> impl IntoResponse {
             body,
         )
             .into_response(),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("bench.html unreadable at {BENCH_HTML}: {e}"),
-        )
-            .into_response(),
+        Err(e) => unreadable_response(&e).into_response(),
     }
 }
