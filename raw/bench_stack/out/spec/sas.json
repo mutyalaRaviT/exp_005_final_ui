@@ -48,7 +48,12 @@
   "when",
   "else",
   "end",
-  "length"
+  "length",
+  "infile",
+  "dsd",
+  "dlm",
+  "truncover",
+  "datalines"
  ],
  "statement_end": [
   ";"
@@ -511,6 +516,41 @@
      ],
      "min": 1,
      "sep": []
+    }
+   ]
+  },
+  {
+   "name": "infile",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "INFILE"
+    },
+    {
+     "t": "kw",
+     "text": "DATALINES"
+    },
+    {
+     "t": "kw",
+     "text": "DSD"
+    },
+    {
+     "t": "kw",
+     "text": "DLM"
+    },
+    {
+     "t": "sym",
+     "text": "="
+    },
+    {
+     "t": "cap",
+     "field": "dlm",
+     "kind": "expr"
+    },
+    {
+     "t": "kw",
+     "text": "TRUNCOVER"
     }
    ]
   },

@@ -141,43 +141,46 @@ stmt(T) --> stmt_format(T).
 stmt_length(length(L224)) --> [tok(keyword,K219)], { downcase_atom(K219,'length') }, cl_11(L224), [tok(symbol,';')].
 stmt(T) --> stmt_length(T).
 
-stmt_datalines(datalines(Rows228)) --> [tok(datalines,R229)], { raw_body(R229, Rows228) }.
+stmt_infile(infile(Dlm232)) --> [tok(keyword,K228)], { downcase_atom(K228,'infile') }, [tok(keyword,K229)], { downcase_atom(K229,'datalines') }, [tok(keyword,K230)], { downcase_atom(K230,'dsd') }, [tok(keyword,K231)], { downcase_atom(K231,'dlm') }, [tok(symbol,'=')], expr(Dlm232), [tok(keyword,K233)], { downcase_atom(K233,'truncover') }, [tok(symbol,';')].
+stmt(T) --> stmt_infile(T).
+
+stmt_datalines(datalines(Rows237)) --> [tok(datalines,R238)], { raw_body(R238, Rows237) }.
 stmt(T) --> stmt_datalines(T).
 
-stmt_set(set(In234)) --> [tok(keyword,K233)], { downcase_atom(K233,'set') }, rule_dsname(In234), [tok(symbol,';')].
+stmt_set(set(In243)) --> [tok(keyword,K242)], { downcase_atom(K242,'set') }, rule_dsname(In243), [tok(symbol,';')].
 stmt(T) --> stmt_set(T).
 
-stmt_subset_if(subset_if(Cond239)) --> [tok(keyword,K238)], { downcase_atom(K238,'if') }, expr(Cond239), [tok(symbol,';')].
+stmt_subset_if(subset_if(Cond248)) --> [tok(keyword,K247)], { downcase_atom(K247,'if') }, expr(Cond248), [tok(symbol,';')].
 stmt(T) --> stmt_subset_if(T).
 
-stmt_if_then_set(if_then_set(Var244,Val245,In248)) --> [tok(keyword,K243)], { downcase_atom(K243,'if') }, [tok(word,Var244)], [tok(symbol,'=')], expr(Val245), [tok(keyword,K246)], { downcase_atom(K246,'then') }, [tok(keyword,K247)], { downcase_atom(K247,'set') }, rule_dsname(In248), [tok(symbol,';')].
+stmt_if_then_set(if_then_set(Var253,Val254,In257)) --> [tok(keyword,K252)], { downcase_atom(K252,'if') }, [tok(word,Var253)], [tok(symbol,'=')], expr(Val254), [tok(keyword,K255)], { downcase_atom(K255,'then') }, [tok(keyword,K256)], { downcase_atom(K256,'set') }, rule_dsname(In257), [tok(symbol,';')].
 stmt(T) --> stmt_if_then_set(T).
 
-stmt_merge(merge(L269)) --> [tok(keyword,K255)], { downcase_atom(K255,'merge') }, cl_12(L269), [tok(symbol,';')].
+stmt_merge(merge(L278)) --> [tok(keyword,K264)], { downcase_atom(K264,'merge') }, cl_12(L278), [tok(symbol,';')].
 stmt(T) --> stmt_merge(T).
 
-stmt_by(by(L277)) --> [tok(keyword,K273)], { downcase_atom(K273,'by') }, cl_14(L277), [tok(symbol,';')].
+stmt_by(by(L286)) --> [tok(keyword,K282)], { downcase_atom(K282,'by') }, cl_14(L286), [tok(symbol,';')].
 stmt(T) --> stmt_by(T).
 
-stmt_proc_sql(proc_sql) --> [tok(keyword,K281)], { downcase_atom(K281,'proc') }, [tok(keyword,K282)], { downcase_atom(K282,'sql') }, [tok(symbol,';')].
+stmt_proc_sql(proc_sql) --> [tok(keyword,K290)], { downcase_atom(K290,'proc') }, [tok(keyword,K291)], { downcase_atom(K291,'sql') }, [tok(symbol,';')].
 stmt(T) --> stmt_proc_sql(T).
 
-stmt_create_table_as(create_table_as(Out286,Select288)) --> [tok(keyword,K284)], { downcase_atom(K284,'create') }, [tok(keyword,K285)], { downcase_atom(K285,'table') }, rule_dsname(Out286), [tok(keyword,K287)], { downcase_atom(K287,'as') }, rule_select_stmt(Select288), [tok(symbol,';')].
+stmt_create_table_as(create_table_as(Out295,Select297)) --> [tok(keyword,K293)], { downcase_atom(K293,'create') }, [tok(keyword,K294)], { downcase_atom(K294,'table') }, rule_dsname(Out295), [tok(keyword,K296)], { downcase_atom(K296,'as') }, rule_select_stmt(Select297), [tok(symbol,';')].
 stmt(T) --> stmt_create_table_as(T).
 
-stmt_proc_print(proc_print(In297)) --> [tok(keyword,K294)], { downcase_atom(K294,'proc') }, [tok(keyword,K295)], { downcase_atom(K295,'print') }, [tok(keyword,K296)], { downcase_atom(K296,'data') }, [tok(symbol,'=')], rule_dsname(In297), [tok(symbol,';')].
+stmt_proc_print(proc_print(In306)) --> [tok(keyword,K303)], { downcase_atom(K303,'proc') }, [tok(keyword,K304)], { downcase_atom(K304,'print') }, [tok(keyword,K305)], { downcase_atom(K305,'data') }, [tok(symbol,'=')], rule_dsname(In306), [tok(symbol,';')].
 stmt(T) --> stmt_proc_print(T).
 
-stmt_title(title(Text302)) --> [tok(keyword,K301)], { downcase_atom(K301,'title') }, expr(Text302), [tok(symbol,';')].
+stmt_title(title(Text311)) --> [tok(keyword,K310)], { downcase_atom(K310,'title') }, expr(Text311), [tok(symbol,';')].
 stmt(T) --> stmt_title(T).
 
 stmt_empty(empty) --> [tok(symbol,';')].
 stmt(T) --> stmt_empty(T).
 
-stmt_run(run) --> [tok(keyword,K307)], { downcase_atom(K307,'run') }, [tok(symbol,';')].
+stmt_run(run) --> [tok(keyword,K316)], { downcase_atom(K316,'run') }, [tok(symbol,';')].
 stmt(T) --> stmt_run(T).
 
-stmt_quit(quit) --> [tok(keyword,K309)], { downcase_atom(K309,'quit') }, [tok(symbol,';')].
+stmt_quit(quit) --> [tok(keyword,K318)], { downcase_atom(K318,'quit') }, [tok(symbol,';')].
 stmt(T) --> stmt_quit(T).
 
 % ---- statement auxiliaries (comma_list / group sub-nonterminals) ----
@@ -213,13 +216,13 @@ cl_11_item(V220) --> rule_length_var(V220).
 cl_11([X|Xs]) --> cl_11_item(X), cl_11_rest(Xs).
 cl_11_rest([X|Xs]) --> cl_11_item(X), cl_11_rest(Xs).
 cl_11_rest([]) --> [].
-grp_13(src(Ds256,some(Flag258))) --> rule_dsname(Ds256), [tok(symbol,'(')], [tok(keyword,K257)], { downcase_atom(K257,'in') }, [tok(symbol,'=')], [tok(word,Flag258)], [tok(symbol,')')].
-grp_13(src(Ds256,none)) --> rule_dsname(Ds256).
-cl_12_item(G265) --> grp_13(G265).
+grp_13(src(Ds265,some(Flag267))) --> rule_dsname(Ds265), [tok(symbol,'(')], [tok(keyword,K266)], { downcase_atom(K266,'in') }, [tok(symbol,'=')], [tok(word,Flag267)], [tok(symbol,')')].
+grp_13(src(Ds265,none)) --> rule_dsname(Ds265).
+cl_12_item(G274) --> grp_13(G274).
 cl_12([X|Xs]) --> cl_12_item(X), cl_12_rest(Xs).
 cl_12_rest([X|Xs]) --> cl_12_item(X), cl_12_rest(Xs).
 cl_12_rest([]) --> [].
-cl_14_item(K274) --> [tok(word,K274)].
+cl_14_item(K283) --> [tok(word,K283)].
 cl_14([X|Xs]) --> cl_14_item(X), cl_14_rest(Xs).
 cl_14_rest([X|Xs]) --> cl_14_item(X), cl_14_rest(Xs).
 cl_14_rest([]) --> [].
@@ -364,43 +367,46 @@ print_stmt(T, Texts) :- print_stmt_format(T, Texts), !.
 print_stmt_length(length(L225), T227) :- cl_11(L225, T226), flatten([['length'], T226, [';']], T227).
 print_stmt(T, Texts) :- print_stmt_length(T, Texts), !.
 
-print_stmt_datalines(datalines(Rows230), T232) :- raw_text('datalines', Rows230, T231), flatten([T231], T232).
+print_stmt_infile(infile(Dlm234), T236) :- print_expr(Dlm234, 0, T235), flatten([['infile'], ['datalines'], ['dsd'], ['dlm'], ['='], T235, ['truncover'], [';']], T236).
+print_stmt(T, Texts) :- print_stmt_infile(T, Texts), !.
+
+print_stmt_datalines(datalines(Rows239), T241) :- raw_text('datalines', Rows239, T240), flatten([T240], T241).
 print_stmt(T, Texts) :- print_stmt_datalines(T, Texts), !.
 
-print_stmt_set(set(In235), T237) :- print_rule_dsname(In235, T236), flatten([['set'], T236, [';']], T237).
+print_stmt_set(set(In244), T246) :- print_rule_dsname(In244, T245), flatten([['set'], T245, [';']], T246).
 print_stmt(T, Texts) :- print_stmt_set(T, Texts), !.
 
-print_stmt_subset_if(subset_if(Cond240), T242) :- print_expr(Cond240, 0, T241), flatten([['if'], T241, [';']], T242).
+print_stmt_subset_if(subset_if(Cond249), T251) :- print_expr(Cond249, 0, T250), flatten([['if'], T250, [';']], T251).
 print_stmt(T, Texts) :- print_stmt_subset_if(T, Texts), !.
 
-print_stmt_if_then_set(if_then_set(Var249,Val250,In252), T254) :- print_expr(Val250, 0, T251), print_rule_dsname(In252, T253), flatten([['if'], [Var249], ['='], T251, ['then'], ['set'], T253, [';']], T254).
+print_stmt_if_then_set(if_then_set(Var258,Val259,In261), T263) :- print_expr(Val259, 0, T260), print_rule_dsname(In261, T262), flatten([['if'], [Var258], ['='], T260, ['then'], ['set'], T262, [';']], T263).
 print_stmt(T, Texts) :- print_stmt_if_then_set(T, Texts), !.
 
-print_stmt_merge(merge(L270), T272) :- cl_12(L270, T271), flatten([['merge'], T271, [';']], T272).
+print_stmt_merge(merge(L279), T281) :- cl_12(L279, T280), flatten([['merge'], T280, [';']], T281).
 print_stmt(T, Texts) :- print_stmt_merge(T, Texts), !.
 
-print_stmt_by(by(L278), T280) :- cl_14(L278, T279), flatten([['by'], T279, [';']], T280).
+print_stmt_by(by(L287), T289) :- cl_14(L287, T288), flatten([['by'], T288, [';']], T289).
 print_stmt(T, Texts) :- print_stmt_by(T, Texts), !.
 
-print_stmt_proc_sql(proc_sql, T283) :- flatten([['proc'], ['sql'], [';']], T283).
+print_stmt_proc_sql(proc_sql, T292) :- flatten([['proc'], ['sql'], [';']], T292).
 print_stmt(T, Texts) :- print_stmt_proc_sql(T, Texts), !.
 
-print_stmt_create_table_as(create_table_as(Out289,Select291), T293) :- print_rule_dsname(Out289, T290), print_rule_select_stmt(Select291, T292), flatten([['create'], ['table'], T290, ['as'], T292, [';']], T293).
+print_stmt_create_table_as(create_table_as(Out298,Select300), T302) :- print_rule_dsname(Out298, T299), print_rule_select_stmt(Select300, T301), flatten([['create'], ['table'], T299, ['as'], T301, [';']], T302).
 print_stmt(T, Texts) :- print_stmt_create_table_as(T, Texts), !.
 
-print_stmt_proc_print(proc_print(In298), T300) :- print_rule_dsname(In298, T299), flatten([['proc'], ['print'], ['data'], ['='], T299, [';']], T300).
+print_stmt_proc_print(proc_print(In307), T309) :- print_rule_dsname(In307, T308), flatten([['proc'], ['print'], ['data'], ['='], T308, [';']], T309).
 print_stmt(T, Texts) :- print_stmt_proc_print(T, Texts), !.
 
-print_stmt_title(title(Text303), T305) :- print_expr(Text303, 0, T304), flatten([['title'], T304, [';']], T305).
+print_stmt_title(title(Text312), T314) :- print_expr(Text312, 0, T313), flatten([['title'], T313, [';']], T314).
 print_stmt(T, Texts) :- print_stmt_title(T, Texts), !.
 
-print_stmt_empty(empty, T306) :- flatten([[';']], T306).
+print_stmt_empty(empty, T315) :- flatten([[';']], T315).
 print_stmt(T, Texts) :- print_stmt_empty(T, Texts), !.
 
-print_stmt_run(run, T308) :- flatten([['run'], [';']], T308).
+print_stmt_run(run, T317) :- flatten([['run'], [';']], T317).
 print_stmt(T, Texts) :- print_stmt_run(T, Texts), !.
 
-print_stmt_quit(quit, T310) :- flatten([['quit'], [';']], T310).
+print_stmt_quit(quit, T319) :- flatten([['quit'], [';']], T319).
 print_stmt(T, Texts) :- print_stmt_quit(T, Texts), !.
 
 % ---- statement auxiliaries (print) ----
@@ -427,11 +433,11 @@ grp_10(fmt(Name212), T213) :- flatten([[Name212], ['.']], T213).
 cl_11_item(V221, T223) :- print_rule_length_var(V221, T222), flatten([T222], T223).
 cl_11([X], Texts) :- !, cl_11_item(X, Texts).
 cl_11([X|Xs], Texts) :- cl_11_item(X, TX), cl_11(Xs, TXs), flatten([TX, TXs], Texts).
-grp_13(src(Ds259,O262), T264) :- print_rule_dsname(Ds259, T260), ( O262=some(Flag261) -> flatten([['('], ['in'], ['='], [Flag261], [')']], T263) ; T263=[] ), flatten([T260, T263], T264).
-cl_12_item(G266, T268) :- grp_13(G266, T267), flatten([T267], T268).
+grp_13(src(Ds268,O271), T273) :- print_rule_dsname(Ds268, T269), ( O271=some(Flag270) -> flatten([['('], ['in'], ['='], [Flag270], [')']], T272) ; T272=[] ), flatten([T269, T272], T273).
+cl_12_item(G275, T277) :- grp_13(G275, T276), flatten([T276], T277).
 cl_12([X], Texts) :- !, cl_12_item(X, Texts).
 cl_12([X|Xs], Texts) :- cl_12_item(X, TX), cl_12(Xs, TXs), flatten([TX, TXs], Texts).
-cl_14_item(K275, T276) :- flatten([[K275]], T276).
+cl_14_item(K284, T285) :- flatten([[K284]], T285).
 cl_14([X], Texts) :- !, cl_14_item(X, Texts).
 cl_14([X|Xs], Texts) :- cl_14_item(X, TX), cl_14(Xs, TXs), flatten([TX, TXs], Texts).
 

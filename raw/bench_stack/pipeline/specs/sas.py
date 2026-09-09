@@ -33,6 +33,7 @@ Term vocabulary (what node/4 holds — read this once, the terms then read thems
         From  = table(ds(..), none|some(Alias)) | subquery(select_core(..), none|some(Alias))
         JoinOpt = none | some(left_join(Src,On)) | some(inner_join(Src,On))   -- at most one JOIN
     length([clen(Var,N)|nlen(Var,N)])   LENGTH var $ n ... — storage length
+    infile(Dlm)                    INFILE DATALINES DSD DLM='delim' TRUNCOVER
     empty                          a lone `;`
     run | quit
     Expressions: col(N), lit(V), star, missing (a lone `.`), call(Name, [Args]), paren(E),
@@ -71,6 +72,12 @@ KEYWORDS = [
     # corpus never writes a bare JOIN), CASE/WHEN/THEN.../END, and LENGTH —
     # PROC SQL's trailing `AS alias LENGTH=n` on one SELECT-list item.
     "left", "inner", "case", "when", "else", "end", "length",
+    # task 5b, infile family: INFILE DATALINES DSD DLM='delim' TRUNCOVER —
+    # note DATALINES here is a plain keyword read from the WORD side; the
+    # dedicated `datalines` tokeniser LEAF (LEAVES above) only fires when
+    # the word is immediately followed by `;`, which is not the case inside
+    # this option line, so the two never collide.
+    "infile", "dsd", "dlm", "truncover", "datalines",
 ]
 
 # ------------------------------------------------------ expression ladder
@@ -234,6 +241,12 @@ STATEMENTS = [
     # bare numeric), though every occurrence in this corpus is char.
     statement("length", kw("LENGTH"), sep_list("vars", [], rule_ref("v", "length_var"), min=1),
               doc="LENGTH var $ n [var $ n | var n ...] — declares variable storage length"),
+    # task 5b: INFILE DATALINES DSD DLM='delim' TRUNCOVER — every occurrence
+    # in this corpus (8 of them) is this exact fixed shape, read straight off
+    # the following DATALINES block; DLM's delimiter is the one piece of
+    # real data (captured through expr so its literal round-trips).
+    statement("infile", kw("INFILE"), kw("DATALINES"), kw("DSD"), kw("DLM"), sym("="), expr("dlm"), kw("TRUNCOVER"),
+              doc="INFILE DATALINES DSD DLM='delim' TRUNCOVER"),
     statement("datalines", raw("rows", "datalines"), doc="DATALINES; rows ;"),
     statement("set", kw("SET"), rule_ref("in", "dsname"), doc="SET lib.ds"),
     statement("subset_if", kw("IF"), expr("cond"), doc="a subsetting IF: keep the row when cond is true"),
