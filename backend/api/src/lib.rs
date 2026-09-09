@@ -71,20 +71,24 @@ pub fn app(state: AppState) -> Router {
 
 /// A throwaway store for tests: a fresh DuckDB file under the OS temp dir, unique per
 /// call so parallel test binaries never collide, opened with the same DDL `main` runs
-/// against the real store, and seeded with the 25-file `ankitha` corpus (the exact
-/// corpus `tools/diff_route.py`'s `ankitha` route checks against). Oracle addresses are
-/// the same defaults `main` uses; nothing landed so far dials them, and a test that needs
-/// `oracle::forward` is free to point elsewhere.
+/// against the real store, and seeded from `corpus/team_finance/` — the corpus root, not
+/// a single language subfolder. `inferred_duckdb::convert` sets each file's `fileid` to
+/// its path relative to the seeded folder, so seeding the root yields fileids of the form
+/// `sas/raw/<name>.sas`, and `collect_sas`'s `.sas`-only filter skips the `.hql` files
+/// under `hive/raw` and every `.py` under the later `auto_convert`/`work`/`final_match`
+/// stages — the store still ends up with exactly the 25 raw SAS files. Oracle addresses
+/// are the same defaults `main` uses; nothing landed so far dials them, and a test that
+/// needs `oracle::forward` is free to point elsewhere.
 ///
 /// **Why seeded, not empty.** `support::get`/`post` (`tests/support/mod.rs`) each call
 /// this function fresh and drive the router they build from it — there is no way for a
 /// test to reach into that router's state and convert a corpus into it first. Task 6's
-/// own brief writes `get("/api/neighborhood?file=ankitha_1%2F11_branch_rollup.sas&up=1
+/// own brief writes `get("/api/neighborhood?file=sas%2Fraw%2F11_branch_rollup.sas&up=1
 /// &down=1")` with no setup step of its own and expects real data back, so the seeding has
 /// to live here for every route task from this one on to have anything to answer with.
-/// Only `ankitha`: it is what `files`/`search`/`neighborhood`/`blocklinks`/`edges` (Tasks
-/// 5–7) are checked against, and it converts in well under 100 ms. The `exp42` corpus
-/// routes need (Tasks 8–10) include `big_2000.sas`; converting that on every single
+/// Only `team_finance`: it is what `files`/`search`/`neighborhood`/`blocklinks`/`edges`
+/// (Tasks 5–7) are checked against, and it converts in well under 100 ms. The `exp42`
+/// corpus routes need (Tasks 8–10) include `big_2000.sas`; converting that on every single
 /// `get()`/`post()` call — one per assertion, not per test file — would make every later
 /// test suite slow for no benefit to this one. Whichever of those tasks needs `exp42` data
 /// seeds it the same way, here, when it lands.
@@ -108,9 +112,10 @@ pub fn test_state() -> AppState {
     ));
     let folder = std::path::Path::new(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../raw/lineage_server/inputs"
+        "/../../corpus/team_finance"
     ));
-    inferred_duckdb::convert(&mut conn, spec, folder).expect("seed the ankitha corpus into the test store");
+    inferred_duckdb::convert(&mut conn, spec, folder)
+        .expect("seed the team_finance corpus into the test store");
 
     AppState {
         db: std::sync::Arc::new(std::sync::Mutex::new(conn)),

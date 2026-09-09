@@ -5,14 +5,14 @@ use support::get;
 
 #[tokio::test]
 async fn branch_rollup_is_six_files_and_seven_edges() {
-    let r = get("/api/neighborhood?file=ankitha_1%2F11_branch_rollup.sas&up=1&down=1").await;
+    let r = get("/api/neighborhood?file=sas%2Fraw%2F11_branch_rollup.sas&up=1&down=1").await;
     assert_eq!(r["nodes"].as_array().unwrap().len(), 6);
     assert_eq!(r["edges"].as_array().unwrap().len(), 7);
 }
 
 #[tokio::test]
 async fn enrich_fx_is_four_files_and_three_edges() {
-    let r = get("/api/neighborhood?file=ankitha_1%2F07_enrich_fx.sas&up=1&down=1").await;
+    let r = get("/api/neighborhood?file=sas%2Fraw%2F07_enrich_fx.sas&up=1&down=1").await;
     assert_eq!(r["nodes"].as_array().unwrap().len(), 4);
     assert_eq!(r["edges"].as_array().unwrap().len(), 3);
     let roles: Vec<&str> = r["nodes"].as_array().unwrap().iter().map(|n| n["role"].as_str().unwrap()).collect();

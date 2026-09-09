@@ -29,8 +29,9 @@ pub async fn files(State(state): State<AppState>) -> Result<Json<Value>, (Status
     Ok(Json(json!({ "files": rows })))
 }
 
-/// `"ankitha_1/06_seed_fx_rates.sas"` -> `id` unchanged, `label` `"06_seed_fx_rates.sas"`,
-/// `folder` `"ankitha_1"`. A fileid with no `/` (no subfolder) gets an empty folder.
+/// `"sas/raw/06_seed_fx_rates.sas"` -> `id` unchanged, `label` `"06_seed_fx_rates.sas"`,
+/// `folder` `"sas/raw"` (split on the *last* `/`). A fileid with no `/` (no subfolder)
+/// gets an empty folder.
 fn split_fileid(fileid: String) -> FileRow {
     match fileid.rfind('/') {
         Some(i) => FileRow {
@@ -48,9 +49,9 @@ mod tests {
 
     #[test]
     fn splits_folder_and_label() {
-        let r = split_fileid("ankitha_1/06_seed_fx_rates.sas".to_string());
-        assert_eq!(r.id, "ankitha_1/06_seed_fx_rates.sas");
-        assert_eq!(r.folder, "ankitha_1");
+        let r = split_fileid("sas/raw/06_seed_fx_rates.sas".to_string());
+        assert_eq!(r.id, "sas/raw/06_seed_fx_rates.sas");
+        assert_eq!(r.folder, "sas/raw");
         assert_eq!(r.label, "06_seed_fx_rates.sas");
     }
 

@@ -23,7 +23,7 @@ async fn a_table_hit_lists_every_file_it_appears_in() {
     let hits = res["hits"].as_array().unwrap();
     let h = hit(hits, "table", "work.fx_rates").expect("work.fx_rates hit");
     let files: Vec<&str> = h["files"].as_array().unwrap().iter().map(|f| f.as_str().unwrap()).collect();
-    assert_eq!(files, vec!["ankitha_1/06_seed_fx_rates.sas", "ankitha_1/07_enrich_fx.sas"]);
+    assert_eq!(files, vec!["sas/raw/06_seed_fx_rates.sas", "sas/raw/07_enrich_fx.sas"]);
 }
 
 #[tokio::test]
@@ -46,15 +46,15 @@ async fn a_table_hit_unions_edges_and_first_writer() {
     let h = hit(hits, "table", "work.accounts").expect("work.accounts hit via edges");
     let files: Vec<&str> = h["files"].as_array().unwrap().iter().map(|f| f.as_str().unwrap()).collect();
     assert_eq!(files, vec![
-        "ankitha_1/04_build_accounts.sas",
-        "ankitha_1/08_daily_balances.sas",
-        "ankitha_1/09_customer_summary.sas",
-        "ankitha_1/10_product_metrics.sas",
-        "ankitha_1/11_branch_rollup.sas",
-        "ankitha_1/14_large_txn_report.sas",
-        "ankitha_1/15_join_risk_txn.sas",
-        "ankitha_1/22_marketing_list.sas",
-        "ankitha_1/24_ops_alerts.sas",
+        "sas/raw/04_build_accounts.sas",
+        "sas/raw/08_daily_balances.sas",
+        "sas/raw/09_customer_summary.sas",
+        "sas/raw/10_product_metrics.sas",
+        "sas/raw/11_branch_rollup.sas",
+        "sas/raw/14_large_txn_report.sas",
+        "sas/raw/15_join_risk_txn.sas",
+        "sas/raw/22_marketing_list.sas",
+        "sas/raw/24_ops_alerts.sas",
     ]);
 }
 
@@ -63,7 +63,7 @@ async fn a_file_hit_is_shaped_right() {
     let res = get("/api/search?q=fx_rates").await;
     let hits = res["hits"].as_array().unwrap();
     let h = hit(hits, "file", "06_seed_fx_rates.sas").expect("file hit");
-    assert_eq!(h["files"], serde_json::json!(["ankitha_1/06_seed_fx_rates.sas"]));
+    assert_eq!(h["files"], serde_json::json!(["sas/raw/06_seed_fx_rates.sas"]));
 }
 
 #[tokio::test]
