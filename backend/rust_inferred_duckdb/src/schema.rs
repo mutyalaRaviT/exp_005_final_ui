@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS files (
     loc           INTEGER,
     status        VARCHAR,               -- ok | error
     error         VARCHAR,
-    converted_at  TIMESTAMP
+    converted_at  TIMESTAMP,
+    source        VARCHAR                -- the file's full text
 );
 
 CREATE TABLE IF NOT EXISTS blocks (
@@ -30,6 +31,7 @@ CREATE TABLE IF NOT EXISTS blocks (
     py_text   VARCHAR,
     py_pretty VARCHAR,
     warn      BOOLEAN,
+    block_hash VARCHAR,                  -- hash_of(sas_text), so a run can tell if a block changed
     PRIMARY KEY (fileid, block_id)
 );
 
@@ -39,7 +41,9 @@ CREATE TABLE IF NOT EXISTS node4 (
     seq      INTEGER,
     term     VARCHAR,                    -- the node/4 term, printed
     trace_l0 INTEGER,
-    trace_l1 INTEGER
+    trace_l1 INTEGER,
+    trace_b0 INTEGER,                    -- byte offsets of the statement in the source
+    trace_b1 INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS edges (
@@ -88,6 +92,18 @@ CREATE TABLE IF NOT EXISTS events (
     fileid VARCHAR,
     detail VARCHAR
 );
+
+CREATE TABLE IF NOT EXISTS run_tables (
+    fileid VARCHAR, block_id VARCHAR, engine VARCHAR, table_name VARCHAR,
+    verdict VARCHAR,           -- match | match-warn | differs | missing
+    n_mismatch BIGINT, missing_side VARCHAR, at_ts TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS run_samples (
+    fileid VARCHAR, block_id VARCHAR, engine VARCHAR, table_name VARCHAR,
+    n INTEGER,                 -- 0..4, at most five per table
+    row_json VARCHAR, n_left BIGINT, n_right BIGINT
+);
+CREATE TABLE IF NOT EXISTS meta (key VARCHAR PRIMARY KEY, value VARCHAR);
 
 CREATE INDEX IF NOT EXISTS blocks_by_file ON blocks (fileid, n);
 CREATE INDEX IF NOT EXISTS node4_by_block ON node4  (fileid, block_id, seq);

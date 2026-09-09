@@ -53,7 +53,9 @@ pub struct ConvertReport {
 /// changed has its rows deleted before the new ones land.
 pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<ConvertReport> {
     let t_all = Instant::now();
-    let spec: spec::Spec = serde_json::from_str(&std::fs::read_to_string(spec_path)?)?;
+    let spec_text = std::fs::read_to_string(spec_path)?;
+    let spec: spec::Spec = serde_json::from_str(&spec_text)?;
+    let spec_hash = hash_of(&spec_text);
     let mut rep = ConvertReport::default();
 
     let mut sas: Vec<std::path::PathBuf> = Vec::new();
@@ -70,11 +72,17 @@ pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<Co
         let text = std::fs::read_to_string(path)?;
         let hash = hash_of(&text);
 
-        // unchanged? leave it alone
-        let seen: Option<String> = conn
-            .query_row("SELECT hash FROM files WHERE fileid = ?", params![&fileid], |r| r.get(0))
+        // unchanged file AND unchanged spec? leave it alone. If the spec changed, the
+        // grammar that produced the stored rows changed too, so they are stale answers
+        // even though the source file itself didn't move.
+        let seen: Option<(String, String)> = conn
+            .query_row(
+                "SELECT f.hash, coalesce(m.value, '') FROM files f LEFT JOIN meta m ON m.key = 'spec_hash' WHERE f.fileid = ?",
+                params![&fileid],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
             .ok();
-        if seen.as_deref() == Some(hash.as_str()) {
+        if seen.as_ref().map(|(h, s)| h == &hash && s == &spec_hash).unwrap_or(false) {
             rep.ok += 1;
             continue;
         }
@@ -109,6 +117,11 @@ pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<Co
         rep.store_ms += t_store.elapsed().as_secs_f64() * 1000.0;
     }
 
+    // Written unconditionally, even when every file was skipped: if this only ran on a
+    // conversion, the first run after a spec change would store the new hash *and* skip
+    // every file (their file-hashes are unchanged), permanently masking the change.
+    conn.execute("INSERT OR REPLACE INTO meta VALUES ('spec_hash', ?)", params![&spec_hash])?;
+
     rep.total_ms = t_all.elapsed().as_secs_f64() * 1000.0;
     Ok(rep)
 }
@@ -142,7 +155,7 @@ fn hash_of(s: &str) -> String {
 /// One file's fold, held in memory until it is written.
 pub struct Folded {
     pub blocks: Vec<BlockRow>,
-    pub node4: Vec<(String, usize, String, usize, usize)>, // block, seq, term, l0, l1
+    pub node4: Vec<(String, usize, String, usize, usize, usize, usize)>, // block, seq, term, l0, l1, b0, b1
     pub edges: Vec<(String, String, String, String)>,      // src, dst, kind, block
     pub statements: usize,
     pub folded_n: usize,
@@ -178,7 +191,7 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
     let mut nodes: Vec<emit::Node> = Vec::new();
     for (i, st) in stmts.iter().enumerate() {
         let Some(t) = &terms[i] else { continue };
-        node4.push((ids[i].clone(), st.seq, format!("{}", t), st.l0, st.l1));
+        node4.push((ids[i].clone(), st.seq, format!("{}", t), st.l0, st.l1, st.b0, st.b1));
         nodes.push(emit::Node {
             block: ids[i].clone(),
             seq: st.seq,
@@ -296,30 +309,32 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
 
 fn write_file(tx: &duckdb::Transaction, fileid: &str, hash: &str, text: &str, status: &str, err: Option<&String>) -> Res<()> {
     tx.execute(
-        "INSERT INTO files (fileid, hash, loc, status, error, converted_at) VALUES (?,?,?,?,?, now())",
-        params![fileid, hash, text.lines().count() as i32, status, err.map(|s| s.as_str()).unwrap_or("")],
+        "INSERT INTO files (fileid, hash, loc, status, error, converted_at, source) VALUES (?,?,?,?,?, now(), ?)",
+        params![fileid, hash, text.lines().count() as i32, status, err.map(|s| s.as_str()).unwrap_or(""), text],
     )?;
     Ok(())
 }
 
 fn write_blocks(tx: &duckdb::Transaction, fileid: &str, f: &Folded) -> Res<usize> {
     let mut st = tx.prepare(
-        "INSERT INTO blocks (fileid, block_id, n, kind, name, l0, l1, sas_text, py_text, py_pretty, warn)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO blocks (fileid, block_id, n, kind, name, l0, l1, sas_text, py_text, py_pretty, warn, block_hash)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
     )?;
     for b in &f.blocks {
         st.execute(params![
             fileid, b.block_id, b.n as i32, b.kind, b.name,
-            b.l0 as i32, b.l1 as i32, b.sas_text, b.py_text, b.py_pretty, b.warn
+            b.l0 as i32, b.l1 as i32, b.sas_text, b.py_text, b.py_pretty, b.warn, hash_of(&b.sas_text)
         ])?;
     }
     Ok(f.blocks.len())
 }
 
 fn write_node4(tx: &duckdb::Transaction, fileid: &str, f: &Folded) -> Res<usize> {
-    let mut st = tx.prepare("INSERT INTO node4 (fileid, block_id, seq, term, trace_l0, trace_l1) VALUES (?,?,?,?,?,?)")?;
-    for (b, seq, t, l0, l1) in &f.node4 {
-        st.execute(params![fileid, b, *seq as i32, t, *l0 as i32, *l1 as i32])?;
+    let mut st = tx.prepare(
+        "INSERT INTO node4 (fileid, block_id, seq, term, trace_l0, trace_l1, trace_b0, trace_b1) VALUES (?,?,?,?,?,?,?,?)",
+    )?;
+    for (b, seq, t, l0, l1, b0, b1) in &f.node4 {
+        st.execute(params![fileid, b, *seq as i32, t, *l0 as i32, *l1 as i32, *b0 as i32, *b1 as i32])?;
     }
     Ok(f.node4.len())
 }
