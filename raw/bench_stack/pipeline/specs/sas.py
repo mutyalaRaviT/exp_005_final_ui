@@ -251,12 +251,29 @@ RULES = {
             doc="SELECT cols FROM src ([LEFT|INNER] JOIN src ON e)* [WHERE e] [GROUP BY e,...] [HAVING e]",
         ),
     ],
+    # fix round 1 (2026-09-09): `choice(..., default="asc")` cannot round-trip. Choice's
+    # print (gen_prolog.py's Choice case in compile_parts_print) emits the literal keyword
+    # for whatever value the field resolved to, and the zero-token default branch resolves
+    # to THE SAME value ("asc") a real `ASC` keyword would — print cannot tell "the source
+    # wrote ASC" from "the source wrote nothing" once both collapse to one atom, so an
+    # omitted ASC/DESC gets one injected on rebuild (`order by a` -> `order by a asc`,
+    # source-rebuild law broken). No corpus statement caught this — `14_large_txn_report.sas`
+    # is the corpus's only ORDER BY and always writes DESC explicitly — but the bug is
+    # unconditional for a bare `ORDER BY key`, not corpus-specific; see
+    # test_bare_order_by_round_trips (rust_rules_converter/tests) and the fix-round-1
+    # addendum in the task 5c report. Fixed by dropping Choice's own `default=` and
+    # wrapping it in `opt(...)` instead — Opt genuinely preserves presence/absence (some/
+    # none), which a defaulted Choice cannot, and Group already tolerates an Opt inside its
+    # parts (PROJ's own two Opts prove this). `orderby`'s 2nd field is now
+    # `none|some(asc)|some(desc)` instead of a bare atom; this is a SAS-only fix — the
+    # identical latent bug is copied verbatim into pipeline/specs/hive.py's own select_stmt
+    # and is NOT touched here (see the task 5c report for why).
     "select_stmt": [
         rule_alt(
             "select_stmt",
             sep_list("cores", [kw("UNION"), kw("ALL")], rule_ref("core", "select_core"), min=1),
             opt(kw("ORDER"), kw("BY"),
-                group("orderby", expr("key"), choice("dir", {"ASC": "asc", "DESC": "desc"}, default="asc"))),
+                group("orderby", expr("key"), opt(choice("dir", {"ASC": "asc", "DESC": "desc"})))),
             opt(kw("LIMIT"), expr("n")),
             doc="select_core (UNION ALL select_core)* [ORDER BY key [ASC|DESC]] [LIMIT n] — "
                 "one ORDER BY key, same as pipeline/specs/hive.py's own select_stmt",

@@ -1276,19 +1276,24 @@
           "kind": "expr"
          },
          {
-          "t": "choice",
-          "field": "dir",
-          "options": [
-           [
-            "ASC",
-            "asc"
-           ],
-           [
-            "DESC",
-            "desc"
-           ]
-          ],
-          "default": "asc"
+          "t": "opt",
+          "parts": [
+           {
+            "t": "choice",
+            "field": "dir",
+            "options": [
+             [
+              "ASC",
+              "asc"
+             ],
+             [
+              "DESC",
+              "desc"
+             ]
+            ],
+            "default": null
+           }
+          ]
          }
         ]
        }
