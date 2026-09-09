@@ -31,18 +31,21 @@ Term vocabulary (what node/4 holds — read this once, the terms then read thems
     create_table_as(ds(..), select_stmt([select_core(Cols, From, Joins, WhereOpt, GroupByOpt, HavingOpt) ...], OrderByOpt, LimitOpt))
         Cols  = [proj(Expr, none|some(Alias), none|some(Length)) ...]
         From  = table(ds(..), none|some(Alias)) | subquery(select_core(..), none|some(Alias))
-        Joins = [left_join(Src,On) | inner_join(Src,On) ...]   -- task 5c: ZERO OR MORE
-            joins, source order, no separator token (each alternative leads with its own
-            LEFT/INNER keyword) — was `none | some(...)` (at most one) through task 5b;
-            widened because every remaining fold failure in the ankitha corpus was a
-            multi-JOIN create_table_as (see the note at select_core's RULES entry below).
+        Joins = [left_join(Src,On) | inner_join(Src,On) | cross_join(Src) ...]   -- task 5c:
+            ZERO OR MORE joins, source order, no separator token (each alternative leads
+            with its own LEFT/INNER/CROSS keyword) — was `none | some(...)` (at most one)
+            through task 5b; widened because every remaining fold failure in the ankitha
+            corpus was a multi-JOIN create_table_as (see the note at select_core's RULES
+            entry below). task 5d added cross_join/1 (no ON clause, unlike the other two).
     length([clen(Var,N)|nlen(Var,N)])   LENGTH var $ n ... — storage length
     infile(Dlm)                    INFILE DATALINES DSD DLM='delim' TRUNCOVER
     assign(Var, Val)                var = expr — a DATA-step assignment
     output                          OUTPUT — writes the current PDV row
     empty                          a lone `;`
     run | quit
-    Expressions: col(N), lit(V), star, missing (a lone `.`), call(Name, [Args]), paren(E),
+    Expressions: col(N), lit(V), star, star(Alias) (task 5d: a qualified star `a.*`,
+        arity 1 — overloads bare star/0 by arity, same as col/1 vs col/2), missing
+        (a lone `.`), call(Name, [Args]), paren(E),
         case_expr([when(Cond,Then)...], none|some(Else)), subquery_expr(select_core(..)),
         neg/1, mul/div/add/sub/cat, eq/ne/lt/le/gt/ge, in(E, [..]), not/1, and/or,
         distinct/1 (task 5c: COUNT(DISTINCT x) — DISTINCT prefixes an expr, same
@@ -81,6 +84,9 @@ KEYWORDS = [
     # corpus never writes a bare JOIN), CASE/WHEN/THEN.../END, and LENGTH —
     # PROC SQL's trailing `AS alias LENGTH=n` on one SELECT-list item.
     "left", "inner", "case", "when", "else", "end", "length",
+    # task 5d: CROSS JOIN — 17_compliance_check.sas's `cross join work.audit_log a`
+    # has no ON clause at all.
+    "cross",
     # task 5b, infile family: INFILE DATALINES DSD DLM='delim' TRUNCOVER —
     # note DATALINES here is a plain keyword read from the WORD side; the
     # dedicated `datalines` tokeniser LEAF (LEAVES above) only fires when
@@ -125,6 +131,20 @@ EXPR_LADDER = ladder(
 
 STAR_FORM = parts_form("star", sym("*"), doc="the bare `*` in SELECT * / COUNT(*)")
 
+# task 5d: a qualified star (`a.*`) — 04_build_accounts.sas's 2nd block writes
+# `select a.*, c.segment, p.prod_type from work.accounts_raw a inner join ...`
+# and this was the whole reason that statement never folded (confirmed: the
+# unqualified STAR_FORM above already worked fine on its own). Same functor
+# name as the bare star ("star") but arity 1 (`star(Alias)`), the identical
+# overloading `col` already uses for bare `col(N)` (arity 1, EXPR_LEAVES'
+# word leaf) vs qualified `col(Alias,N)` (arity 2, the "col" form below) — not
+# a new pattern, a second use of one this same file already relies on. Built
+# with parts_form (not the fixed shape-string `form()` vocabulary, which has
+# no "ID . *" entry) the same way CASE_FORM/STAR_FORM themselves are built.
+QSTAR_FORM = parts_form("star", ident("alias"), sym("."), sym("*"),
+                         doc="a qualified star: alias.* -> star(Alias), arity 1 "
+                             "(overloads the bare star/0 above by arity, like col/1 vs col/2)")
+
 # task 5b (2026-09-09): CASE WHEN ... END, same shape hive.py already proved
 # (pipeline/specs/hive.py's CASE_WHEN/CASE_FORM) — copied here, not re-derived,
 # since 13_risk_flags.sas and 17_compliance_check.sas both need it:
@@ -148,6 +168,7 @@ MISSING_FORM = parts_form("missing", sym("."), doc="a lone `.` — the SAS numer
 EXPR_FORMS = [
     CASE_FORM,
     MISSING_FORM,
+    QSTAR_FORM,
     STAR_FORM,
     form("paren", "( E )", doc="a source parenthesis, kept in the term"),
     form("call", "ID ( ARGS )", doc="function or aggregate call: MONTH(date), SUM(x), AVG(x), MAX(x), MIN(x)"),
@@ -223,21 +244,25 @@ RULES = {
     # writes a bare JOIN, that alternative would be untested AND unsound, so
     # it is left out rather than added on faith.
     #
-    # CROSS JOIN (17_compliance_check.sas, the one remaining fold failure
-    # after this task) is still deliberately NOT one of these alternatives:
-    # SAS/this corpus writes it with no ON clause at all, so it needs an
-    # ARITY-1 term (cross_join(Src)) in the list, not arity-2 — every
-    # consumer above reads J.args()[0]/[1] unconditionally once it sees a
-    # list item, so an arity-1 item would panic, not silently misbehave.
-    # Teaching those four Rust functions (and their four Prolog mirrors) to
-    # branch on J's arity before indexing it is a real fix, but a separate
-    # one from "the list can now hold more than one item" — out of scope
-    # here; see the task 5c report.
+    # CROSS JOIN (17_compliance_check.sas — task 5c's one remaining fold
+    # failure besides the qualified star) is an ARITY-1 term (cross_join(Src))
+    # in the list, not arity-2: SAS/this corpus writes it with no ON clause at
+    # all. Every one of the four consumers (lineage.rs, interp.rs, emit.rs,
+    # emit_pretty.rs — and their four Prolog codegen mirrors) used to read
+    # J.args()[0]/[1] unconditionally once it saw a list item; task 5d taught
+    # all eight to branch on J's own arity (len 1 -> cross, len 2 -> ON-based)
+    # before indexing, rather than switch on the functor name — the same
+    # "don't check which alternative, check the shape" discipline the rest of
+    # this engine already uses (e.g. from_ds's own from.functor() match is the
+    # one place that DOES need the name, because table/2 and subquery/2 share
+    # an arity and must be told apart).
     "join_clause": [
         rule_alt("left_join", kw("LEFT"), kw("JOIN"), rule_ref("src", "from_source"), kw("ON"), expr("on"),
                  doc="LEFT JOIN src ON e"),
         rule_alt("inner_join", kw("INNER"), kw("JOIN"), rule_ref("src", "from_source"), kw("ON"), expr("on"),
                  doc="INNER JOIN src ON e"),
+        rule_alt("cross_join", kw("CROSS"), kw("JOIN"), rule_ref("src", "from_source"),
+                 doc="CROSS JOIN src — no ON clause; arity 1, unlike left_join/inner_join's arity 2"),
     ],
     "select_core": [
         rule_alt(

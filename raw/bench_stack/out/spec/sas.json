@@ -49,6 +49,7 @@
   "else",
   "end",
   "length",
+  "cross",
   "infile",
   "dsd",
   "dlm",
@@ -360,6 +361,25 @@
     {
      "t": "sym",
      "text": "."
+    }
+   ]
+  },
+  {
+   "t": "parts",
+   "name": "star",
+   "parts": [
+    {
+     "t": "cap",
+     "field": "alias",
+     "kind": "ident"
+    },
+    {
+     "t": "sym",
+     "text": "."
+    },
+    {
+     "t": "sym",
+     "text": "*"
     }
    ]
   },
@@ -1077,6 +1097,24 @@
       "t": "cap",
       "field": "on",
       "kind": "expr"
+     }
+    ]
+   },
+   {
+    "functor": "cross_join",
+    "parts": [
+     {
+      "t": "kw",
+      "text": "CROSS"
+     },
+     {
+      "t": "kw",
+      "text": "JOIN"
+     },
+     {
+      "t": "rule",
+      "field": "src",
+      "name": "from_source"
      }
     ]
    }
