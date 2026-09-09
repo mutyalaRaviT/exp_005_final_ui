@@ -1,0 +1,11 @@
+macros:
+- sasfilename: ex8_macro_sql.sas
+  sashashcode: ebb67b3cb2cef6c8
+  macroname: load_customers
+  params:
+  - month
+  - mart
+  definition: "proc sql;\n    create table &mart..cust_&month. as\n    select c.id,\
+    \ c.name, r.region_name\n    from &src_lib..customer as c\n    left join &src_lib..region\
+    \ as r\n        on c.region_id = r.id;\nquit;"
+  updated: '2026-08-24'

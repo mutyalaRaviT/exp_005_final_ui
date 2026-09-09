@@ -1,0 +1,6 @@
+parse==1.22.1
+pytest
+sqlglot
+PyYAML
+openpyxl
+duckdb
