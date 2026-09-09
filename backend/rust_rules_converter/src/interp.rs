@@ -31,6 +31,19 @@ pub struct Interp {
 fn lower(s: &str) -> String { s.to_lowercase() }
 fn find<'t>(ts: &[&'t Term], f: &str, ar: usize) -> Option<&'t Term> { ts.iter().find(|t| t.functor() == (f, ar)).copied() }
 fn is_some(t: &Term) -> Option<&Term> { if t.functor() == ("some", 1) { Some(&t.args()[0]) } else { None } }
+/// task 5d: the alias of one from_source (table(Ds,AliasOpt) or
+/// subquery(Core,AliasOpt), both alias in arg position 1) — used to resolve a
+/// qualified star (`a.*`) to the source it names. Same helper as lineage.rs's
+/// own from_alias.
+fn from_alias(from: &Term) -> Option<String> {
+    match from.functor() {
+        ("table", 2) | ("subquery", 2) => {
+            let al = &from.args()[1];
+            if al.functor() == ("some", 1) { Some(lower(al.args()[0].atom_text())) } else { None }
+        }
+        _ => None,
+    }
+}
 /// task 5c: list_to_set/2 over Value, first-seen order — used by COUNT(DISTINCT x).
 fn dedup_values(xs: Vec<Value>) -> Vec<Value> {
     let mut out: Vec<Value> = Vec::new();
@@ -151,13 +164,24 @@ impl Interp {
     // one) — fold every join through the running dataset left to right. This
     // interpreter never distinguished LEFT from INNER (both always did an
     // inner_join); that pre-existing simplification is unchanged by this task.
+    // task 5d: `alias_cols` (alias -> that source's own column names, in its
+    // own order) is built alongside `din` as each source is folded in — the
+    // lookup a qualified star (`a.*`) needs (project()/out_cols(), below) to
+    // know which of `din`'s now-combined columns came from source `a`. A
+    // join whose own arity is 1 (cross_join(Src): no ON) does a cross_join
+    // (cartesian product, no filter) instead of inner_join — arity decides
+    // this, not the functor name, matching the Prolog mirror
+    // (codegen/sas_interp.pl's select_core/3, same task).
     fn select_core(&self, core: &Term) -> Dataset {
         let a = core.args();
         let (projs, from, joins, wh, group, having) = (a[0].list(), &a[1], a[2].list(), &a[3], &a[4], &a[5]);
         let mut din = self.from_rows(from);
+        let mut alias_cols: HashMap<String, Vec<String>> = HashMap::new();
+        if let Some(al) = from_alias(from) { alias_cols.insert(al, din.cols.iter().map(|c| c.name.clone()).collect()); }
         for j in joins {
             let d1 = self.from_rows(&j.args()[0]);
-            din = self.inner_join(&din, &d1, &j.args()[1]);
+            if let Some(al) = from_alias(&j.args()[0]) { alias_cols.insert(al, d1.cols.iter().map(|c| c.name.clone()).collect()); }
+            din = if j.args().len() > 1 { self.inner_join(&din, &d1, &j.args()[1]) } else { self.cross_join(&din, &d1) };
         }
         let rw: Vec<Vec<Value>> = match is_some(wh) {
             Some(w) => din.rows.iter().filter(|r| self.row_passes(&din.cols, &[w], r)).cloned().collect(),
@@ -168,10 +192,10 @@ impl Interp {
             None => if has_agg(projs) { Some(vec![rw.clone()]) } else { None },
         };
         let rows0: Vec<Vec<Value>> = match groups {
-            None => rw.iter().map(|r| self.project(projs, &din.cols, std::slice::from_ref(r))).collect(),
-            Some(gs) => gs.iter().map(|g| self.project(projs, &din.cols, g)).collect(),
+            None => rw.iter().map(|r| self.project(projs, &din.cols, &alias_cols, std::slice::from_ref(r))).collect(),
+            Some(gs) => gs.iter().map(|g| self.project(projs, &din.cols, &alias_cols, g)).collect(),
         };
-        let cols = out_cols(projs, &din.cols);
+        let cols = out_cols(projs, &din.cols, &alias_cols);
         let rows = match is_some(having) {
             Some(h) => rows0.into_iter().filter(|r| self.row_passes(&cols, &[h], r)).collect(),
             None => rows0,
@@ -197,6 +221,17 @@ impl Interp {
         Dataset { cols, rows }
     }
 
+    /// task 5d: CROSS JOIN — the cartesian product, no ON filter at all.
+    fn cross_join(&self, d0: &Dataset, d1: &Dataset) -> Dataset {
+        let mut cols = d0.cols.clone(); cols.extend(d1.cols.clone());
+        let mut rows = Vec::new();
+        for a in &d0.rows { for b in &d1.rows {
+            let mut row = a.clone(); row.extend(b.clone());
+            rows.push(row);
+        } }
+        Dataset { cols, rows }
+    }
+
     /// group_rows/4: groups in first-seen key order
     fn group_rows(&self, keys: &[Term], cols: &[Col], rows: &[Vec<Value>]) -> Vec<Vec<Vec<Value>>> {
         let mut kvs: Vec<Vec<Value>> = Vec::new();
@@ -212,11 +247,25 @@ impl Interp {
     }
 
     /// project/4 + proj_values/4
-    fn project(&self, projs: &[Term], cols: &[Col], group: &[Vec<Value>]) -> Vec<Value> {
+    // task 5d: `alias_cols` resolves a qualified star (`a.*`) to the ordered
+    // subset of `cols`/`group[0]` that source `a` contributed — falls back to
+    // the whole joined row if the alias is somehow unresolved (defensive,
+    // same choice lineage.rs's proj_lineage makes; should not happen, every
+    // alias here was just read off From/Joins by select_core itself).
+    fn project(&self, projs: &[Term], cols: &[Col], alias_cols: &HashMap<String, Vec<String>>, group: &[Vec<Value>]) -> Vec<Value> {
         let mut row = Vec::new();
         for p in projs {
             let e = &p.args()[0];
             if e.functor() == ("star", 0) { row.extend(group[0].clone()); }
+            else if e.functor() == ("star", 1) {
+                let al = lower(e.args()[0].atom_text());
+                match alias_cols.get(&al) {
+                    Some(names) => for n in names {
+                        if let Some(idx) = cols.iter().position(|c| &c.name == n) { row.push(group[0][idx].clone()); }
+                    },
+                    None => row.extend(group[0].clone()),
+                }
+            }
             else if is_agg(e) {
                 let name = lower(e.args()[0].atom_text());
                 let arg0 = &e.args()[1].list()[0];
@@ -347,11 +396,24 @@ fn is_agg(e: &Term) -> bool {
 }
 
 /// out_cols/3 + out_col/4 + expr_type/3
-fn out_cols(projs: &[Term], cols: &[Col]) -> Vec<Col> {
+// task 5d: `alias_cols` mirrors project()'s own use of it — a qualified star
+// (`a.*`) contributes exactly the Col entries `cols` already has for source
+// `a`'s own columns (order preserved), so the schema this returns stays in
+// lockstep with the row values project() actually pushes.
+fn out_cols(projs: &[Term], cols: &[Col], alias_cols: &HashMap<String, Vec<String>>) -> Vec<Col> {
     let mut out = Vec::new();
     for p in projs {
         let (e, a) = (&p.args()[0], &p.args()[1]);
         if e.functor() == ("star", 0) && a.functor() == ("none", 0) { out.extend(cols.iter().cloned()); }
+        else if e.functor() == ("star", 1) && a.functor() == ("none", 0) {
+            let al = lower(e.args()[0].atom_text());
+            match alias_cols.get(&al) {
+                Some(names) => for n in names {
+                    if let Some(c) = cols.iter().find(|c| &c.name == n) { out.push(c.clone()); }
+                },
+                None => out.extend(cols.iter().cloned()),
+            }
+        }
         else if let Some(alias) = is_some(a) { out.push(Col { name: lower(alias.atom_text()), ty: expr_type(e, cols) }); }
         else if e.functor() == ("col", 1) {
             let name = lower(e.args()[0].atom_text());

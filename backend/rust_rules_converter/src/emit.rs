@@ -48,6 +48,17 @@ fn some_arg(t: &Term) -> Option<&Term> {
     match t.functor() { ("some", 1) => Some(&t.args()[0]), _ => None }
 }
 
+/// task 5d: the alias of one from_source (table(Ds,AliasOpt) or
+/// subquery(Core,AliasOpt), both alias in arg position 1) — used to resolve a
+/// qualified star (`a.*`), same helper as lineage.rs's/interp.rs's own
+/// from_alias.
+fn from_source_alias(from: &Term) -> Option<String> {
+    match from.functor() {
+        ("table", 2) | ("subquery", 2) => some_arg(&from.args()[1]).map(|a| a.atom_text().to_lowercase()),
+        _ => None,
+    }
+}
+
 impl Emitter {
     pub fn new() -> Self { Emitter { schema: HashMap::new(), scalar_n: 0 } }
 
@@ -207,15 +218,21 @@ impl Emitter {
     // task 5c: `joins` is a Prolog LIST now (was `join: some(J)|none`) — one
     // `.join(...)` per item, source order; still hardcoded "inner" (this
     // pre-existing simplification — never reading left_join vs inner_join's
-    // own functor for the join TYPE — is unchanged by this task).
+    // own functor for the join TYPE — is unchanged by this task). task 5d:
+    // a join whose own arity is 1 (cross_join(Src): no ON) renders
+    // `.crossJoin(src)` instead — arity decides this, not the functor name.
     fn core_chain(&mut self, core: &Term, pre: &mut Vec<String>) -> String {
         let a = core.args();
         let (cols, from, joins, where_, group, having) = (&a[0], &a[1], a[2].list(), &a[3], &a[4], &a[5]);
         let mut s = self.from_txt(from, pre);
         for j in joins {
             let src = self.from_txt(&j.args()[0], pre);
-            let on = self.px(&j.args()[1], pre);
-            s.push_str(&format!(".join({}, {}, \"inner\")", src, on));
+            if j.args().len() > 1 {
+                let on = self.px(&j.args()[1], pre);
+                s.push_str(&format!(".join({}, {}, \"inner\")", src, on));
+            } else {
+                s.push_str(&format!(".crossJoin({})", src));
+            }
         }
         if let Some(c) = some_arg(where_) { let x = self.px(c, pre); s.push_str(&format!(".filter({})", x)); }
         s.push_str(&self.select_txt(cols.list(), group, pre));
@@ -246,6 +263,12 @@ impl Emitter {
     fn proj_txt(&mut self, p: &Term, pre: &mut Vec<String>) -> String {
         let (e, alias) = (&p.args()[0], &p.args()[1]);
         if e.functor() == ("star", 0) && alias.functor() == ("none", 0) { return "F.col(\"*\")".into(); }
+        // task 5d: a qualified star (`a.*`) — Spark's own `"alias.*"` column
+        // string expands to every column of that aliased source, so this is
+        // the direct analogue of the bare-star arm just above.
+        if e.functor() == ("star", 1) && alias.functor() == ("none", 0) {
+            return format!("F.col(\"{}.*\")", lower(e.args()[0].atom_text()));
+        }
         let x = self.px(e, pre);
         match some_arg(alias) { Some(a) => format!("{}.alias(\"{}\")", x, lower(a.atom_text())), None => x }
     }
@@ -253,8 +276,12 @@ impl Emitter {
     fn select_txt(&mut self, cols: &[Term], group: &Term, pre: &mut Vec<String>) -> String {
         match some_arg(group) {
             None => {
-                if cols.len() == 1 && cols[0].args()[0].functor() == ("star", 0) && cols[0].args()[1].functor() == ("none", 0) {
-                    return ".select(\"*\")".into();
+                if cols.len() == 1 && cols[0].args()[1].functor() == ("none", 0) {
+                    match cols[0].args()[0].functor() {
+                        ("star", 0) => return ".select(\"*\")".into(),
+                        ("star", 1) => return format!(".select(\"{}.*\")", lower(cols[0].args()[0].args()[0].atom_text())),
+                        _ => {}
+                    }
                 }
                 let any_agg = cols.iter().any(|p| is_agg(&p.args()[0]));
                 let ts: Vec<String> = cols.iter().map(|p| self.proj_txt(p, pre)).collect();
@@ -288,10 +315,33 @@ impl Emitter {
                     }
                     out.push("_auto".into());
                 }
+                // task 5d: a qualified star (`a.*`) — same lookup as the bare
+                // star above, but resolved against whichever of FROM/JOINs
+                // carries alias `a`, not always FROM itself.
+                ("star", 1) => {
+                    let al = lower(e.args()[0].atom_text());
+                    if let Some(cols) = self.alias_schema(core, &al) { out.extend(cols); continue; }
+                    out.push("_auto".into());
+                }
                 _ => out.push("_auto".into()),
             }
         }
         out
+    }
+
+    /// task 5d: the schema of whichever from_source (FROM itself, or one of
+    /// its JOINs) carries alias `al` — None if unresolved or not a plain
+    /// table (a subquery's own columns are not tracked in self.schema here).
+    fn alias_schema(&self, core: &Term, al: &str) -> Option<Vec<String>> {
+        let from = &core.args()[1];
+        if from_source_alias(from) == Some(al.to_string()) { return self.table_schema(from); }
+        for j in core.args()[2].list() {
+            if from_source_alias(&j.args()[0]) == Some(al.to_string()) { return self.table_schema(&j.args()[0]); }
+        }
+        None
+    }
+    fn table_schema(&self, from: &Term) -> Option<Vec<String>> {
+        if from.functor() == ("table", 2) { self.schema.get(&ds_key(&from.args()[0])).cloned() } else { None }
     }
 
     // ----------------------------------------------------------- expressions
@@ -303,6 +353,7 @@ impl Emitter {
             ("col", 2) => format!("F.col(\"{}.{}\")", lower(a[0].atom_text()), lower(a[1].atom_text())),
             ("lit", 1) => if a[0].is_number() { format!("F.lit({})", a[0]) } else { format!("F.lit({})", py_str(a[0].atom_text())) },
             ("star", 0) => "F.col(\"*\")".into(),
+            ("star", 1) => format!("F.col(\"{}.*\")", lower(a[0].atom_text())),
             ("paren", 1) => format!("({})", self.px(&a[0], pre)),
             ("neg", 1) => format!("(-{})", self.px(&a[0], pre)),
             ("not", 1) => format!("(~{})", self.px(&a[0], pre)),

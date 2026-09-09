@@ -28,24 +28,25 @@ async fn a_table_hit_lists_every_file_it_appears_in() {
 
 #[tokio::test]
 async fn a_table_hit_unions_edges_and_first_writer() {
-    // work.accounts is never the target of a successfully-folded CREATE TABLE AS in this
-    // corpus (04_build_accounts.sas's second block reads `a.*`, a qualified star — out of
-    // scope for task 5c, same as CROSS JOIN; see the Task 5c report), so work.accounts is
-    // absent from `tables` entirely — its only trace is as `src_table` in the edges the
-    // readers of work.accounts record. Task 5b's LEFT/INNER JOIN support (capped at one
-    // JOIN per statement) got four of those readers folding (08_daily_balances.sas,
-    // 09_customer_summary.sas, 10_product_metrics.sas, 14_large_txn_report.sas). Task 5c
-    // lifted that cap to zero-or-more JOINs per statement, which folds four more —
-    // 11_branch_rollup.sas (2 JOINs, phase 2's pass mark 1), 15_join_risk_txn.sas (2),
-    // 22_marketing_list.sas (2), 24_ops_alerts.sas (3, the corpus's deepest JOIN chain) —
-    // so this hit's `files` grows to all eight. `first_writer_fileid` alone (the brief's
-    // warning) would have missed all of them; this is still the case that proves `edges` is
+    // work.accounts's writer, 04_build_accounts.sas's second block (`select a.*, c.segment,
+    // p.prod_type from work.accounts_raw a inner join ...`), needed qualified-star support
+    // (`a.*`) to fold — task 5d (root cause A). Before that it was absent from `tables`
+    // entirely; its only trace was as `src_table` in the edges its readers record. Task 5b's
+    // LEFT/INNER JOIN support (capped at one JOIN per statement) got four of those readers
+    // folding (08_daily_balances.sas, 09_customer_summary.sas, 10_product_metrics.sas,
+    // 14_large_txn_report.sas). Task 5c lifted that cap to zero-or-more JOINs per statement,
+    // which folded four more (11_branch_rollup.sas, phase 2's pass mark 1, plus
+    // 15_join_risk_txn.sas, 22_marketing_list.sas, 24_ops_alerts.sas). Task 5d's qualified
+    // star adds the writer itself, 04_build_accounts.sas, sorted first alphabetically — nine
+    // files total. `first_writer_fileid` alone (the original brief's warning) would still
+    // have missed the eight readers; this remains the case that proves `edges` is
     // load-bearing here, not `tables` alone.
     let res = get("/api/search?q=work.accounts").await;
     let hits = res["hits"].as_array().unwrap();
     let h = hit(hits, "table", "work.accounts").expect("work.accounts hit via edges");
     let files: Vec<&str> = h["files"].as_array().unwrap().iter().map(|f| f.as_str().unwrap()).collect();
     assert_eq!(files, vec![
+        "ankitha_1/04_build_accounts.sas",
         "ankitha_1/08_daily_balances.sas",
         "ankitha_1/09_customer_summary.sas",
         "ankitha_1/10_product_metrics.sas",

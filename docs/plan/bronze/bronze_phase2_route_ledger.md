@@ -40,298 +40,11 @@ divergences`: a count with a link into the table below, or `—` if none.
 
 | question | fileid | json_path | why the parser is right |
 |---|---|---|---|
-| neighborhood | ankitha_1/01_seed_customers.sas | edges[missing:2f0ba09c8fa5] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | edges[missing:b67b2c9dd4fc] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | order.ankitha_1/09_customer_summary.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | order.ankitha_1/09_customer_summary.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | story[0] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/01_seed_customers.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | edges[missing:f94520730874] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | edges[missing:ef028b456b91] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | edges[missing:a6f73d390b0a] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | nodes[2].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | nodes[2].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | nodes[2].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | order.ankitha_1/10_product_metrics.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | order.ankitha_1/10_product_metrics.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | order.ankitha_1/22_marketing_list.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | order.ankitha_1/22_marketing_list.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | story[0] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/02_seed_products.sas | story[2] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:2f0ba09c8fa5] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:f94520730874] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:141364a4d43d] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:6abe41e47267] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:b67b2c9dd4fc] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:7d120f9c91d1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:ef028b456b91] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:69d89a46dd2f] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:6d735a245714] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:5ce541e692db] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:40b28f116238] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:297a2516bbb8] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:a6f73d390b0a] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:862816983e19] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | edges[missing:22e966836506] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | nodes[0].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | nodes[0].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | nodes[0].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/01_seed_customers.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/02_seed_products.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/04_build_accounts.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/04_build_accounts.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/08_daily_balances.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/09_customer_summary.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/10_product_metrics.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/11_branch_rollup.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/14_large_txn_report.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/15_join_risk_txn.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/22_marketing_list.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | order.ankitha_1/24_ops_alerts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/04_build_accounts.sas | story[0] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | edges[missing:141364a4d43d] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | edges[missing:69d89a46dd2f] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes[0].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes[0].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes[0].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes[1].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes[2].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes[2].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | nodes[2].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | order.ankitha_1/08_daily_balances.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | order.ankitha_1/08_daily_balances.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | order.ankitha_1/11_branch_rollup.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | order.ankitha_1/11_branch_rollup.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | order.ankitha_1/13_risk_flags.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | order.ankitha_1/13_risk_flags.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | story[0] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/08_daily_balances.sas | story[2] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | edges[missing:2f0ba09c8fa5] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | edges[missing:b67b2c9dd4fc] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | edges[missing:73ea1f793b30] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes[1].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes[2].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes[2].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes[2].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes[3].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes[3].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | nodes[3].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | order.ankitha_1/09_customer_summary.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | order.ankitha_1/09_customer_summary.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | order.ankitha_1/13_risk_flags.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | order.ankitha_1/13_risk_flags.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | order.ankitha_1/18_dashboard_mart.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | order.ankitha_1/21_crm_overlay.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | order.ankitha_1/21_crm_overlay.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | story[2] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/09_customer_summary.sas | story[3] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | edges[missing:f94520730874] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | edges[missing:ef028b456b91] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | edges[missing:92bbf41c14da] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | nodes[1].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | order.ankitha_1/10_product_metrics.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | order.ankitha_1/10_product_metrics.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | order.ankitha_1/18_dashboard_mart.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/10_product_metrics.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | edges[missing:141364a4d43d] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | edges[missing:69d89a46dd2f] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | edges[missing:862816983e19] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[2].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[2].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[2].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[3].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[3].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[3].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[4].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[4].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | nodes[4].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | order.ankitha_1/08_daily_balances.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | order.ankitha_1/08_daily_balances.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | order.ankitha_1/11_branch_rollup.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | order.ankitha_1/11_branch_rollup.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | order.ankitha_1/18_dashboard_mart.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | order.ankitha_1/18_dashboard_mart.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | order.ankitha_1/24_ops_alerts.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | order.ankitha_1/24_ops_alerts.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | story[2] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | story[3] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/11_branch_rollup.sas | story[4] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | edges[missing:5ce541e692db] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | edges[missing:d487659f786e] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | nodes[0].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | nodes[0].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | nodes[1].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | nodes[1].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | order.ankitha_1/14_large_txn_report.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | order.ankitha_1/18_dashboard_mart.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | story[0] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/14_large_txn_report.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | edges[missing:40b28f116238] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | edges[missing:e109d651fd3f] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | nodes[0].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | nodes[0].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | nodes[2].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | nodes[2].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | nodes[2].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | nodes[2].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | order.ankitha_1/15_join_risk_txn.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | order.ankitha_1/17_compliance_check.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | story[0] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/15_join_risk_txn.sas | story[2] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/16_audit_log.sas | edges[missing:9a0690a9fc51] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/16_audit_log.sas | nodes.length | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/16_audit_log.sas | order.ankitha_1/17_compliance_check.sas | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/16_audit_log.sas | story.length | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/16_audit_log.sas | story[0] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | edges[missing:e109d651fd3f] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | edges[missing:9a0690a9fc51] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | edges[missing:edd588c241eb] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | nodes.length | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | nodes[0].id | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | nodes[0].label | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | nodes[0].role | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | order.ankitha_1/15_join_risk_txn.sas | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | order.ankitha_1/16_audit_log.sas | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | order.ankitha_1/17_compliance_check.sas.reasoning | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | order.ankitha_1/17_compliance_check.sas.score | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | order.ankitha_1/25_final_pack.sas | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | story.length | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/17_compliance_check.sas | story[0] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | edges[missing:73ea1f793b30] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | edges[missing:92bbf41c14da] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | edges[missing:d487659f786e] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | edges[missing:7a55636af01a] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[0].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[0].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[1].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[1].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[2].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[2].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[2].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | nodes[2].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | order.ankitha_1/09_customer_summary.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | order.ankitha_1/10_product_metrics.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | order.ankitha_1/14_large_txn_report.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | order.ankitha_1/18_dashboard_mart.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | order.ankitha_1/25_final_pack.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | story[0] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/18_dashboard_mart.sas | story[2] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | edges[missing:f94520730874] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | edges[missing:a6f73d390b0a] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | edges[missing:4957c2e67982] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | nodes[1].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | nodes[2].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | nodes[2].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | nodes[2].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | nodes[2].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | order.ankitha_1/22_marketing_list.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | order.ankitha_1/22_marketing_list.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | order.ankitha_1/25_final_pack.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/22_marketing_list.sas | story[2] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | edges[missing:69d89a46dd2f] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | edges[missing:862816983e19] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | edges[missing:1c7f8d01d3f9] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[0].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[0].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[1].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[1].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[1].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[2].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[2].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[3].id | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[3].label | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[3].role | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | nodes[3].score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | order.ankitha_1/04_build_accounts.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | order.ankitha_1/11_branch_rollup.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | order.ankitha_1/11_branch_rollup.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | order.ankitha_1/24_ops_alerts.sas.reasoning | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | order.ankitha_1/24_ops_alerts.sas.score | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | order.ankitha_1/25_final_pack.sas | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | story.length | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | story[0] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | story[1] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | story[2] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/24_ops_alerts.sas | story[3] | Root cause A (`work.accounts` never folds — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | edges[missing:edd588c241eb] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | edges[missing:7a55636af01a] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | edges[missing:4957c2e67982] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | edges[missing:1c7f8d01d3f9] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | nodes.length | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | nodes[0].id | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | nodes[0].label | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | nodes[0].role | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | order.ankitha_1/17_compliance_check.sas | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | order.ankitha_1/18_dashboard_mart.sas | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | order.ankitha_1/22_marketing_list.sas | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | order.ankitha_1/24_ops_alerts.sas | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | order.ankitha_1/25_final_pack.sas.reasoning | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | order.ankitha_1/25_final_pack.sas.score | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | story.length | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
-| neighborhood | ankitha_1/25_final_pack.sas | story[0] | Root cause C (`work.compliance_check` never folds — see "Task 6 note" below) + Root cause U (this file's own UNION ALL loses 3 of 4 reads — see "Task 6 note" below) |
 
-288 rows for `neighborhood`, all traced to exactly three `rust_rules_converter` fold gaps — see
-the "Task 6 note" below for the full reasoning behind root causes A, C and U. No row here for any
-other question yet: `files`/`search` ran clean by construction (0 diffs found).
+Empty. `neighborhood` carried 288 rows here (Task 6, three `rust_rules_converter` fold gaps —
+qualified star, `CROSS JOIN`, `UNION ALL` under-reporting) until Task 5d fixed all three; see the
+"Task 5d note" below. `files`/`search` have run clean by construction since Task 5 (0 diffs
+found) and never needed a row.
 
 ## Task 5 note: `search()`'s oracle check is `q=""` only
 
@@ -441,3 +154,42 @@ brief's 6 / 7 — the brief's numbers were confirmed live against `:8000` (the r
 has no trouble with `a.*`), not against this store. `backend/api/tests/neighborhood.rs` asserts
 the achievable 5/4 with a comment pointing here; getting to 6/7 needs A fixed in
 `rust_rules_converter`, which this task was explicitly told not to touch.
+
+## Task 5d note: all three root causes fixed — the 288 rows above are retired
+
+Task 5d fixed all three `rust_rules_converter` fold gaps the Task 6 note named, in the order the
+project's own rule requires (spec → generated Prolog DCG → hand-written Prolog codegen mirrors →
+Rust, one commit each):
+
+- **Root cause A (qualified star)** — `pipeline/specs/sas.py` gained `star(Alias)` (arity 1,
+  overloading bare `star/0` the same way `col/1` vs `col/2` already does), resolved against
+  whichever of FROM/JOIN carries that alias in `lineage.rs::select_lineage` (and its four sibling
+  functions/Prolog mirrors).
+- **Root cause C (`CROSS JOIN`)** — `join_clause` gained a third alternative, `cross_join(Src)`
+  (arity 1, no `ON`). Every one of the eight consumers named in the Task 6 note (four Rust
+  functions, four Prolog mirrors) now branches on the join term's own arity before indexing its
+  `On` argument, instead of assuming arity 2.
+- **Root cause U (`UNION ALL` under-reporting)** — a lineage-rule bug, not a grammar gap, exactly
+  as the Task 5d brief predicted: `lineage::sas::run`'s `step` (and `sas_lineage.pl`'s own `step`)
+  read `select_stmt`'s `cores` list as `.list()[0]` / `[Core|_]` — the first `UNION ALL` branch
+  only. Fixed to walk every branch for its own reads/controls/col-lineage, while still taking the
+  statement's output schema from the first branch only (real SQL semantics).
+
+`python3 tools/diff_route.py neighborhood --corpus ankitha` now reports **0 diffs across all 25
+files** — every one of the 288 rows above is retired, along with `enrich_fx_is_four_files_and_three_edges`'s
+sibling pass mark `branch_rollup_is_six_files_and_seven_edges` (`backend/api/tests/neighborhood.rs`),
+now asserting the brief's literal 6 nodes / 7 edges, unedited, and passing. Full accounting —
+before/after fold and edge counts, the regression net after each commit, Prolog/Rust agreement —
+in `.superpowers/sdd/silver_phase2_implementation_plan/task-5d-report.md`.
+
+Two things found while fixing U were **not** fixed, being outside Task 5d's named scope (a
+lineage-rule bug in `lineage::sas::run`/`sas_lineage.pl`, not the PySpark codegen path):
+`emit.rs`/`emit_pretty.rs`/`sas_pyspark.pl`/`sas_pyspark_pretty.pl`'s own `sql_lines`/`select_stmt`
+still render only the *first* `UNION ALL` branch's PySpark (a separate, pre-existing gap in the
+codegen layer, silently dropping the same information the lineage layer used to); and
+`case_expr` (`CASE WHEN...END`) has never had a `px`/`pe` rule in either PySpark emitter (present
+since task 5b, confirmed pre-existing on the unmodified base commit via `13_risk_flags.sas`,
+whose own `CASE` already failed to render before this task touched anything) — both caught by
+`catch_unwind` at the API layer (`rust_inferred_duckdb::catch_emit`), so neither crashes ingestion,
+they just leave that block's PySpark blank with a warning. Neither affects `ds_lineage`, so
+neither affects `neighborhood()`, `edges()`, or any pass mark checked by `diff_route.py`.

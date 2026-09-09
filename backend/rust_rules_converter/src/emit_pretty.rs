@@ -60,6 +60,17 @@ fn sas_fn(name: &str) -> &'static str {
 
 fn some_arg(t: &Term) -> Option<&Term> { match t.functor() { ("some", 1) => Some(&t.args()[0]), _ => None } }
 
+/// task 5d: the alias of one from_source (table(Ds,AliasOpt) or
+/// subquery(Core,AliasOpt), both alias in arg position 1) — used to resolve a
+/// qualified star (`a.*`), same helper as emit.rs's/lineage.rs's/interp.rs's
+/// own from_alias.
+fn from_source_alias(from: &Term) -> Option<String> {
+    match from.functor() {
+        ("table", 2) | ("subquery", 2) => some_arg(&from.args()[1]).map(|a| a.atom_text().to_lowercase()),
+        _ => None,
+    }
+}
+
 fn rule_line(label: &str) -> String {
     let head = format!("# ---- {} ", label);
     let pad = std::cmp::max(4, 78usize.saturating_sub(head.chars().count()));
@@ -305,15 +316,21 @@ impl<'a> Pretty<'a> {
 
     // task 5c: a[2] (`joins`) is a Prolog LIST now (was `some(J)|none`) — one
     // ".join(...)" step per item, source order; still hardcoded "inner" (this
-    // pre-existing simplification is unchanged by this task).
+    // pre-existing simplification is unchanged by this task). task 5d: a
+    // join whose own arity is 1 (cross_join(Src): no ON) renders
+    // ".crossJoin(src)" instead — arity decides this, not the functor name.
     fn core_parts(&mut self, core: &Term, pre: &mut Vec<String>) -> (String, Vec<String>) {
         let a = core.args();
         let src = self.from_txt(&a[1], pre);
         let mut steps = Vec::new();
         for j in a[2].list() {
             let jt = self.from_txt(&j.args()[0], pre);
-            let on = self.pe(&j.args()[1], Ctx::Top, pre);
-            steps.push(format!(".join({}, {}, \"inner\")", jt, on));
+            if j.args().len() > 1 {
+                let on = self.pe(&j.args()[1], Ctx::Top, pre);
+                steps.push(format!(".join({}, {}, \"inner\")", jt, on));
+            } else {
+                steps.push(format!(".crossJoin({})", jt));
+            }
         }
         if let Some(w) = some_arg(&a[3]) { let x = self.pe(w, Ctx::Top, pre); steps.push(format!(".filter({})", x)); }
         steps.extend(self.select_steps(a[0].list(), &a[4], pre));
@@ -347,6 +364,15 @@ impl<'a> Pretty<'a> {
     fn select_steps(&mut self, cols: &[Term], group: &Term, pre: &mut Vec<String>) -> Vec<String> {
         match some_arg(group) {
             None => {
+                // task 5d: NOT widened to star/1 (a qualified `a.*`) — unlike the
+                // bare star/0 fast path (implicit "pass every column through" is
+                // sound when there is no join, or the whole joined row equals the
+                // whole source anyway), skipping .select() entirely for a lone
+                // `a.*` would pass through every JOINed column, not just `a`'s —
+                // wrong the moment a join is present. No file in this corpus hits
+                // this (a lone single-item `a.*` projection list), so left as the
+                // general `sel_item` path below, which renders it correctly via
+                // `"alias.*"` regardless.
                 if cols.len() == 1 && cols[0].args()[0].functor() == ("star", 0) && cols[0].args()[1].functor() == ("none", 0) { return vec![]; }
                 if cols.iter().any(|p| is_agg(&p.args()[0])) {
                     let items: Vec<String> = cols.iter().map(|p| self.sel_item(p, pre)).collect();
@@ -384,6 +410,10 @@ impl<'a> Pretty<'a> {
             None => match e.functor() {
                 ("col", 1) => format!("\"{}\"", lower(e.args()[0].atom_text())),
                 ("star", 0) => "\"*\"".into(),
+                // task 5d: a qualified star (`a.*`) — the string form Spark's
+                // own .select()/.agg() accepts to expand every column of an
+                // aliased source, same idea as the bare "*" arm just above.
+                ("star", 1) => format!("\"{}.*\"", lower(e.args()[0].atom_text())),
                 _ => self.pe(e, Ctx::Sub, pre),
             },
             Some(a) => { let x = self.pe(e, Ctx::Sub, pre); format!("{}.alias(\"{}\")", x, lower(a.atom_text())) }
@@ -404,10 +434,33 @@ impl<'a> Pretty<'a> {
                     }
                     out.push("_auto".into());
                 }
+                // task 5d: a qualified star (`a.*`) — same lookup as the bare
+                // star above, but resolved against whichever of FROM/JOINs
+                // carries alias `a`, not always FROM itself.
+                ("star", 1) => {
+                    let al = lower(e.args()[0].atom_text());
+                    if let Some(cols) = self.alias_schema(core, &al) { out.extend(cols); continue; }
+                    out.push("_auto".into());
+                }
                 _ => out.push("_auto".into()),
             }
         }
         out
+    }
+
+    /// task 5d: the schema of whichever from_source (FROM itself, or one of
+    /// its JOINs) carries alias `al` — None if unresolved or not a plain
+    /// table (a subquery's own columns are not tracked in self.schema here).
+    fn alias_schema(&self, core: &Term, al: &str) -> Option<Vec<String>> {
+        let from = &core.args()[1];
+        if from_source_alias(from) == Some(al.to_string()) { return self.table_schema(from); }
+        for j in core.args()[2].list() {
+            if from_source_alias(&j.args()[0]) == Some(al.to_string()) { return self.table_schema(&j.args()[0]); }
+        }
+        None
+    }
+    fn table_schema(&self, from: &Term) -> Option<Vec<String>> {
+        if from.functor() == ("table", 2) { self.schema.get(&ds_key(&from.args()[0])).cloned() } else { None }
     }
 
     // ------------------------------------------------------------ expressions
@@ -438,6 +491,7 @@ impl<'a> Pretty<'a> {
             ("col", 2) => format!("F.col(\"{}.{}\")", lower(a[0].atom_text()), lower(a[1].atom_text())),
             ("lit", 1) => if ctx == Ctx::Top { format!("F.lit({})", py_lit(&a[0])) } else { py_lit(&a[0]) },
             ("star", 0) => "\"*\"".into(),
+            ("star", 1) => format!("\"{}.*\"", lower(a[0].atom_text())),
             ("paren", 1) => format!("({})", self.pe(&a[0], Ctx::Sub, pre)),
             ("neg", 1) => format!("-{}", self.wrap(&a[0], pre)),
             ("not", 1) => format!("~{}", self.wrap(&a[0], pre)),
