@@ -53,7 +53,8 @@
   "dsd",
   "dlm",
   "truncover",
-  "datalines"
+  "datalines",
+  "output"
  ],
  "statement_end": [
   ";"
@@ -649,6 +650,16 @@
      "t": "cap",
      "field": "val",
      "kind": "expr"
+    }
+   ]
+  },
+  {
+   "name": "output",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "OUTPUT"
     }
    ]
   },

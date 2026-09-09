@@ -35,6 +35,7 @@ Term vocabulary (what node/4 holds — read this once, the terms then read thems
     length([clen(Var,N)|nlen(Var,N)])   LENGTH var $ n ... — storage length
     infile(Dlm)                    INFILE DATALINES DSD DLM='delim' TRUNCOVER
     assign(Var, Val)                var = expr — a DATA-step assignment
+    output                          OUTPUT — writes the current PDV row
     empty                          a lone `;`
     run | quit
     Expressions: col(N), lit(V), star, missing (a lone `.`), call(Name, [Args]), paren(E),
@@ -79,6 +80,8 @@ KEYWORDS = [
     # the word is immediately followed by `;`, which is not the case inside
     # this option line, so the two never collide.
     "infile", "dsd", "dlm", "truncover", "datalines",
+    # task 5b, output family: OUTPUT — writes the current PDV row.
+    "output",
 ]
 
 # ------------------------------------------------------ expression ladder
@@ -266,6 +269,10 @@ STATEMENTS = [
     # a bare WORD token, so this cannot be ambiguous with IF/SET/MERGE/etc,
     # which all start with a keyword.
     statement("assign", ident("var"), sym("="), expr("val"), doc="var = expr ; — a DATA-step variable assignment"),
+    # task 5b: OUTPUT — writes the current row to the output dataset (used
+    # to emit more than one row per DATA-step iteration, as 16_audit_log.sas
+    # does). No lineage of its own; it just needs to fold and round-trip.
+    statement("output", kw("OUTPUT"), doc="OUTPUT — writes the current PDV row"),
     statement("merge", kw("MERGE"),
               sep_list("sources", [], group("src", rule_ref("ds", "dsname"),
                                             opt(sym("("), kw("IN"), sym("="), ident("flag"), sym(")"))), min=1),
