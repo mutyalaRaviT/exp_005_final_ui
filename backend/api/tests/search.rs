@@ -29,14 +29,16 @@ async fn a_table_hit_lists_every_file_it_appears_in() {
 #[tokio::test]
 async fn a_table_hit_unions_edges_and_first_writer() {
     // work.accounts is never the target of a successfully-folded CREATE TABLE AS in this
-    // corpus (04_build_accounts.sas's second block has two JOINs — rust_rules_converter's
-    // lineage engine reads select_core's join field positionally as at most one, so a
-    // second JOIN still fails to fold; see the Task 5b report), so work.accounts is absent
-    // from `tables` entirely — its only trace is as `src_table` in the edges the readers of
-    // work.accounts record. Task 5b's LEFT/INNER JOIN support made three more of those
-    // readers fold (09_customer_summary.sas, 10_product_metrics.sas,
-    // 14_large_txn_report.sas, alongside 08_daily_balances.sas which already folded), so
-    // this hit's `files` grows to all four. `first_writer_fileid` alone (the brief's
+    // corpus (04_build_accounts.sas's second block reads `a.*`, a qualified star — out of
+    // scope for task 5c, same as CROSS JOIN; see the Task 5c report), so work.accounts is
+    // absent from `tables` entirely — its only trace is as `src_table` in the edges the
+    // readers of work.accounts record. Task 5b's LEFT/INNER JOIN support (capped at one
+    // JOIN per statement) got four of those readers folding (08_daily_balances.sas,
+    // 09_customer_summary.sas, 10_product_metrics.sas, 14_large_txn_report.sas). Task 5c
+    // lifted that cap to zero-or-more JOINs per statement, which folds four more —
+    // 11_branch_rollup.sas (2 JOINs, phase 2's pass mark 1), 15_join_risk_txn.sas (2),
+    // 22_marketing_list.sas (2), 24_ops_alerts.sas (3, the corpus's deepest JOIN chain) —
+    // so this hit's `files` grows to all eight. `first_writer_fileid` alone (the brief's
     // warning) would have missed all of them; this is still the case that proves `edges` is
     // load-bearing here, not `tables` alone.
     let res = get("/api/search?q=work.accounts").await;
@@ -47,7 +49,11 @@ async fn a_table_hit_unions_edges_and_first_writer() {
         "ankitha_1/08_daily_balances.sas",
         "ankitha_1/09_customer_summary.sas",
         "ankitha_1/10_product_metrics.sas",
+        "ankitha_1/11_branch_rollup.sas",
         "ankitha_1/14_large_txn_report.sas",
+        "ankitha_1/15_join_risk_txn.sas",
+        "ankitha_1/22_marketing_list.sas",
+        "ankitha_1/24_ops_alerts.sas",
     ]);
 }
 

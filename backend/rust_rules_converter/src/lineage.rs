@@ -149,12 +149,16 @@ pub mod sas {
     }
 
     /// select_lineage/2
+    // task 5c: `joins` is a Prolog LIST now (zero or more left_join(Src,On) /
+    // inner_join(Src,On) terms, source order) — was `join: some(J)|none`, at
+    // most one, before this task. Every join is read the same way regardless
+    // of that functor name (args()[0]/args()[1] as (Src, On)), matching the
+    // Prolog mirror (codegen/sas_lineage.pl's select_lineage/2, same task).
     fn select_lineage(f: &mut Facts, k: &str, core: &Term) {
         let a = core.args();
-        let (projs, from, join, wh, group, having) = (a[0].list(), &a[1], &a[2], &a[3], &a[4], &a[5]);
+        let (projs, from, joins, wh, group, having) = (a[0].list(), &a[1], a[2].list(), &a[3], &a[4], &a[5]);
         let ki = from_ds(from); f.reads(k, &ki);
-        if join.functor() == ("some", 1) {
-            let j = &join.args()[0];
+        for j in joins {
             let kj = from_ds(&j.args()[0]); f.reads(k, &kj);
             let cs = expr_cols(&j.args()[1]); f.controls(k, &ki, &cs); f.controls(k, &kj, &cs);
         }

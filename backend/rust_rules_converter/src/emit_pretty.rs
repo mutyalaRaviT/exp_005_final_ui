@@ -303,11 +303,14 @@ impl<'a> Pretty<'a> {
         pre
     }
 
+    // task 5c: a[2] (`joins`) is a Prolog LIST now (was `some(J)|none`) — one
+    // ".join(...)" step per item, source order; still hardcoded "inner" (this
+    // pre-existing simplification is unchanged by this task).
     fn core_parts(&mut self, core: &Term, pre: &mut Vec<String>) -> (String, Vec<String>) {
         let a = core.args();
         let src = self.from_txt(&a[1], pre);
         let mut steps = Vec::new();
-        if let Some(j) = some_arg(&a[2]) {
+        for j in a[2].list() {
             let jt = self.from_txt(&j.args()[0], pre);
             let on = self.pe(&j.args()[1], Ctx::Top, pre);
             steps.push(format!(".join({}, {}, \"inner\")", jt, on));
@@ -448,9 +451,17 @@ impl<'a> Pretty<'a> {
                 let core = &a[0];
                 let name = self.scalar_name(core);
                 let ca = core.args();
+                // task 5c: index 2 (`joins`) is a LIST now — "no join" is an empty
+                // list, not the atom `none`; indices 3/4/5 (WHERE/GROUP BY/HAVING)
+                // are unaffected and still check against `none`. Missing this would
+                // not panic — ca[2].functor() on a List returns ("", 0), which never
+                // equals ("none", 0), so this fast path would just silently stop
+                // firing for every 0-join scalar subquery (see codegen/
+                // sas_pyspark_pretty.pl's own version of this same guard).
                 let simple = ca[0].list().len() == 1 && ca[0].list()[0].args()[0].functor() == ("col", 1)
                     && ca[1].functor() == ("table", 2) && ca[1].args()[1].functor() == ("none", 0)
-                    && [2, 3, 4, 5].iter().all(|i| ca[*i].functor() == ("none", 0));
+                    && ca[2].list().is_empty()
+                    && [3, 4, 5].iter().all(|i| ca[*i].functor() == ("none", 0));
                 if simple {
                     let dv = self.pyvar(&ca[1].args()[0]);
                     let c = lower(ca[0].list()[0].args()[0].args()[0].atom_text());
@@ -460,6 +471,13 @@ impl<'a> Pretty<'a> {
                     pre.push(format!("{} = scalar({}{})", name, s, steps.join("")));
                 }
                 name
+            }
+            // task 5c: COUNT(DISTINCT x) -> F.countDistinct(x) — ahead of the
+            // generic ("call", 2) arm below, mirrors emit.rs's px() and
+            // codegen/sas_pyspark_pretty.pl's pe/5.
+            ("call", 2) if lower(a[0].atom_text()) == "count" && a[1].list().len() == 1 && a[1].list()[0].functor() == ("distinct", 1) => {
+                let inner = &a[1].list()[0].args()[0];
+                format!("F.countDistinct({})", self.pe(inner, Ctx::Arg, pre))
             }
             ("call", 2) => {
                 let py = sas_fn(&lower(a[0].atom_text()));

@@ -204,11 +204,15 @@ impl Emitter {
         pre
     }
 
+    // task 5c: `joins` is a Prolog LIST now (was `join: some(J)|none`) — one
+    // `.join(...)` per item, source order; still hardcoded "inner" (this
+    // pre-existing simplification — never reading left_join vs inner_join's
+    // own functor for the join TYPE — is unchanged by this task).
     fn core_chain(&mut self, core: &Term, pre: &mut Vec<String>) -> String {
         let a = core.args();
-        let (cols, from, join, where_, group, having) = (&a[0], &a[1], &a[2], &a[3], &a[4], &a[5]);
+        let (cols, from, joins, where_, group, having) = (&a[0], &a[1], a[2].list(), &a[3], &a[4], &a[5]);
         let mut s = self.from_txt(from, pre);
-        if let Some(j) = some_arg(join) {
+        for j in joins {
             let src = self.from_txt(&j.args()[0], pre);
             let on = self.px(&j.args()[1], pre);
             s.push_str(&format!(".join({}, {}, \"inner\")", src, on));
@@ -313,6 +317,14 @@ impl Emitter {
                 self.scalar_n += 1;
                 pre.push(format!("_scalar{} = scalar({})", self.scalar_n, chain));
                 format!("F.lit(_scalar{})", self.scalar_n)
+            }
+            // task 5c: COUNT(DISTINCT x) -> F.countDistinct(x) — ahead of the
+            // generic ("call", 2) arm below, so `distinct(...)` never has to
+            // stand on its own as a general expression (it has no meaning
+            // outside this one wrapper). Mirrors codegen/sas_pyspark.pl's px/4.
+            ("call", 2) if lower(a[0].atom_text()) == "count" && a[1].list().len() == 1 && a[1].list()[0].functor() == ("distinct", 1) => {
+                let inner = &a[1].list()[0].args()[0];
+                format!("F.countDistinct({})", self.px(inner, pre))
             }
             ("call", 2) => {
                 let py = sas_fn(&lower(a[0].atom_text()));

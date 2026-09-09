@@ -31,6 +31,12 @@ pub struct Interp {
 fn lower(s: &str) -> String { s.to_lowercase() }
 fn find<'t>(ts: &[&'t Term], f: &str, ar: usize) -> Option<&'t Term> { ts.iter().find(|t| t.functor() == (f, ar)).copied() }
 fn is_some(t: &Term) -> Option<&Term> { if t.functor() == ("some", 1) { Some(&t.args()[0]) } else { None } }
+/// task 5c: list_to_set/2 over Value, first-seen order — used by COUNT(DISTINCT x).
+fn dedup_values(xs: Vec<Value>) -> Vec<Value> {
+    let mut out: Vec<Value> = Vec::new();
+    for x in xs { if !out.contains(&x) { out.push(x); } }
+    out
+}
 
 impl Interp {
     /// main: file mode (every block) or block mode (one block after load_inputs)
@@ -141,14 +147,18 @@ impl Interp {
     }
 
     /// select_core/3
+    // task 5c: `joins` is a Prolog LIST now (was `join: some(J)|none`, at most
+    // one) — fold every join through the running dataset left to right. This
+    // interpreter never distinguished LEFT from INNER (both always did an
+    // inner_join); that pre-existing simplification is unchanged by this task.
     fn select_core(&self, core: &Term) -> Dataset {
         let a = core.args();
-        let (projs, from, join, wh, group, having) = (a[0].list(), &a[1], &a[2], &a[3], &a[4], &a[5]);
-        let d0 = self.from_rows(from);
-        let din = match is_some(join) {
-            Some(j) => { let d1 = self.from_rows(&j.args()[0]); self.inner_join(&d0, &d1, &j.args()[1]) }
-            None => d0,
-        };
+        let (projs, from, joins, wh, group, having) = (a[0].list(), &a[1], a[2].list(), &a[3], &a[4], &a[5]);
+        let mut din = self.from_rows(from);
+        for j in joins {
+            let d1 = self.from_rows(&j.args()[0]);
+            din = self.inner_join(&din, &d1, &j.args()[1]);
+        }
         let rw: Vec<Vec<Value>> = match is_some(wh) {
             Some(w) => din.rows.iter().filter(|r| self.row_passes(&din.cols, &[w], r)).cloned().collect(),
             None => din.rows.clone(),
@@ -209,8 +219,13 @@ impl Interp {
             if e.functor() == ("star", 0) { row.extend(group[0].clone()); }
             else if is_agg(e) {
                 let name = lower(e.args()[0].atom_text());
-                let arg = &e.args()[1].list()[0];
-                let xs: Vec<Value> = group.iter().map(|r| self.eval(arg, cols, r)).collect();
+                let arg0 = &e.args()[1].list()[0];
+                // task 5c: COUNT(DISTINCT x) — the aggregate's one arg may itself be
+                // distinct(Inner); dedup the per-row values before handing them to
+                // aggregate(), same as sas_interp.pl's proj_values/4.
+                let (arg, want_distinct) = match arg0.functor() { ("distinct", 1) => (&arg0.args()[0], true), _ => (arg0, false) };
+                let mut xs: Vec<Value> = group.iter().map(|r| self.eval(arg, cols, r)).collect();
+                if want_distinct { xs = dedup_values(xs); }
                 row.push(aggregate(&name, &xs));
             } else { row.push(self.eval(e, cols, &group[0])); }
         }
@@ -233,6 +248,11 @@ impl Interp {
             ("col", 2) => value_of(&lower(e.args()[1].atom_text()), cols, row),
             ("lit", 1) => match &e.args()[0] { Term::Int(i) => Value::Num(*i as f64), Term::Float(f) => Value::Num(*f), Term::Atom(a) => Value::Str(a.clone()), t => panic!("lit {}", t) },
             ("paren", 1) => self.eval(&e.args()[0], cols, row),
+            // task 5c: project()/proj_values already unwraps distinct(...) itself
+            // (dedup happens at the aggregate, not per row) — this is the
+            // defensive fallback for any other context handing eval() a bare
+            // distinct(E), matching sas_interp.pl's own eval(distinct(E),...).
+            ("distinct", 1) => self.eval(&e.args()[0], cols, row),
             ("neg", 1) => match self.eval(&e.args()[0], cols, row) { Value::Num(x) => Value::Num(-x), _ => Value::Missing },
             ("not", 1) => bool_v(!truthy(&self.eval(&e.args()[0], cols, row))),
             ("and", 2) => bool_v(truthy(&self.eval(&e.args()[0], cols, row)) && truthy(&self.eval(&e.args()[1], cols, row))),
