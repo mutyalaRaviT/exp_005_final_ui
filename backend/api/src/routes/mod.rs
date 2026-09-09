@@ -2,6 +2,7 @@
 //! `health`, `files`, `search` and `neighborhood` exist today; each later task adds its
 //! own file here and wires it into `crate::app`.
 
+pub mod bench;
 pub mod files;
 pub mod health;
 pub mod neighborhood;

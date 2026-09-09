@@ -39,6 +39,42 @@ pub async fn post(path: &str, body: Value) -> Value {
     send(req).await
 }
 
+pub struct RawRes {
+    pub status: u16,
+    pub content_type: String,
+    pub body: String,
+}
+
+/// Like `get`, but keeps the bytes and the content type instead of parsing JSON — the
+/// Bench page is HTML, not an answer.
+pub async fn get_raw(path: &str) -> RawRes {
+    let req = Request::builder()
+        .method("GET")
+        .uri(path)
+        .body(Body::empty())
+        .expect("build GET request");
+    let app = lineageq_api::app(lineageq_api::test_state());
+    let res = app.oneshot(req).await.expect("router call");
+    let status = res.status().as_u16();
+    let content_type = res
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let bytes = res
+        .into_body()
+        .collect()
+        .await
+        .expect("read response body")
+        .to_bytes();
+    RawRes {
+        status,
+        content_type,
+        body: String::from_utf8_lossy(&bytes).to_string(),
+    }
+}
+
 async fn send(req: Request<Body>) -> Value {
     let app = lineageq_api::app(lineageq_api::test_state());
     let res = app.oneshot(req).await.expect("router call");

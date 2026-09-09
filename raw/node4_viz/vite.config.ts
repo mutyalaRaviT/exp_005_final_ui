@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5174,
     strictPort: true,
     proxy: {
-      '/api': process.env.VITE_PROXY ?? 'http://localhost:8000',
+      '/api': process.env.VITE_PROXY ?? 'http://localhost:8110',
       // HOLA sidecar (scripts/hola_server) — tier 5 layout toggle
       '/hola': process.env.VITE_HOLA_PROXY ?? 'http://localhost:8765',
     },

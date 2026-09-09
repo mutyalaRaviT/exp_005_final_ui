@@ -66,6 +66,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/files", get(routes::files::files))
         .route("/api/search", get(routes::search::search))
         .route("/api/neighborhood", get(routes::neighborhood::neighborhood))
+        .route("/bench", get(routes::bench::bench))
         .with_state(state)
 }
 
