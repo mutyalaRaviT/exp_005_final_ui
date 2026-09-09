@@ -1,0 +1,547 @@
+{
+ "name": "pyspark",
+ "keywords": [
+  "for",
+  "in",
+  "import",
+  "from",
+  "as",
+  "put"
+ ],
+ "statement_end": [],
+ "eos_kinds": [
+  "newline"
+ ],
+ "bracket_pairs": [
+  [
+   "(",
+   ")"
+  ],
+  [
+   "[",
+   "]"
+  ],
+  [
+   "{",
+   "}"
+  ]
+ ],
+ "leaves": [
+  {
+   "name": "whitespace",
+   "pattern": "[ \\t\\r]+|\\\\\\r?\\n",
+   "kind": "whitespace"
+  },
+  {
+   "name": "newline",
+   "pattern": "\\r?\\n",
+   "kind": "newline"
+  },
+  {
+   "name": "comment",
+   "pattern": "#[^\\n]*",
+   "kind": "comment"
+  },
+  {
+   "name": "string_double",
+   "pattern": "\"(?:\\\\.|[^\"\\\\\\n])*\"",
+   "kind": "string"
+  },
+  {
+   "name": "string_single",
+   "pattern": "'(?:\\\\.|[^'\\\\\\n])*'",
+   "kind": "string"
+  },
+  {
+   "name": "number",
+   "pattern": "\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?",
+   "kind": "number"
+  },
+  {
+   "name": "word",
+   "pattern": "[A-Za-z_][A-Za-z0-9_]*",
+   "kind": "word"
+  },
+  {
+   "name": "multi_symbol",
+   "pattern": "==|!=|<=|>=|\\*\\*|//",
+   "kind": "symbol"
+  }
+ ],
+ "ladder": [
+  {
+   "name": "dot",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": ".",
+     "functor": "dot",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "pow",
+   "assoc": "none",
+   "ops": [
+    {
+     "spelling": "**",
+     "functor": "pow",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "unary",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "-",
+     "functor": "neg",
+     "kind": "prefix"
+    },
+    {
+     "spelling": "~",
+     "functor": "not",
+     "kind": "prefix"
+    }
+   ]
+  },
+  {
+   "name": "mul",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "*",
+     "functor": "mul",
+     "kind": "infix"
+    },
+    {
+     "spelling": "/",
+     "functor": "div",
+     "kind": "infix"
+    },
+    {
+     "spelling": "%",
+     "functor": "mod",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "add",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "+",
+     "functor": "add",
+     "kind": "infix"
+    },
+    {
+     "spelling": "-",
+     "functor": "sub",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "cmp",
+   "assoc": "none",
+   "ops": [
+    {
+     "spelling": "==",
+     "functor": "eq",
+     "kind": "infix"
+    },
+    {
+     "spelling": "!=",
+     "functor": "ne",
+     "kind": "infix"
+    },
+    {
+     "spelling": "<",
+     "functor": "lt",
+     "kind": "infix"
+    },
+    {
+     "spelling": "<=",
+     "functor": "le",
+     "kind": "infix"
+    },
+    {
+     "spelling": ">",
+     "functor": "gt",
+     "kind": "infix"
+    },
+    {
+     "spelling": ">=",
+     "functor": "ge",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "and",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "&",
+     "functor": "and",
+     "kind": "infix"
+    }
+   ]
+  },
+  {
+   "name": "or",
+   "assoc": "left",
+   "ops": [
+    {
+     "spelling": "|",
+     "functor": "or",
+     "kind": "infix"
+    }
+   ]
+  }
+ ],
+ "forms": [
+  {
+   "t": "shape",
+   "name": "paren",
+   "shape": "( E )"
+  },
+  {
+   "t": "shape",
+   "name": "call",
+   "shape": "ID ( ARGS )"
+  },
+  {
+   "t": "parts",
+   "name": "index",
+   "parts": [
+    {
+     "t": "cap",
+     "field": "name",
+     "kind": "ident"
+    },
+    {
+     "t": "sym",
+     "text": "["
+    },
+    {
+     "t": "cap",
+     "field": "key",
+     "kind": "expr"
+    },
+    {
+     "t": "sym",
+     "text": "]"
+    }
+   ]
+  },
+  {
+   "t": "parts",
+   "name": "kwarg",
+   "parts": [
+    {
+     "t": "cap",
+     "field": "name",
+     "kind": "ident"
+    },
+    {
+     "t": "sym",
+     "text": "="
+    },
+    {
+     "t": "cap",
+     "field": "value",
+     "kind": "expr"
+    }
+   ]
+  },
+  {
+   "t": "parts",
+   "name": "list",
+   "parts": [
+    {
+     "t": "sym",
+     "text": "["
+    },
+    {
+     "t": "list",
+     "field": "items",
+     "parts": [
+      {
+       "t": "cap",
+       "field": "e",
+       "kind": "expr"
+      }
+     ],
+     "min": 0,
+     "sep": [
+      {
+       "t": "sym",
+       "text": ","
+      }
+     ]
+    },
+    {
+     "t": "sym",
+     "text": "]"
+    }
+   ]
+  },
+  {
+   "t": "parts",
+   "name": "tuple",
+   "parts": [
+    {
+     "t": "sym",
+     "text": "("
+    },
+    {
+     "t": "cap",
+     "field": "first",
+     "kind": "expr"
+    },
+    {
+     "t": "sym",
+     "text": ","
+    },
+    {
+     "t": "list",
+     "field": "rest",
+     "parts": [
+      {
+       "t": "cap",
+       "field": "e",
+       "kind": "expr"
+      }
+     ],
+     "min": 0,
+     "sep": [
+      {
+       "t": "sym",
+       "text": ","
+      }
+     ]
+    },
+    {
+     "t": "sym",
+     "text": ")"
+    }
+   ]
+  }
+ ],
+ "expr_leaves": [
+  {
+   "name": "number",
+   "term": "lit(V)",
+   "double_delim": false,
+   "backslash_escape": true
+  },
+  {
+   "name": "string",
+   "term": "lit(V)",
+   "double_delim": false,
+   "backslash_escape": false
+  },
+  {
+   "name": "word",
+   "term": "col(V)",
+   "double_delim": false,
+   "backslash_escape": true
+  }
+ ],
+ "statements": [
+  {
+   "name": "put",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "put"
+    },
+    {
+     "t": "sym",
+     "text": "("
+    },
+    {
+     "t": "cap",
+     "field": "name",
+     "kind": "expr"
+    },
+    {
+     "t": "sym",
+     "text": ","
+    },
+    {
+     "t": "cap",
+     "field": "df",
+     "kind": "expr"
+    },
+    {
+     "t": "sym",
+     "text": ")"
+    }
+   ]
+  },
+  {
+   "name": "assign",
+   "assign": false,
+   "parts": [
+    {
+     "t": "cap",
+     "field": "target",
+     "kind": "ident"
+    },
+    {
+     "t": "sym",
+     "text": "="
+    },
+    {
+     "t": "cap",
+     "field": "value",
+     "kind": "expr"
+    }
+   ]
+  },
+  {
+   "name": "set_item",
+   "assign": false,
+   "parts": [
+    {
+     "t": "cap",
+     "field": "target",
+     "kind": "ident"
+    },
+    {
+     "t": "sym",
+     "text": "["
+    },
+    {
+     "t": "cap",
+     "field": "key",
+     "kind": "expr"
+    },
+    {
+     "t": "sym",
+     "text": "]"
+    },
+    {
+     "t": "sym",
+     "text": "="
+    },
+    {
+     "t": "cap",
+     "field": "value",
+     "kind": "expr"
+    }
+   ]
+  },
+  {
+   "name": "for_in",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "for"
+    },
+    {
+     "t": "cap",
+     "field": "var",
+     "kind": "ident"
+    },
+    {
+     "t": "kw",
+     "text": "in"
+    },
+    {
+     "t": "cap",
+     "field": "iter",
+     "kind": "expr"
+    },
+    {
+     "t": "sym",
+     "text": ":"
+    }
+   ]
+  },
+  {
+   "name": "from_import",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "from"
+    },
+    {
+     "t": "cap",
+     "field": "module",
+     "kind": "expr"
+    },
+    {
+     "t": "kw",
+     "text": "import"
+    },
+    {
+     "t": "cap",
+     "field": "name",
+     "kind": "ident"
+    },
+    {
+     "t": "opt",
+     "parts": [
+      {
+       "t": "kw",
+       "text": "as"
+      },
+      {
+       "t": "cap",
+       "field": "alias",
+       "kind": "ident"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "import",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "import"
+    },
+    {
+     "t": "cap",
+     "field": "module",
+     "kind": "expr"
+    }
+   ]
+  },
+  {
+   "name": "expr_stmt",
+   "assign": false,
+   "parts": [
+    {
+     "t": "cap",
+     "field": "e",
+     "kind": "expr"
+    }
+   ]
+  }
+ ],
+ "rules": {},
+ "blocks": {
+  "open": [],
+  "close": [
+   "put"
+  ],
+  "single": [
+   "for_in",
+   "import",
+   "from_import",
+   "expr_stmt"
+  ]
+ }
+}
