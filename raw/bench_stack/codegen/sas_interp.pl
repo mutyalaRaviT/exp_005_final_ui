@@ -159,28 +159,48 @@ select_stmt(select_stmt([Core|_], OrderOpt, _Limit), Cols, Rows) :-
 % most one) — every join folds through the running (Cols,Rows) pair left to
 % right, same "inner join" semantics as before (this interpreter never
 % distinguished LEFT from INNER; that pre-existing simplification is
-% unchanged here). rust_engine's interp.rs::select_core is the mirror.
+% unchanged here). task 5d: the fold also threads AliasCols (an assoc-free
+% list of Alias-[ColName,...] pairs, one entry per FROM/JOIN source that has
+% its own alias) — the lookup a qualified star (`a.*`) needs. rust_engine's
+% interp.rs::select_core is the mirror.
 select_core(select_core(Projs, From, Joins, WhereOpt, GroupOpt, HavingOpt), Cols, Rows) :-
-    from_rows(From, C0, R0),
-    foldl(apply_join, Joins, C0-R0, CIn-RIn),
+    from_rows(From, C0, R0), from_alias_cols(From, C0, A0),
+    foldl(apply_join, Joins, C0-R0-A0, CIn-RIn-AliasCols),
     ( WhereOpt = some(W) -> include(row_passes(CIn, [W]), RIn, RW) ; RW = RIn ),
     ( GroupOpt = some(Keys) -> group_rows(Keys, CIn, RW, Groups) ; ( has_agg(Projs) -> Groups = [RW] ; Groups = none ) ),
-    ( Groups == none -> findall(Row, ( member(R, RW), project(Projs, CIn, [R], Row) ), Rows0)
-    ; findall(Row, ( member(G, Groups), project(Projs, CIn, G, Row) ), Rows0) ),
-    out_cols(Projs, CIn, Cols),
+    ( Groups == none -> findall(Row, ( member(R, RW), project(Projs, CIn, AliasCols, [R], Row) ), Rows0)
+    ; findall(Row, ( member(G, Groups), project(Projs, CIn, AliasCols, G, Row) ), Rows0) ),
+    out_cols(Projs, CIn, AliasCols, Cols),
     ( HavingOpt = some(H) -> include(row_passes(Cols, [H]), Rows0, Rows) ; Rows = Rows0 ).
 
 from_rows(table(D, _), Cols, Rows) :- ds_key(D, K), get(K, Cols, Rows).
 from_rows(subquery(Core, _), Cols, Rows) :- select_core(Core, Cols, Rows).
 
-% apply_join/3: one step of the foldl over Joins — J's functor is not
-% checked (left_join/2 and inner_join/2 both read the same way).
-apply_join(J, C0-R0, Cols-Rows) :-
-    J =.. [_, Src, On], from_rows(Src, C1, R1), inner_join(C0, R0, C1, R1, On, Cols, Rows).
+% task 5d: the alias of one from_source, paired with the column names IT
+% (not the running joined dataset) owns — [] if it has no alias.
+from_alias_cols(table(_, some(A0)), Cols, [A-Names]) :- !, lower(A0, A), findall(N, member(col(N, _), Cols), Names).
+from_alias_cols(subquery(_, some(A0)), Cols, [A-Names]) :- !, lower(A0, A), findall(N, member(col(N, _), Cols), Names).
+from_alias_cols(_, _, []).
+
+% apply_join/3: one step of the foldl over Joins. task 5d: J's own ARITY (not
+% its functor name) decides ON-based inner_join vs no-ON cross_join —
+% cross_join(Src) is arity 1 (no ON clause at all), left_join/inner_join
+% both arity 2 — matching the Rust mirror (interp.rs's select_core, same
+% task) and the spec comment's own reasoning at join_clause's RULES entry.
+apply_join(J, C0-R0-A0, Cols-Rows-AliasCols) :-
+    functor(J, _, Arity), J =.. [_, Src|Rest],
+    from_rows(Src, C1, R1), from_alias_cols(Src, C1, A1), append(A0, A1, AliasCols),
+    ( Arity =:= 2 -> [On] = Rest, inner_join(C0, R0, C1, R1, On, Cols, Rows)
+    ; cross_join(C0, R0, C1, R1, Cols, Rows) ).
 
 inner_join(C0, R0, C1, R1, On, Cols, Rows) :-
     append(C0, C1, Cols),
     findall(Row, ( member(A, R0), member(B, R1), append(A, B, Row), eval(On, Cols, Row, V), truthy(V) ), Rows).
+
+% task 5d: CROSS JOIN — the cartesian product, no ON filter at all.
+cross_join(C0, R0, C1, R1, Cols, Rows) :-
+    append(C0, C1, Cols),
+    findall(Row, ( member(A, R0), member(B, R1), append(A, B, Row) ), Rows).
 
 has_agg(Projs) :- member(proj(E, _, _), Projs), is_agg(E), !.
 is_agg(call(N, _)) :- lower(N, L), memberchk(L, [sum, avg, mean, max, min, count]).
@@ -193,24 +213,38 @@ group_rows(Keys, Cols, Rows, Groups) :-
     findall(G, ( member(KV, KVs), findall(R, member(KV-R, Pairs), G) ), Groups).
 
 % one output row from one group (a plain SELECT is a group of one row)
-project(Projs, Cols, Group, Row) :- findall(V, ( member(proj(E, _, _), Projs), proj_values(E, Cols, Group, Vs), member(V, Vs) ), Row).
-proj_values(star, _, [R|_], R) :- !.
+% task 5d: AliasCols (built by select_core/3, above) resolves a qualified
+% star (`a.*`) to the ordered subset of Cols/Group's own row that source `a`
+% contributed — falls back to the whole joined row if the alias is somehow
+% unresolved (defensive, same choice the Rust mirror makes).
+project(Projs, Cols, AliasCols, Group, Row) :- findall(V, ( member(proj(E, _, _), Projs), proj_values(E, Cols, AliasCols, Group, Vs), member(V, Vs) ), Row).
+proj_values(star, _, _, [R|_], R) :- !.
+proj_values(star(A0), Cols, AliasCols, [R|_], Vs) :- !,
+    lower(A0, A), ( memberchk(A-Names, AliasCols) -> true ; findall(N, member(col(N, _), Cols), Names) ),
+    findall(V, ( member(N, Names), value_of(N, Cols, R, V) ), Vs).
 % task 5c: COUNT(DISTINCT x) — the aggregate's one arg may itself be
 % distinct(Inner); dedup the per-row values before handing them to
 % aggregate/3, same as before for every other aggregate.
-proj_values(E, Cols, Group, [V]) :-
+proj_values(E, Cols, _AliasCols, Group, [V]) :-
     is_agg(E), !, E = call(N, [Arg0]), lower(N, LN),
     ( Arg0 = distinct(Arg) -> DoDistinct = true ; Arg = Arg0, DoDistinct = false ),
     findall(X, ( member(R, Group), eval(Arg, Cols, R, X) ), Xs0),
     ( DoDistinct == true -> list_to_set(Xs0, Xs) ; Xs = Xs0 ),
     aggregate(LN, Xs, V).
-proj_values(E, Cols, [R|_], [V]) :- eval(E, Cols, R, V).
+proj_values(E, Cols, _AliasCols, [R|_], [V]) :- eval(E, Cols, R, V).
 
-out_cols(Projs, Cols, Out) :- findall(C, ( member(proj(E, A, _), Projs), out_col(E, A, Cols, C) ), Cs), flatten(Cs, Out).
-out_col(star, none, Cols, Cols) :- !.
-out_col(E, some(A), Cols, col(L, T)) :- !, lower(A, L), expr_type(E, Cols, T).
-out_col(col(N), none, Cols, col(L, T)) :- !, lower(N, L), ( memberchk(col(L, T), Cols) -> true ; T = num ).
-out_col(E, none, Cols, col('_auto', T)) :- expr_type(E, Cols, T).
+% task 5d: AliasCols mirrors project()'s own use of it — a qualified star
+% (`a.*`) contributes exactly the Col entries Cols already has for source
+% `a`'s own columns (order preserved), so the schema this returns stays in
+% lockstep with the row values project()/proj_values() actually push.
+out_cols(Projs, Cols, AliasCols, Out) :- findall(C, ( member(proj(E, A, _), Projs), out_col(E, A, Cols, AliasCols, C) ), Cs), flatten(Cs, Out).
+out_col(star, none, Cols, _AliasCols, Cols) :- !.
+out_col(star(A0), none, Cols, AliasCols, Out) :- !,
+    lower(A0, A), ( memberchk(A-Names, AliasCols) -> true ; findall(N, member(col(N, _), Cols), Names) ),
+    findall(col(N, T), ( member(N, Names), memberchk(col(N, T), Cols) ), Out).
+out_col(E, some(A), Cols, _AliasCols, col(L, T)) :- !, lower(A, L), expr_type(E, Cols, T).
+out_col(col(N), none, Cols, _AliasCols, col(L, T)) :- !, lower(N, L), ( memberchk(col(L, T), Cols) -> true ; T = num ).
+out_col(E, none, Cols, _AliasCols, col('_auto', T)) :- expr_type(E, Cols, T).
 
 expr_type(col(N), Cols, T) :- lower(N, L), memberchk(col(L, T), Cols), !.
 expr_type(call(F, [A]), Cols, T) :- lower(F, LF), memberchk(LF, [max, min]), !, expr_type(A, Cols, T).

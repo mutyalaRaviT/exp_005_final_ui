@@ -170,10 +170,13 @@ from_txt(table(D, some(A)), T, P, P) :- ds_key(D, K), lower(A, LA), format(atom(
 from_txt(subquery(Core, none), T, P0, P) :- core_chain(Core, C, P0, P), format(atom(T), "(~w)", [C]).
 from_txt(subquery(Core, some(A)), T, P0, P) :- core_chain(Core, C, P0, P), lower(A, LA), format(atom(T), "(~w).alias(\"~w\")", [C, LA]).
 
+% task 5d: a join whose own arity is 1 (cross_join(Src): no ON) renders
+% ".crossJoin(src)" instead — arity decides this, not the functor name.
 joins_txt([], "", P, P).
 joins_txt([J|Js], T, P0, P) :-
-    J =.. [_, Src, On], from_txt(Src, S, P0, P1), px(On, O, P1, P2),
-    format(atom(JT), ".join(~w, ~w, \"inner\")", [S, O]),
+    functor(J, _, Arity), J =.. [_, Src|Rest], from_txt(Src, S, P0, P1),
+    ( Arity =:= 2 -> [On] = Rest, px(On, O, P1, P2), format(atom(JT), ".join(~w, ~w, \"inner\")", [S, O])
+    ; P2 = P1, format(atom(JT), ".crossJoin(~w)", [S]) ),
     joins_txt(Js, RestT, P2, P),
     atomic_list_concat([JT, RestT], T).
 
@@ -185,6 +188,10 @@ having_txt(some(C), T, P0, P) :- px(C, X, P0, P), format(atom(T), ".filter(~w)",
 
 % SELECT list -> .select / .agg / .groupBy(...).agg
 select_txt([proj(star, none, _)], none, ".select(\"*\")", P, P) :- !.
+% task 5d: a single-item qualified star (`a.*`) — Spark's own "alias.*"
+% column string expands every column of that aliased source, so this is the
+% direct analogue of the bare-star fast path just above.
+select_txt([proj(star(A0), none, _)], none, T, P, P) :- !, lower(A0, A), format(atom(T), ".select(\"~w.*\")", [A]).
 select_txt(Cols, none, T, P0, P) :-
     ( member(proj(E, _, _), Cols), is_agg(E) ) ->
         ( maplist_pre(proj_txt, Cols, Ts, P0, P), atomic_list_concat(Ts, ", ", TT), format(atom(T), ".agg(~w)", [TT]) )
@@ -200,6 +207,8 @@ key_txt(Key, Cols, T) :- ( member(proj(E, some(A), _), Cols), same_expr(E, Key) 
 same_expr(A, B) :- lower_term(A, LA), lower_term(B, LB), LA == LB.
 
 proj_txt(proj(star, none, _), "F.col(\"*\")", P, P).
+% task 5d: a qualified star (`a.*`), same idea as the bare star arm above.
+proj_txt(proj(star(A0), none, _), T, P, P) :- !, lower(A0, A), format(atom(T), "F.col(\"~w.*\")", [A]).
 proj_txt(proj(E, none, _), T, P0, P) :- px(E, T, P0, P).
 proj_txt(proj(E, some(A), _), T, P0, P) :- px(E, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
 
@@ -209,12 +218,26 @@ maplist_pre(G, [X|Xs], [Y|Ys], P0, P) :- call(G, X, Y, P0, P1), maplist_pre(G, X
 is_agg(call(N, _)) :- lower(N, L), memberchk(L, [sum, avg, mean, max, min, count, std, var, nmiss]).
 
 % output columns of a core — for the schema table
-core_out_cols(select_core(Cols, From, _, _, _, _), Out) :-
-    findall(C, ( member(proj(E, A, _), Cols), proj_col(E, A, From, C) ), Cs), flatten(Cs, Out).
-proj_col(_, some(A), _, L) :- !, lower(A, L).
-proj_col(col(N), none, _, L) :- !, lower(N, L).
-proj_col(star, none, table(D, _), Cols) :- ds_key(D, K), schema(K, Cols), !.
-proj_col(_, none, _, '_auto').
+% task 5d: proj_col now also sees Joins, so a qualified star (`a.*`) can
+% resolve against a JOIN source's own alias, not only FROM's.
+core_out_cols(select_core(Cols, From, Joins, _, _, _), Out) :-
+    findall(C, ( member(proj(E, A, _), Cols), proj_col(E, A, From, Joins, C) ), Cs), flatten(Cs, Out).
+proj_col(_, some(A), _, _, L) :- !, lower(A, L).
+proj_col(col(N), none, _, _, L) :- !, lower(N, L).
+proj_col(star, none, table(D, _), _, Cols) :- ds_key(D, K), schema(K, Cols), !.
+proj_col(star(A0), none, From, Joins, Cols) :- !,
+    lower(A0, A), ( alias_schema(From, Joins, A, S) -> Cols = S ; Cols = ['_auto'] ).
+proj_col(_, none, _, _, '_auto').
+
+% task 5d: the schema of whichever from_source (FROM itself, or one of its
+% JOINs) carries alias Al — used by proj_col's star(Alias) clause above; same
+% helper name/shape as the Rust mirrors' own alias_schema.
+alias_schema(From, _Joins, Al, Cols) :- from_source_alias(From, Al), !, table_schema(From, Cols).
+alias_schema(_From, Joins, Al, Cols) :- member(J, Joins), arg(1, J, Src), from_source_alias(Src, Al), !, table_schema(Src, Cols).
+from_source_alias(table(_, some(A0)), Al) :- !, lower(A0, Al).
+from_source_alias(subquery(_, some(A0)), Al) :- !, lower(A0, Al).
+table_schema(table(D, _), Cols) :- !, ds_key(D, K), schema(K, Cols).
+table_schema(_, []).
 
 % ------------------------------------------------------------ expressions
 % px(+Term, -PythonText, +Pre0, -Pre): Pre gathers scalar-subquery lines.
@@ -225,6 +248,7 @@ px(col(A, N), T, P, P) :- lower(A, LA), lower(N, L), format(atom(T), "F.col(\"~w
 px(lit(V), T, P, P) :- number(V), !, format(atom(T), "F.lit(~w)", [V]).
 px(lit(V), T, P, P) :- py_str(V, S), format(atom(T), "F.lit(~w)", [S]).
 px(star, "F.col(\"*\")", P, P).
+px(star(A0), T, P, P) :- lower(A0, A), format(atom(T), "F.col(\"~w.*\")", [A]).
 px(paren(E), T, P0, P) :- px(E, X, P0, P), format(atom(T), "(~w)", [X]).
 px(neg(E), T, P0, P) :- px(E, X, P0, P), format(atom(T), "(-~w)", [X]).
 px(not(E), T, P0, P) :- px(E, X, P0, P), format(atom(T), "(~~~w)", [X]).

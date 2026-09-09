@@ -217,9 +217,12 @@ core_parts(select_core(Cols, From, Joins, WhereOpt, GroupOpt, HavingOpt), Src, S
     ( HavingOpt = some(H) -> pe(H, top, HT, P5, P), format(atom(HStep), ".filter(~w)", [HT]), S4 = [HStep] ; S4 = [], P = P5 ),
     append([S1, S2, S3, S4], Steps).
 
+% task 5d: a join whose own arity is 1 (cross_join(Src): no ON) renders
+% ".crossJoin(src)" instead — arity decides this, not the functor name.
 join_step(J, JStep, P0, P) :-
-    J =.. [_, JS, On], from_txt(JS, JT, P0, P1), pe(On, top, OT, P1, P),
-    format(atom(JStep), ".join(~w, ~w, \"inner\")", [JT, OT]).
+    functor(J, _, Arity), J =.. [_, JS|Rest], from_txt(JS, JT, P0, P1),
+    ( Arity =:= 2 -> [On] = Rest, pe(On, top, OT, P1, P), format(atom(JStep), ".join(~w, ~w, \"inner\")", [JT, OT])
+    ; P = P1, format(atom(JStep), ".crossJoin(~w)", [JT]) ).
 
 from_txt(table(D, none), T, P, P) :- pyvar(D, T).
 from_txt(table(D, some(A)), T, P, P) :- pyvar(D, V), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [V, LA]).
@@ -228,6 +231,14 @@ from_txt(subquery(Core, AliasOpt), T, P0, P) :-
     ( AliasOpt = some(A) -> lower(A, LA), format(atom(T), "(~w~w).alias(\"~w\")", [S, ST, LA]) ; format(atom(T), "(~w~w)", [S, ST]) ).
 
 % SELECT list -> [] | [.select(...)] | [.agg(...)] | [.groupBy(...), .agg(...)]
+% task 5d: NOT widened to a qualified star (`a.*`) — unlike the bare star/0
+% fast path (implicit "pass every column through" is sound when there is no
+% join, or the whole joined row equals the whole source anyway), skipping
+% .select() entirely for a lone `a.*` would pass through every JOINed
+% column, not just `a`'s — wrong the moment a join is present. No file in
+% this corpus hits this (a lone single-item `a.*` projection list), so left
+% as the general sel_item/pe path below, which renders it correctly via
+% "alias.*" regardless.
 select_steps([proj(star, none, _)], none, [], P, P) :- !.
 select_steps(Cols, none, [Step], P0, P) :-
     (   member(proj(E, _, _), Cols), is_agg(E)
@@ -255,6 +266,8 @@ same_expr(A, B) :- lower_term(A, LA), lower_term(B, LB), LA == LB.
 
 sel_item(proj(col(N), none, _), T, P, P) :- !, lower(N, L), format(atom(T), "\"~w\"", [L]).
 sel_item(proj(star, none, _), "\"*\"", P, P) :- !.
+% task 5d: a qualified star (`a.*`), same idea as the bare star arm above.
+sel_item(proj(star(A0), none, _), T, P, P) :- !, lower(A0, A), format(atom(T), "\"~w.*\"", [A]).
 sel_item(proj(E, none, _), T, P0, P) :- pe(E, sub, T, P0, P).
 sel_item(proj(E, some(A), _), T, P0, P) :- pe(E, sub, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
 agg_item(P, T, P0, P1) :- sel_item(P, T, P0, P1).
@@ -264,12 +277,26 @@ maplist_pre(G, [X|Xs], [Y|Ys], P0, P) :- call(G, X, Y, P0, P1), maplist_pre(G, X
 
 is_agg(call(N, _)) :- lower(N, L), memberchk(L, [sum, avg, mean, max, min, count, std, var, nmiss]).
 
-core_out_cols(select_core(Cols, From, _, _, _, _), Out) :-
-    findall(C, ( member(proj(E, A, _), Cols), proj_col(E, A, From, C) ), Cs), flatten(Cs, Out).
-proj_col(_, some(A), _, L) :- !, lower(A, L).
-proj_col(col(N), none, _, L) :- !, lower(N, L).
-proj_col(star, none, table(D, _), Cols) :- ds_key(D, K), schema(K, Cols), !.
-proj_col(_, none, _, '_auto').
+% task 5d: proj_col now also sees Joins, so a qualified star (`a.*`) can
+% resolve against a JOIN source's own alias, not only FROM's.
+core_out_cols(select_core(Cols, From, Joins, _, _, _), Out) :-
+    findall(C, ( member(proj(E, A, _), Cols), proj_col(E, A, From, Joins, C) ), Cs), flatten(Cs, Out).
+proj_col(_, some(A), _, _, L) :- !, lower(A, L).
+proj_col(col(N), none, _, _, L) :- !, lower(N, L).
+proj_col(star, none, table(D, _), _, Cols) :- ds_key(D, K), schema(K, Cols), !.
+proj_col(star(A0), none, From, Joins, Cols) :- !,
+    lower(A0, A), ( alias_schema(From, Joins, A, S) -> Cols = S ; Cols = ['_auto'] ).
+proj_col(_, none, _, _, '_auto').
+
+% task 5d: the schema of whichever from_source (FROM itself, or one of its
+% JOINs) carries alias Al — used by proj_col's star(Alias) clause above; same
+% helper shape as sas_pyspark.pl's own alias_schema.
+alias_schema(From, _Joins, Al, Cols) :- from_source_alias(From, Al), !, table_schema(From, Cols).
+alias_schema(_From, Joins, Al, Cols) :- member(J, Joins), arg(1, J, Src), from_source_alias(Src, Al), !, table_schema(Src, Cols).
+from_source_alias(table(_, some(A0)), Al) :- !, lower(A0, Al).
+from_source_alias(subquery(_, some(A0)), Al) :- !, lower(A0, Al).
+table_schema(table(D, _), Cols) :- !, ds_key(D, K), schema(K, Cols).
+table_schema(_, []).
 
 % ------------------------------------------------------------ expressions
 % pe(+Term, +Ctx, -Py, +Pre0, -Pre)   Ctx: top (a whole condition) | sub (an operand) | arg (a function argument)
@@ -279,6 +306,7 @@ pe(col(A, N), _, T, P, P) :- lower(A, LA), lower(N, L), format(atom(T), "F.col(\
 pe(lit(V), top, T, P, P) :- !, py_lit(V, X), format(atom(T), "F.lit(~w)", [X]).
 pe(lit(V), _, T, P, P) :- py_lit(V, T).
 pe(star, _, "\"*\"", P, P).
+pe(star(A0), _, T, P, P) :- lower(A0, A), format(atom(T), "\"~w.*\"", [A]).
 pe(paren(E), _, T, P0, P) :- pe(E, sub, X, P0, P), format(atom(T), "(~w)", [X]).
 pe(neg(E), _, T, P0, P) :- wrap(E, X, P0, P), format(atom(T), "-~w", [X]).
 pe(not(E), _, T, P0, P) :- wrap(E, X, P0, P), format(atom(T), "~~~w", [X]).
