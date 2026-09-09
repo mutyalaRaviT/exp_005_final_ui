@@ -9,7 +9,7 @@
 import os
 import tempfile
 
-from tools.diff_route import diff_json, load_accepted, filter_accepted
+from tools.diff_route import diff_json, load_accepted, filter_accepted, _canon, _item_key
 
 
 def test_identical_payloads_have_no_differences():
@@ -92,7 +92,58 @@ def test_unordered_list_reports_missing_and_extra_when_sets_differ():
     a = {"edges": [{"src": "p", "dst": "q"}]}
     b = {"edges": [{"src": "p", "dst": "q"}, {"src": "r", "dst": "s"}]}
     d = diff_json(a, b, unordered={"edges"})
-    assert d == [("edges[extra]", None, '{"dst": "s", "src": "r"}')]
+    extra_item = _canon({"src": "r", "dst": "s"})
+    assert d == [(f"edges[extra:{_item_key(extra_item)}]", None, extra_item)]
+
+
+def test_two_different_missing_items_at_the_same_path_get_different_keys():
+    # CRITICAL fix (review round 1): _diff_unordered_list used to report every missing (or
+    # extra) item at one shared path, e.g. "edges[missing]" — so a single ledger row
+    # accepting one reviewed missing edge would silently also accept every OTHER missing
+    # edge that ever landed at that same path, including ones nobody has looked at. Each
+    # item now gets its own path via a content-hash key, so two different missing items
+    # never collide.
+    edge_1 = {"src": "p", "dst": "q"}
+    edge_2 = {"src": "x", "dst": "y"}
+    key_1 = _item_key(_canon(edge_1))
+    key_2 = _item_key(_canon(edge_2))
+    assert key_1 != key_2
+
+    a = {"edges": [edge_1, edge_2]}
+    b = {"edges": []}
+    d = diff_json(a, b, unordered={"edges"})
+    paths = {p for p, _, _ in d}
+    assert paths == {f"edges[missing:{key_1}]", f"edges[missing:{key_2}]"}
+
+
+def test_accepting_one_missing_item_does_not_accept_a_different_one_at_the_same_path():
+    # The end-to-end version of the fix above, through load_accepted/filter_accepted: a
+    # ledger row for edge_1's exact json_path must not suppress edge_2's, even though both
+    # are "a missing edge for file f.sas" in prose. Before the fix both diffs shared the
+    # bare path "edges[missing]", so accepting one accepted both — this run must still
+    # report a failure (non-empty result) because of edge_2.
+    edge_1 = {"src": "p", "dst": "q"}
+    edge_2 = {"src": "x", "dst": "y"}
+    key_1 = _item_key(_canon(edge_1))
+
+    a = {"edges": [edge_1, edge_2]}
+    b = {"edges": []}
+    diffs = diff_json(a, b, unordered={"edges"})
+
+    text = f"""# fixture
+## Accepted divergences
+| question | fileid | json_path | why the parser is right |
+|---|---|---|---|
+| edges | f.sas | edges[missing:{key_1}] | edge_1 reviewed: the scanner never saw this flow |
+"""
+    fd, path = tempfile.mkstemp(suffix=".md")
+    with os.fdopen(fd, "w") as fh:
+        fh.write(text)
+    accepted = load_accepted(path)
+
+    remaining = filter_accepted(diffs, accepted, "edges", "f.sas")
+    assert len(remaining) == 1, "edge_2's difference must still fail — it was never accepted"
+    assert remaining[0][0].startswith("edges[missing:") and key_1 not in remaining[0][0]
 
 
 def test_root_level_list_diffs_by_index():

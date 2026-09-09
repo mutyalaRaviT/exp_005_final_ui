@@ -62,6 +62,7 @@ extends this table with its own one-line reason, not a global switch.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -137,19 +138,41 @@ def _canon(x: Any) -> str:
     return json.dumps(x, sort_keys=True, default=str)
 
 
+def _item_key(canon_item: str) -> str:
+    """A short, stable, human-copyable discriminator for one item in an unordered-list
+    comparison: the first 12 hex chars of `sha256` of the item's own canonical JSON.
+
+    Why a content hash and not a domain key (e.g. `src`+`dst` for an edge): `diff_json` is
+    generic over every question's schema and has no idea which fields "identify" an item
+    for `edges` versus `tables` versus a future thirteenth question — a hash needs no such
+    per-schema configuration and still gives the property that matters: two items that
+    differ in *any* field get two different keys, so accepting one reviewed item can never
+    accidentally also accept a different one that happens to land at the same list. It is
+    deterministic (same item, same key, every run — the property a ledger row keyed on it
+    depends on) and short enough to read and copy out of this tool's own error output
+    straight into a ledger row, which is the intended workflow: run the tool, it fails and
+    prints the exact `json_path` (hash included), a human reviews that one item and pastes
+    that exact path into the ledger."""
+    return hashlib.sha256(canon_item.encode()).hexdigest()[:12]
+
+
 def _diff_unordered_list(av: list, bv: list, path: str) -> list[tuple]:
     """Multiset comparison: a genuinely reordered list yields no diffs; a list whose
     membership actually differs reports exactly what is missing (in `av`, not `bv`) and
-    what is extra (in `bv`, not `av`), as canonical JSON, rather than pairing elements up
-    positionally (which would misattribute a membership difference to whichever elements
-    happened to sort adjacent)."""
+    what is extra (in `bv`, not `av`), one diff per item, each at its own path —
+    `f"{path}[missing:{key}]"` / `f"{path}[extra:{key}]"` where `key` is `_item_key` of that
+    one item — rather than pairing elements up positionally (which would misattribute a
+    membership difference to whichever elements happened to sort adjacent) and rather than
+    one shared path for every missing/extra item at this list (which would let a single
+    accepted-divergence ledger row for one reviewed item silently also accept every future,
+    never-reviewed item at the same path — the exact loophole this tool exists to close)."""
     ca = Counter(_canon(x) for x in av)
     cb = Counter(_canon(x) for x in bv)
     diffs: list[tuple] = []
     for item in sorted((ca - cb).elements()):
-        diffs.append((f"{path}[missing]", item, None))
+        diffs.append((f"{path}[missing:{_item_key(item)}]", item, None))
     for item in sorted((cb - ca).elements()):
-        diffs.append((f"{path}[extra]", None, item))
+        diffs.append((f"{path}[extra:{_item_key(item)}]", None, item))
     return diffs
 
 
@@ -200,7 +223,17 @@ def load_accepted(path: str | Path) -> set[tuple[str, str, str]]:
 def filter_accepted(diffs: list[tuple], accepted: set[tuple[str, str, str]], question: str, fileid: str) -> list[tuple]:
     """Drop exactly the diffs whose `(question, fileid, json_path)` is a row in the ledger.
     An accepted divergence is scoped to one question and one file — the same json_path
-    accepted for one file must still fail for every other file that was never looked at."""
+    accepted for one file must still fail for every other file that was never looked at.
+
+    For an ordinary (ordered) field, `json_path` is stable and shared by construction
+    (`"edges[3].level"` always means the same thing). For an unordered list field,
+    `_diff_unordered_list` embeds a per-item content-hash key in the path itself
+    (`"edges[missing:<hash>]"`) precisely so this same exact-match filter also scopes an
+    accepted divergence down to one specific reviewed item — never to "any missing item at
+    this path", which would silently swallow every future, never-reviewed difference at the
+    same list. A human writing a ledger row for an unordered field copies the exact
+    `json_path` this tool printed (hash included) after reviewing that one item; they do
+    not compute the hash by hand."""
     return [d for d in diffs if (question, fileid, d[0]) not in accepted]
 
 
@@ -301,16 +334,22 @@ def _shape_bench_open_as_file(open_resp: dict) -> dict:
 
 
 def _shape_bench_open_as_blocks(open_resp: dict) -> list:
-    """Project onto `blocks()`'s wire shape. **Deliberately excludes `py_pretty`**: the
-    Bench's per-block dict has no field that corresponds to it (`py_pretty` is Rust's own
-    pretty-printed rendering, introduced in this phase — there is nothing in the old oracle
-    to disagree with). Excluding a field because the old server structurally cannot produce
-    it is not an accepted divergence — there is no comparison to accept or reject, only
-    nothing to compare. It is documented here, in code, rather than as one ledger row per
-    file, because it is not a per-file finding; it is a permanent shape fact. Once Task 9
-    lands `blocks()` and knows Rust's real `py_pretty` semantics, it may still want its own
-    check that `py_pretty` round-trips against `py` (a same-oracle consistency check, not an
-    oracle diff) — that is Task 9's to add, not this tool's to fake here."""
+    """Project onto `blocks()`'s wire shape, minus `py_pretty`: the Bench's per-block dict
+    has no field that corresponds to it (`py_pretty` is Rust's own pretty-printed
+    rendering, introduced in this phase — there is nothing in the old oracle to disagree
+    with). Excluding a field because the old server structurally cannot produce it is not
+    an accepted divergence — there is no comparison to accept or reject, only nothing to
+    compare — so it must never cost a per-file ledger row.
+
+    This function only shapes the oracle side, so on its own it is not sufficient: the
+    Rust response still carries `py_pretty`, and a plain `diff_json` against this output
+    would report it missing on the oracle side for every block of every file. The `blocks`
+    branch of `run_question` closes that gap by projecting the *same* field list off the
+    Rust JSON before diffing (mirroring how the `tablegraph` branch strips `tables[].kind`
+    from both sides) — so read this docstring together with that branch, not in isolation.
+    Once Task 9 lands `blocks()` and knows Rust's real `py_pretty` semantics, it may still
+    want its own check that `py_pretty` round-trips against `py` (a same-oracle consistency
+    check, not an oracle diff) — that is Task 9's to add, not this tool's to fake here."""
     return [
         {k: b.get(k) for k in ("id", "n", "kind", "name", "lines", "sas", "py", "warn", "reads", "writes", "terms")}
         for b in open_resp.get("blocks", [])
@@ -501,6 +540,15 @@ def run_question(question: str, corpus: str | None, verbose: bool) -> tuple[bool
             open_resp = _bench_open(rel_path)
             oracle_json = _shape_bench_open_as_blocks(open_resp)
             rust_json = _rust_get(f"/api/blocks?fileid={urllib.parse.quote(fileid)}&from=0&to=999999")
+            # py_pretty has no oracle equivalent (see _shape_bench_open_as_blocks's doc
+            # comment) — project it away on the Rust side too, the same way the tablegraph
+            # branch below strips tables[].kind from both sides, so the comparison never
+            # sees it rather than reporting it as an unexplained diff on every file.
+            if isinstance(rust_json, list):
+                rust_json = [
+                    _project(b, ["id", "n", "kind", "name", "lines", "sas", "py", "warn", "reads", "writes", "terms"])
+                    for b in rust_json
+                ]
             d = filter_accepted(_one_check(question, fileid, rust_json, oracle_json, route.unordered), accepted, question, fileid)
             rows.append({"fileid": fileid, "diffs": d})
             clean = clean and not d
