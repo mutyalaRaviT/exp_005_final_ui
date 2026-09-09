@@ -55,7 +55,7 @@ pub const ALL_ROUTES: &[&str] = &[
 /// route task appends to this list as part of landing its route. `tests/landed.rs`
 /// (Ruling D6) fails loudly if this list and the router in `app()` ever disagree about
 /// which routes are actually wired up.
-pub const LANDED: &[&str] = &["files", "search"];
+pub const LANDED: &[&str] = &["files", "search", "neighborhood"];
 
 /// Build the router from state alone. Called with a real store + real oracle addresses
 /// by `main`, and with `test_state()` by every integration test — same router, same
@@ -65,6 +65,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/health", get(routes::health::health))
         .route("/api/files", get(routes::files::files))
         .route("/api/search", get(routes::search::search))
+        .route("/api/neighborhood", get(routes::neighborhood::neighborhood))
         .with_state(state)
 }
 
