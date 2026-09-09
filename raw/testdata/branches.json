@@ -1,0 +1,72 @@
+{
+ "legs": [
+  {
+   "block": "b_005",
+   "seq": 18,
+   "kind": "IF",
+   "condition": "month(date) <= 3",
+   "polarity": true,
+   "row": {
+    "month": 1,
+    "day": 1,
+    "amount": 0.0
+   }
+  },
+  {
+   "block": "b_005",
+   "seq": 18,
+   "kind": "IF",
+   "condition": "month(date) <= 3",
+   "polarity": false,
+   "row": {
+    "month": 4,
+    "day": 1,
+    "amount": 0.0
+   }
+  },
+  {
+   "block": "b_010",
+   "seq": 37,
+   "kind": "WHERE",
+   "condition": "sale_amount > (SELECT ...)",
+   "polarity": true,
+   "row": {
+    "month": 1,
+    "day": 1,
+    "amount": 151.0
+   }
+  },
+  {
+   "block": "b_010",
+   "seq": 37,
+   "kind": "WHERE",
+   "condition": "sale_amount > (SELECT ...)",
+   "polarity": false,
+   "row": {
+    "month": 1,
+    "day": 1,
+    "amount": 0.0
+   }
+  }
+ ],
+ "boundaries": [
+  {
+   "month": 3,
+   "day": 31,
+   "amount": 150.0,
+   "why": "month = 3, amount = average: IF keeps it, WHERE > drops it"
+  },
+  {
+   "month": 4,
+   "day": 1,
+   "amount": 149.99,
+   "why": "month = 4: first row IF drops; just under average"
+  },
+  {
+   "month": 12,
+   "day": 31,
+   "amount": 150.01,
+   "why": "just over average"
+  }
+ ]
+}

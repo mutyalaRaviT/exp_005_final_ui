@@ -1,0 +1,9 @@
+{
+  "file": "corpus/fakelang/small/f01_pass.fk",
+  "inputs": [
+    {"name": "raw", "path": "corpus/data/fakelang/raw.csv", "schema": ["a:int", "b:double"]}
+  ],
+  "outputs": [
+    {"name": "out_pass", "path": "ref/fakelang/f01_pass/out_pass", "schema": ["a:int", "b:double"]}
+  ]
+}

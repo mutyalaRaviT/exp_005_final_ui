@@ -1,0 +1,6 @@
+-- mini demo source, fixture for exp_014 fold harness
+-- exercises: 2 statement types, comments, blank lines, escaped quotes
+
+a = LOAD 'it\'s a test' ;
+
+b = FILTER a BY v > 15;

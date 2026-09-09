@@ -1,0 +1,8 @@
+{
+  "file": "corpus/fakelang/small/f08_multi.fk",
+  "inputs": [{"name": "raw", "path": "corpus/data/fakelang/raw.csv", "schema": ["a:int", "b:chararray"]}],
+  "outputs": [
+    {"name": "out_multi_a", "path": "ref/fakelang/f08_multi/out_multi_a", "schema": ["a:int", "b:chararray"]},
+    {"name": "out_multi_b", "path": "ref/fakelang/f08_multi/out_multi_b", "schema": ["a:int", "b:chararray"]}
+  ]
+}

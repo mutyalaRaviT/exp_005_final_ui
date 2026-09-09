@@ -1,0 +1,4 @@
+[
+  {"block": "b_001", "seq": 1, "term": "store(rel(out_multi_a),lit('ref/fakelang/f08_multi/out_multi_a'),call('X',[]))", "trace": {}},
+  {"block": "b_002", "seq": 2, "term": "store(rel(out_multi_b),lit('ref/fakelang/f08_multi/out_multi_b'),call('X',[]))", "trace": {}}
+]

@@ -1,0 +1,7 @@
+{
+  "file": "corpus/fakelang/small/f07_dupcount.fk",
+  "inputs": [{"name": "raw", "path": "corpus/data/fakelang/raw.csv", "schema": ["a:int", "b:chararray"]}],
+  "outputs": [
+    {"name": "out_dup", "path": "ref/fakelang/f07_dupcount/out_dup", "schema": ["a:int", "b:chararray"]}
+  ]
+}

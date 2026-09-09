@@ -1,0 +1,7 @@
+{
+  "file": "corpus/fakelang/small/f03_refmissing.fk",
+  "inputs": [{"name": "raw", "path": "corpus/data/fakelang/raw.csv", "schema": ["a:int", "b:double"]}],
+  "outputs": [
+    {"name": "out_refmissing", "path": "ref/fakelang/f03_refmissing/out_refmissing", "schema": ["a:int", "b:double"]}
+  ]
+}
