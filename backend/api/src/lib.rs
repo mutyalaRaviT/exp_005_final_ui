@@ -62,7 +62,8 @@ pub const ALL_ROUTES: &[&str] = &[
 /// route task appends to this list as part of landing its route. `tests/landed.rs`
 /// (Ruling D6) fails loudly if this list and the router in `app()` ever disagree about
 /// which routes are actually wired up.
-pub const LANDED: &[&str] = &["files", "search", "neighborhood", "blocklinks", "edges", "source"];
+pub const LANDED: &[&str] =
+    &["files", "search", "neighborhood", "blocklinks", "edges", "source", "file", "blocks"];
 
 /// Build the router from state alone. Called with a real store + real oracle addresses
 /// by `main`, and with `test_state()` by every integration test — same router, same
@@ -76,6 +77,8 @@ pub fn app(state: AppState) -> Router {
         .route("/api/blocklinks", get(routes::blocklinks::blocklinks))
         .route("/api/edges", get(routes::edges::edges))
         .route("/api/source", get(routes::source::source))
+        .route("/api/file", get(routes::file::file))
+        .route("/api/blocks", get(routes::blocks::blocks))
         // Ruling 6 (2026-09-09, final review fix wave): `/bench` redirects to oracle_b
         // rather than serving the page itself — see `routes::bench` for why.
         .route("/bench", get(routes::bench::bench))
@@ -143,6 +146,61 @@ fn seed_human_edits(conn: &duckdb::Connection) {
     }
 }
 
+/// Like `test_state()`, but seeded from `corpus/fixtures` instead of `corpus/team_finance`.
+///
+/// **Why a second state and not one more `convert` into the first (Task 9, 2026-09-10).**
+/// `convert` does append — it clears and rewrites only the fileids under the folder it is
+/// given — so seeding both corpora into one connection works, and was tried first. It
+/// breaks `tests/files.rs::returns_all_25_team_finance_files_with_exactly_id_label_folder`,
+/// which counts what `/api/files` returns: 26 rows, not 25. That count is Task 5's stated
+/// answer for this corpus, and Ruling D13 says a pass mark is never edited to match an
+/// implementation, so the fixture gets its own store instead. The two corpora also answer
+/// two different oracles (`:8000` for team_finance, the Bench for the fixture); keeping
+/// them in separate stores keeps that separation visible.
+///
+/// The fixture's fileid here is the bare `test_vishnu_testdata_fixed.sas` — `convert` takes
+/// a fileid from the path relative to the folder it is pointed at, and `corpus/fixtures` is
+/// converted as its own root, exactly as `tools/diff_route.py`'s `exp42_files()` documents.
+/// `corpus/perf`'s `big_*.sas` are deliberately not seeded: the perf pass marks are measured
+/// over HTTP against a store built for them, not in this suite.
+pub fn test_state_fixtures() -> AppState {
+    let (mut conn, spec) = fresh_store();
+    let folder = std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../corpus/fixtures"
+    ));
+    inferred_duckdb::convert(&mut conn, spec, folder)
+        .expect("seed the exp42 fixture into the test store");
+    AppState {
+        db: std::sync::Arc::new(std::sync::Mutex::new(conn)),
+        oracle_a: "http://127.0.0.1:8000".to_string(),
+        oracle_b: "http://127.0.0.1:8042".to_string(),
+    }
+}
+
+/// A fresh, empty store under the OS temp dir plus the spec path both seeders convert with.
+/// Shared by `test_state_with_oracle_a` and `test_state_fixtures` so the two can never drift
+/// apart on DDL, spec, or naming.
+fn fresh_store() -> (duckdb::Connection, &'static std::path::Path) {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let pid = std::process::id();
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let db = std::env::temp_dir().join(format!("lineageq_api_test_{pid}_{nanos}_{n}.duckdb"));
+    let _ = std::fs::remove_file(&db);
+    let conn = inferred_duckdb::open(&db).expect("open throwaway test store");
+    let spec = std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../raw/bench_stack/out/spec/sas.json"
+    ));
+    (conn, spec)
+}
+
 /// Like `test_state()`, but with `oracle_a` overridden.
 ///
 /// **Why this exists (Ruling 5 fix round 2, 2026-09-09).** `test_state()`'s default
@@ -160,23 +218,7 @@ fn seed_human_edits(conn: &duckdb::Connection) {
 /// because that is the only field any test so far has had a reason to control, and a
 /// narrower helper is harder to misuse for something the plan didn't ask for.
 pub fn test_state_with_oracle_a(oracle_a: String) -> AppState {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let pid = std::process::id();
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let db = std::env::temp_dir().join(format!("lineageq_api_test_{pid}_{nanos}_{n}.duckdb"));
-    let _ = std::fs::remove_file(&db);
-
-    let mut conn = inferred_duckdb::open(&db).expect("open throwaway test store");
-    let spec = std::path::Path::new(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../raw/bench_stack/out/spec/sas.json"
-    ));
+    let (mut conn, spec) = fresh_store();
     let folder = std::path::Path::new(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../corpus/team_finance"

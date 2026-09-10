@@ -37,6 +37,24 @@ pub async fn get(path: &str) -> Value {
     send(req).await
 }
 
+/// Like `get`, but against a store seeded from `corpus/fixtures` — the exp_42 receipt file
+/// the in-file questions (`file`, `blocks`, `tablegraph`, `story`) are checked against.
+/// Task 9's own store, for the reason `lineageq_api::test_state_fixtures` gives: the
+/// fixture cannot go into `test_state()` without changing what `/api/files` counts.
+pub async fn get_fixtures(path: &str) -> Value {
+    let req = Request::builder()
+        .method("GET")
+        .uri(path)
+        .body(Body::empty())
+        .expect("build GET request");
+    send_with_state(lineageq_api::test_state_fixtures(), req).await
+}
+
+/// `get_raw`, against the fixtures store.
+pub async fn get_raw_fixtures(path: &str) -> RawRes {
+    get_raw_with_state(lineageq_api::test_state_fixtures(), path).await
+}
+
 pub async fn post(path: &str, body: Value) -> Value {
     let req = Request::builder()
         .method("POST")
@@ -116,7 +134,11 @@ pub fn closed_addr() -> String {
 }
 
 async fn send(req: Request<Body>) -> Value {
-    let app = lineageq_api::app(lineageq_api::test_state());
+    send_with_state(lineageq_api::test_state(), req).await
+}
+
+async fn send_with_state(state: lineageq_api::AppState, req: Request<Body>) -> Value {
+    let app = lineageq_api::app(state);
     let res = app.oneshot(req).await.expect("router call");
     let status = res.status();
     let bytes = res

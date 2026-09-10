@@ -83,6 +83,30 @@ RUST_BASE = "http://127.0.0.1:8110"
 ORACLE_ANKITHA = "http://127.0.0.1:8000"   # raw/lineage_server/server/app.py (UI1's backend)
 ORACLE_EXP42 = "http://127.0.0.1:8042"     # raw/bench_stack/server/convert_api.py (the Bench)
 
+# --------------------------------------------------------------------------- base overrides
+# Why `--rust-base` and `--oracle-b` exist (M2, 2026-09-10). Both defaults above are wrong on
+# this machine for the exp42 questions, and neither can be made right by editing a constant:
+#   - `:8042` belongs to the owner's *other* checkout (`lineageQ_aug_experiments/
+#     exp_42_test_vishnu`, plan Part F, finding F8). It answers, so a run against it looks
+#     fine while actually comparing this repo's Rust against another repo's Python. This
+#     repo's Bench must be started on a free port and named here.
+#   - the exp42 corpus (`corpus/fixtures`) and the ankitha corpus (`corpus/team_finance`)
+#     live in two different stores on purpose: `/api/files` answers "25 files" for the
+#     team_finance store, and converting the fixture into it would make that 26 and break
+#     Task 5's own answer. So the exp42 questions are run against a second `lineageq_api`
+#     pointed at a fixtures store, on its own port.
+# These are process-wide because `ROUTES`' per-question fetchers read the module globals; the
+# CLI sets them once, before `run_question`, and prints which bases it used.
+def set_bases(rust_base: str | None = None, oracle_b: str | None = None) -> None:
+    global RUST_BASE, ORACLE_EXP42
+    if rust_base:
+        old, RUST_BASE = RUST_BASE, rust_base.rstrip("/")
+        START_CMD[RUST_BASE] = START_CMD.get(old, "")
+    if oracle_b:
+        old, ORACLE_EXP42 = ORACLE_EXP42, oracle_b.rstrip("/")
+        START_CMD[ORACLE_EXP42] = START_CMD.get(old, "")
+
+
 START_CMD = {
     RUST_BASE: (
         "cd backend/api && cargo run --release -- --db /tmp/lineageq_p2.duckdb "
@@ -352,6 +376,17 @@ def _shape_bench_open_as_file(open_resp: dict) -> dict:
     }
 
 
+def _shape_bench_file_as_source(file_resp: dict) -> dict:
+    """Project the Bench's `GET /api/file?path=` (`{path, text, size}`) onto `source()`'s
+    comparable half. `path` is deliberately left out on both sides: the Bench addresses a
+    file by a path relative to `raw/bench_stack/`, this store by a fileid relative to the
+    converted folder, and they are two spellings of the same file rather than two answers to
+    the same question — there is nothing to accept or reject, the same "nothing to compare"
+    case as `blocks().py_pretty`. What `source()` actually claims is the *text*, and that is
+    what is diffed, `size` included so a truncation could never pass as agreement."""
+    return _project(file_resp, ["text", "size"])
+
+
 def _shape_bench_open_as_blocks(open_resp: dict) -> list:
     """Project onto `blocks()`'s wire shape, minus `py_pretty`: the Bench's per-block dict
     has no field that corresponds to it (`py_pretty` is Rust's own pretty-printed
@@ -438,16 +473,14 @@ ROUTES: dict[str, Route] = {
                                 "has no equivalent in either Python oracle — it is not a "
                                 "replacement for an existing answer, it is new. Land via its "
                                 "own pass mark (idempotent-convert test), not this tool."),
-    "source": Route("exp42", unordered=set(),
-                     no_oracle="no brief states source()'s wire shape or a diff_route "
-                               "invocation for it (Task 8 creates routes/source.rs but its "
-                               "brief never specifies the JSON it returns). Guessing a shape "
-                               "here would either assert a false contract or hide a real "
-                               "mismatch under a wrong comparison. Task 8 must extend this "
-                               "table with the real shape (and, if a Bench-side raw-text "
-                               "read is the intended oracle, `GET /api/file?path=` "
-                               "-> {path,text,size} is the obvious candidate) when it lands "
-                               "the route."),
+    # M2/G2 (2026-09-10): `source` had no oracle because Task 8's brief never stated the
+    # route's wire shape. M1 chose one when it landed the route — `{fileid, text, size}` —
+    # and the Bench's `GET /api/file?path=` -> `{path, text, size}` is its exact counterpart,
+    # the candidate the old note itself named. The two differ in one key only (`fileid` vs
+    # `path`, two different addressing schemes for the same file), so the comparison is made
+    # on `text` and `size`, the two fields that carry the answer, and the key difference is
+    # not dressed up as agreement. See `_shape_bench_file_as_source`.
+    "source": Route("exp42", unordered=set()),
     "file": Route("exp42", unordered=set()),
     "blocks": Route("exp42", unordered=set()),
     "tablegraph": Route("exp42", unordered={"edges"}),
@@ -545,6 +578,16 @@ def run_question(question: str, corpus: str | None, verbose: bool) -> tuple[bool
         rows.append({"fileid": "*", "diffs": d})
         clean = not d
 
+    elif question == "source":
+        for fileid, rel_path in exp42_files():
+            oracle_json = _shape_bench_file_as_source(get(
+                f"{ORACLE_EXP42}/api/file?path={urllib.parse.quote(rel_path, safe='')}"))
+            rust_json = _project(_rust_get(f"/api/source?fileid={urllib.parse.quote(fileid)}"),
+                                 ["text", "size"])
+            d = filter_accepted(_one_check(question, fileid, rust_json, oracle_json, route.unordered), accepted, question, fileid)
+            rows.append({"fileid": fileid, "diffs": d})
+            clean = clean and not d
+
     elif question == "file":
         for fileid, rel_path in exp42_files():
             open_resp = _bench_open(rel_path)
@@ -620,7 +663,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("question", choices=sorted(ROUTES))
     ap.add_argument("--corpus", choices=["ankitha", "exp42"], default=None)
     ap.add_argument("--json", action="store_true", help="emit a machine-readable report instead of text")
+    ap.add_argument("--rust-base", default=None,
+                    help="base URL of the lineageq_api under test (default %s); the exp42 "
+                         "questions need a second instance pointed at a store built from "
+                         "corpus/fixtures" % RUST_BASE)
+    ap.add_argument("--oracle-b", default=None,
+                    help="base URL of the Bench oracle (default %s, which on the author's "
+                         "machine belongs to a different checkout — start this repo's own on "
+                         "a free port and name it here)" % ORACLE_EXP42)
     args = ap.parse_args(argv)
+    set_bases(args.rust_base, args.oracle_b)
 
     try:
         clean, rows = run_question(args.question, args.corpus, verbose=not args.json)
@@ -649,6 +701,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps({
             "question": args.question,
+            "rust_base": RUST_BASE,
+            "oracle_b": ORACLE_EXP42,
             "ok": clean,
             "rows": [
                 {"fileid": r["fileid"], "diffs": r["diffs"], **({"note": r["note"]} if r.get("note") else {})}
@@ -656,6 +710,8 @@ def main(argv: list[str] | None = None) -> int:
             ],
         }, default=str))
     else:
+        if ROUTES[args.question].corpus == "exp42":
+            print(f"[diff_route] rust={RUST_BASE}  oracle_b={ORACLE_EXP42}")
         _print_report(args.question, clean, rows)
 
     return 0 if clean else 1
