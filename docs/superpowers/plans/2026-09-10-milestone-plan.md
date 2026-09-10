@@ -304,3 +304,29 @@ Corrections to this plan from M0's deviations (each verified in the diff, not ta
 | D10 | Should `.superpowers/sdd/` briefs be version-controlled (change the `*` gitignore), or stay local working files? | Stay local; the silver plan in `docs/` is the tracked copy of the same text | nothing; hygiene |
 
 Next dispatch: **M1** (Tasks 7 + 8), brief at `.superpowers/sdd/milestones/m1-brief.md`.
+
+---
+
+## Part G — M1 exam (2026-09-10)
+
+M1 returned `d3e4b34` (Task 7) and `504bfd9` (Task 8). Reproduced by the dispatcher: `cargo test --workspace --release` 43 passed 0 failed; `diff_route.py blocklinks / edges / files / neighborhood --corpus ankitha` all clean (1/1/1/25 calls); with `:8000` stopped and its cwd verified, `tools/shot_ui1.mjs` printed `11_branch_rollup files=6 edges=7 edgeRows=23/23 humanGold=1`, `07_enrich_fx files=4 edges=3`, `18_dashboard_mart files=7 edges=6 edgeRows=25/25 humanGold=1`; `:8000` restarted through its venv afterwards. **M1 accepted.** Ledger grew by 164 accepted rows (blocklinks 80, edges 84), two root causes: B1 Rust block ids and refs differ from the Python scanner's naming, B2 one oracle-only `FILE_FLOW` self-row (`work.accounts_raw → work.accounts_raw`). Neither changes the canvas.
+
+What M1 left behind, and who picks it up:
+
+| # | finding | owner |
+|---|---|---|
+| G1 | `tools/tests/test_diff_route.py::test_load_accepted_on_the_real_ledger_seeded_by_this_task_is_empty` is **red**: it asserts the ledger has no accepted rows, which stopped being true the moment a route landed with divergences. Not a pass mark. | M2 (tools/tests in scope) |
+| G2 | `source()` has no oracle check: `diff_route.py`'s `ROUTES["source"]` is still `no_oracle`. Shape chosen by M1: `GET /api/source?fileid= → {fileid, text, size}`. | M2 wires it to the Bench on a private port |
+| G3 | No CLI writes `human_edits`; M1 seeded the dev store with a throwaway Python call. | M2 adds `lineageq_store human-edit <json>` (additive, `rust_inferred_duckdb/src/main.rs`) |
+| G4 | Repo-root `node_modules` symlink (needed so `node tools/shot_ui1.mjs` resolves Playwright) and `frontend/ui_across_file_ui/tsconfig.tsbuildinfo` are not ignored. | M2 adds both to `.gitignore` |
+| G5 | `tests/forward.rs` and `tests/health.rs` hard-code the landed set; every route task must bump them. | said in every later brief |
+| G6 | TDD red is only provable with `:8000` stopped, because the fallback answers correctly. | said in every later brief |
+| G7 | UI1 shows `could not load blocks for <fileid>` and a 502 on `/api/file/…` with Python dead. | M2's `file()`; M2 acceptance adds "shot_ui1 prints no CONSOLE ERRORS with :8000 stopped" |
+| G8 | `raw/node4_viz` was copied, not moved; two 174-test suites exist. Deleting `raw/node4_viz` is a Task 14 (M4) decision. | M4; **Decision D11** |
+| G9 | The one HUMAN_GOLD row still names `ankitha_1/…` fileids on both sides (it is what the stored edit says). | owner: re-key the edit to `sas/raw/` in M7 (gaps UI) or leave as history |
+
+| ID | Question | Default until answered | Blocks |
+|---|---|---|---|
+| D11 | After M4, does `raw/node4_viz` get deleted (frontend/ is the source of record) or kept read-only as provenance? | Delete in Task 14, keep the README with the commit that named the source | M4 |
+
+Next dispatch: **M2** (Tasks 9 + 10 plus G1–G4), brief at `.superpowers/sdd/milestones/m2-brief.md`.
