@@ -9,7 +9,7 @@
 import os
 import tempfile
 
-from tools.diff_route import diff_json, load_accepted, filter_accepted, _canon, _item_key
+from tools.diff_route import ROUTES, diff_json, load_accepted, filter_accepted, _canon, _item_key
 
 
 def test_identical_payloads_have_no_differences():
@@ -72,13 +72,27 @@ def test_an_accepted_divergence_for_a_different_question_still_fails():
     assert filter_accepted(d, acc, "edges", "f.sas") == d
 
 
-def test_load_accepted_on_the_real_ledger_seeded_by_this_task_is_empty():
-    # Task 4 seeds the real ledger with zero accepted rows — no route has landed yet, so
-    # nothing has been classified. This guards against the parser silently swallowing rows
-    # it should not (e.g. matching the table header as a data row).
+def test_load_accepted_on_the_real_ledger_returns_well_formed_rows():
+    # M2/G1 (2026-09-10): this test used to assert the real ledger had *zero* accepted rows,
+    # which was only true for as long as no route had landed with a divergence. Task 6 and
+    # Task 7 landed three routes with 452 accepted rows between them, so the assertion became
+    # a permanent red that protected nothing. What it was actually there to protect is the
+    # parser: `load_accepted` must return the data rows of the `## Accepted divergences`
+    # table and nothing else — never the header row, never the `|---|---|` separator, never a
+    # row with an empty key cell, and never a question name that is not one of the twelve.
+    # So that is what is asserted now, against the same real file.
     here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     ledger = os.path.join(here, "docs", "plan", "bronze", "bronze_phase2_route_ledger.md")
-    assert load_accepted(ledger) == set()
+    rows = load_accepted(ledger)
+
+    for question, fileid, json_path in rows:
+        assert question, f"empty question cell in {(question, fileid, json_path)!r}"
+        assert fileid, f"empty fileid cell in {(question, fileid, json_path)!r}"
+        assert json_path, f"empty json_path cell in {(question, fileid, json_path)!r}"
+        assert question in ROUTES, (
+            f"{question!r} is not one of the twelve questions — either the ledger names a "
+            f"route that does not exist, or the parser swallowed a header/separator row"
+        )
 
 
 def test_a_missing_key_on_either_side_is_reported():
