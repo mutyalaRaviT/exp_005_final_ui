@@ -16,6 +16,8 @@ export interface FlowNodeData extends Record<string, unknown> {
   expanded?: boolean
   /** a blockCluster folded to a single box */
   collapsed?: boolean
+  /** an opened table occurrence: its column names */
+  columns?: string[]
 }
 export interface FlowEdgeData extends Record<string, unknown> {
   points: Point[]
@@ -28,6 +30,10 @@ export interface FlowEdgeData extends Record<string, unknown> {
   ghost?: boolean
   /** where the handles sit for the laid-out boxes — ElkEdge falls back to a live path once a node drifts from these */
   anchors?: { sx: number; sy: number; tx: number; ty: number }
+  /** a column → column edge (thin, lands on column rows) */
+  column?: boolean
+  /** the full reason, shown on hover */
+  why?: string
 }
 export interface FlowContext {
   roles: Map<string, NodeRole>
@@ -91,6 +97,7 @@ export function toFlow(laid: LaidOut, ctx: FlowContext): { nodes: Node<FlowNodeD
         occRole: ctx.occRoles.get(n.id),
         expanded: n.kind === 'fileCluster' ? true : n.kind === 'file' ? ctx.expanded.has(n.id) : undefined,
         collapsed: n.collapsed,
+        columns: n.columns,
       },
     }
   })
@@ -99,13 +106,18 @@ export function toFlow(laid: LaidOut, ctx: FlowContext): { nodes: Node<FlowNodeD
     type: 'elk',
     source: e.source,
     target: e.target,
+    sourceHandle: e.sourceHandle,
+    targetHandle: e.targetHandle,
     markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: e.fact === false ? EDGE_INFERRED : EDGE_FACT },
     data: {
       points: e.points,
       label: e.label,
       fact: e.fact,
       labelAt: e.labelAt,
-      anchors: anchorsOf(abs.get(e.source), abs.get(e.target), e.points),
+      column: e.column,
+      why: e.why,
+      // a column edge lands on a row, never on the box anchor: no anchors → ElkEdge draws it live from its handles
+      anchors: e.column ? undefined : anchorsOf(abs.get(e.source), abs.get(e.target), e.points),
     },
   }))
   return { nodes, edges }

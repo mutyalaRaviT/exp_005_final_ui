@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Edge, Node } from '@xyflow/react'
 import { fetchBlockLinks, fetchFileDetail, fetchNeighborhood, type BlockLink, type FileDetail, type Neighborhood, type NodeRole } from './api'
 import { graph2Elements, type Graph2Element } from './graph2'
+import { openTables } from './openTables'
+import { edgeReasons } from './edgeReasons'
+import { columnEdges } from './columnEdges'
 import { collapseBlocks } from './collapseBlocks'
 import { elkLayout, type LaidOut, type Point } from './elkLayout'
 import { routeWithAvoid } from './avoidRoute'
@@ -49,6 +52,7 @@ export function useLineageGraph(params: Params, alsoDetail: string | null = null
   const [error, setError] = useState<string | undefined>()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [collapsedBlocks, setCollapsedBlocks] = useState<Set<string>>(new Set())
+  const [openedTables, setOpenedTables] = useState<Set<string>>(new Set())
   const [failed, setFailed] = useState<Set<string>>(new Set())
   const [details, setDetails] = useState<Map<string, FileDetail>>(new Map())
   const [flow, setFlow] = useState<{ nodes: Node<FlowNodeData>[]; edges: Edge<FlowEdgeData>[] } | null>(null)
@@ -107,8 +111,8 @@ export function useLineageGraph(params: Params, alsoDetail: string | null = null
   }, [expanded, details, alsoDetail, failed])
 
   const elements = useMemo(
-    () => (hood ? collapseBlocks(graph2Elements(hood, expanded, details, links), collapsedBlocks) : []),
-    [hood, expanded, details, links, collapsedBlocks],
+    () => (hood ? columnEdges(edgeReasons(openTables(collapseBlocks(graph2Elements(hood, expanded, details, links), collapsedBlocks), openedTables, details), details), details) : []),
+    [hood, expanded, details, links, collapsedBlocks, openedTables],
   )
 
   const ctx = useMemo(() => {
@@ -195,6 +199,12 @@ export function useLineageGraph(params: Params, alsoDetail: string | null = null
   const toggleBlock = useCallback((id: string) => {
     setCollapsedBlocks((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }, [])
+  const toggleTable = useCallback((id: string) => {
+    setOpenedTables((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }, [])
+  const openTable = useCallback((id: string) => {
+    setOpenedTables((prev) => (prev.has(id) ? prev : new Set(prev).add(id)))
+  }, [])
   const expand = useCallback((fileid: string) => {
     setExpanded((prev) => (prev.has(fileid) ? prev : new Set(prev).add(fileid)))
   }, [])
@@ -202,5 +212,5 @@ export function useLineageGraph(params: Params, alsoDetail: string | null = null
   const collapseAll = useCallback(() => setExpanded(new Set()), [])
   const relayout = useCallback(() => setLayoutTick((t) => t + 1), [])
 
-  return { hood, status, error, expanded, failed, details, collapsedBlocks, toggle, toggleBlock, expand, expandAll, collapseAll, flow, layoutError, routeError, holaError, holaWarnings, relayout, reroute }
+  return { hood, status, error, expanded, failed, details, collapsedBlocks, openedTables, toggle, toggleBlock, toggleTable, openTable, expand, expandAll, collapseAll, flow, layoutError, routeError, holaError, holaWarnings, relayout, reroute }
 }

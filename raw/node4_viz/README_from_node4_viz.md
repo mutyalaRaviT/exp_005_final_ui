@@ -103,3 +103,17 @@ crossing switch, node promotion and post-compaction.
   edges are drawn dashed.
 - Dragging a node leaves its edges on the old ELK route until the next re-layout.
 - A file whose blocks fail to load stays collapsed, and a banner reports which fileids failed.
+
+## 2026-09-09 — no-backend mode (`?mock=1`)
+
+Add `&mock=1` to any URL and every `/api` call is answered from
+`src/__fixtures__/team_finance/` — a snapshot of `:8000`'s answers for the team_finance corpus
+(25 files × up/down 0..3 neighbourhoods, 25 file details, all block links, all 83 edge rows;
+2.4 MB). `src/mockApi.ts` looks up neighbourhood and file detail, and filters block links, edges
+and search in memory the way the server does. `src/mockApi.test.ts` proves the filters.
+`mock` survives every URL rewrite (`urlParams.ts`). Neighbourhood by `?table=` is not snapshotted.
+
+Why: the design rounds on the UI (edge labels, column grain, hops) need the page to work with
+nothing running but Vite. Proof: `VITE_PROXY=http://localhost:1 npx vite --port 5181` (dead
+proxy) draws `?file=sas/raw/14_large_txn_report.sas&up=1&down=3&mock=1` in full.
+Re-snapshot: the loop in this commit's message (curl over `/api/files` ids).

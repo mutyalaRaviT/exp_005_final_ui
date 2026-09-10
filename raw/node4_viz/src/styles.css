@@ -655,3 +655,24 @@ body { margin: 0; font: 13px/1.45 -apple-system, "Segoe UI", sans-serif; color: 
 .code-view .block-header { padding-left: 8px; margin-top: 8px; height: 20px; position: sticky; top: 0; background: var(--dbx-surface); z-index: 1; }
 .code-view .block-header .block-chip { font: 600 10px var(--dbx-font); letter-spacing: 0; padding: 2px 8px; border-radius: 10px; }
 .code-view .block-header.active .block-chip { background: var(--dbx-accent); color: #fff; }
+
+/* ---- an opened table occurrence: header + one row per column (2026-09-09) ---- */
+.rf-occ { position: relative; }
+.rf-occ .rf-toggle { right: -8px; top: -8px; width: 16px; height: 16px; font-size: 11px; line-height: 14px; opacity: 0; }
+.rf-occ:hover .rf-toggle, .rf-occ.open .rf-toggle { opacity: 1; }
+.rf-occ.open { flex-direction: column; align-items: stretch; justify-content: flex-start; padding: 0; }
+.rf-occ.open .rf-occ-hd { height: 26px; display: flex; align-items: center; padding: 0 8px; font-weight: 600; border-bottom: 1px solid var(--line, #d6dee7); }
+.rf-occ-cols { display: flex; flex-direction: column; }
+.rf-col { height: 20px; display: flex; align-items: center; padding: 0 8px; font: 400 10.5px/1 var(--dbx-font-mono, ui-monospace, monospace); border-top: 1px solid var(--line, #eef2f6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rf-col:first-child { border-top: 0; }
+.rf-col.none { color: var(--muted, #6b7c8c); font-style: italic; }
+/* edge labels above the translucent file/block groups, else a label inside a group is washed out (2026-09-09) */
+.react-flow__edgelabel-renderer { z-index: 1002; }
+
+/* column rows carry their own handles so a column edge lands on the row (2026-09-09) */
+.rf-col { position: relative; }
+.rf-col-handle { top: 50%; }
+.rf-edge-label-col { font-size: 8.5px; opacity: .9; }
+
+/* double click: nodes off the lit path step back (App.onNodeDoubleClick, 2026-09-10) */
+.react-flow__node.rf-dim { opacity: .28; transition: opacity .2s; }

@@ -1,5 +1,6 @@
 // Typed client for the SAS Table-Lineage Explorer API on :8000 (proxied as /api).
 // Data-flow notation everywhere: x -> y means data moves from x into y.
+import { isMock, mockJson } from './mockApi'
 export type EdgeLevel = 'block' | 'file' | 'project'
 export type Provenance = 'fact' | 'inferred' | 'human_gold'
 export type NodeRole = 'seed' | 'up' | 'down' | 'both'
@@ -87,6 +88,7 @@ export interface EdgesResult { total: number; rows: EdgeRow[] }
 export interface EdgesParams { files: string[]; filter?: string; level?: EdgeLevel | ''; offset?: number; limit?: number }
 
 async function getJson<T>(url: string): Promise<T> {
+  if (isMock()) return mockJson(url) as T   // ?mock=1: answer from the fixtures, no server
   const res = await fetch(url)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}`)
   return (await res.json()) as T

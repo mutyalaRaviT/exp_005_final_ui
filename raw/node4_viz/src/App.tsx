@@ -22,6 +22,7 @@ import StatusBar from './components/StatusBar'
 import { useTheme } from './useTheme'
 import { useKeys } from './useKeys'
 import { edgeTypes, nodeTypes } from './components/nodeTypes'
+import { readability, sceneFromDom, type Score } from './readability'
 import { readParams, writeParams, type Params } from './urlParams'
 import { HOLA_CMD } from './holaLayout'
 import { START_CMD, useLineageGraph } from './useLineageGraph'
@@ -114,6 +115,12 @@ function Workbench({ params, setParams }: { params: Params; setParams: (p: Param
   }, [rf])
 
   const g = useLineageGraph(params, selectedFile, { settings, getPositions })
+  /** readability of what is on the canvas, re-measured after every layout (readability.ts) */
+  const [score, setScore] = useState<Score | null>(null)
+  useEffect(() => {
+    const t = setTimeout(() => setScore(readability(sceneFromDom())), 700)
+    return () => clearTimeout(t)
+  }, [g.flow])
 
   // debugging hook: the live React Flow state, readable from the console as window.__node4
   useEffect(() => {
@@ -142,10 +149,35 @@ function Workbench({ params, setParams }: { params: Params; setParams: (p: Param
   const tweenStop = useRef<() => void>(() => {})
   const highlightIdRef = useRef<string | null>(null)
   /** the node ring for the highlighted block, applied on every tween frame so the glide never drops it */
+  /** the double-clicked node whose edges are lit (App.onNodeDoubleClick); read by withRing on every rebuild */
+  const focusNodeRef = useRef<{ id: string; fileid?: string } | null>(null)
   const withRing = useCallback((ns: Node<FlowNodeData>[]) => {
     const id = highlightIdRef.current
-    return ns.map((n) => { const want = n.id === id ? 'rf-highlight' : undefined; return n.className === want ? n : { ...n, className: want } })
-  }, [])
+    // double click: everything off the lit path steps back (rf-dim), so the answer to
+    // "what is this connected to" is the only thing in colour
+    const focus = focusNodeRef.current
+    let keep: ((n: Node<FlowNodeData>) => boolean) | null = null
+    if (focus) {
+      const fileOf = new Map(ns.map((n) => [n.id, n.data.fileid]))
+      const isFileFocus = (ns.find((n) => n.id === focus.id)?.data.kind ?? 'file') !== 'occurrence'
+      const on = (nid: string) => nid === focus.id || (isFileFocus && focus.fileid !== undefined && fileOf.get(nid) === focus.fileid)
+      const lit = new Set<string>([focus.id])
+      for (const e of rf.getEdges()) if (on(e.source) !== on(e.target)) { lit.add(e.source); lit.add(e.target) }
+      const parentOf = new Map(ns.map((n) => [n.id, n.parentId]))
+      for (const l of [...lit]) { let p = parentOf.get(l); while (p) { lit.add(p); p = parentOf.get(p) } }
+      keep = (n) => lit.has(n.id) || on(n.id)
+    }
+    return ns.map((n) => {
+      const ring = n.id === id ? 'rf-highlight' : ''
+      const dim = keep && !keep(n) ? 'rf-dim' : ''
+      const want = [ring, dim].filter(Boolean).join(' ') || undefined
+      return n.className === want ? n : { ...n, className: want }
+    })
+  }, [rf])
+  /** the double-clicked node whose edges are lit (App.onNodeDoubleClick) */
+  const [focusNode, setFocusNode] = useState<{ id: string; fileid?: string } | null>(null)
+  focusNodeRef.current = focusNode
+  useEffect(() => { setNodes((prev) => withRing(prev)) }, [focusNode, setNodes, withRing])
   // the highlighted block's group gets a ring on the canvas
   const highlightId = selectedFile && highlightBlock ? `${selectedFile}::${highlightBlock}` : null
   highlightIdRef.current = highlightId
@@ -186,25 +218,36 @@ function Workbench({ params, setParams }: { params: Params; setParams: (p: Param
   // the flow is not drawn, conjures a ghost edge (and a ghost node for an off-canvas end)
   useEffect(() => {
     const base = withoutGhosts(rf.getNodes() as Node<FlowNodeData>[])
-    setEdges((prev) => decorate(base, withoutGhosts(prev), pickedRow).edges)
+    setEdges((prev) => {
+      const out = decorate(base, withoutGhosts(prev), pickedRow).edges
+      if (!focusNode) return out
+      // a double-clicked table lights its own edges; a double-clicked file lights every edge into or out of that file
+      const fileOf = new Map(base.map((n) => [n.id, n.data.fileid]))
+      const on = (id: string) => id === focusNode.id || (focusNode.fileid !== undefined && fileOf.get(id) === focusNode.fileid && (base.find((n) => n.id === focusNode.id)?.data.kind ?? 'file') !== 'occurrence')
+      const hits = new Set(out.filter((e) => on(e.source) !== on(e.target)).map((e) => e.id))
+      return applyHighlight(out, new Set([...hits, ...out.filter((e) => e.data?.highlight).map((e) => e.id)]))
+    })
     setNodes((prev) => {
       const clean = withoutGhosts(prev)
       const extra = decorate(clean, [], pickedRow).nodes.filter((n) => n.id.startsWith('ghost:'))
       return extra.length ? [...clean, ...extra] : clean
     })
-  }, [pickedRow, rf, setEdges, setNodes])
+  }, [pickedRow, focusNode, g.flow, rf, setEdges, setNodes])
 
 
   useEffect(() => {
     const onToggle = (e: Event) => g.toggle((e as CustomEvent<{ fileid: string }>).detail.fileid)
     const onToggleBlock = (e: Event) => g.toggleBlock((e as CustomEvent<{ id: string }>).detail.id)
+    const onToggleTable = (e: Event) => g.toggleTable((e as CustomEvent<{ id: string }>).detail.id)
     window.addEventListener('node4:toggle', onToggle)
     window.addEventListener('node4:toggleBlock', onToggleBlock)
+    window.addEventListener('node4:toggleTable', onToggleTable)
     return () => {
       window.removeEventListener('node4:toggle', onToggle)
       window.removeEventListener('node4:toggleBlock', onToggleBlock)
+      window.removeEventListener('node4:toggleTable', onToggleTable)
     }
-  }, [g.toggle, g.toggleBlock])
+  }, [g.toggle, g.toggleBlock, g.toggleTable])
 
   // scroll the code pane to the highlighted block once its code is there
   const detail = selectedFile ? g.details.get(selectedFile) ?? null : null
@@ -220,26 +263,51 @@ function Workbench({ params, setParams }: { params: Params; setParams: (p: Param
     if (!pinned) setParams({ file: fileid, up: params.up, down: params.down })
   }, [pinned, params.up, params.down, setParams])
 
-  // single click: only select (code + edges below follow); double click: re-seed on it
+  // single click: select (code + edges below follow) AND look inside — a file opens
+  // into its blocks and tables, a block folds/unfolds its tables, a table opens its
+  // columns. Click again to close. (2026-09-09: replaces the +/− buttons.)
+  // The open/close itself waits 220 ms so a double click does not open-close-open on the way in.
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onNodeClick: NodeMouseHandler<Node<FlowNodeData>> = useCallback((_, node) => {
     const d = node.data
     if (!d.fileid) return
     setSelectedFile(d.fileid)
+    let look: () => void = () => {}
     if (d.kind === 'occurrence') {
       setHighlightBlock(d.blockId ?? null)
       setFocus({ kind: 'table', value: d.label, fileid: d.fileid })
+      look = () => g.toggleTable(node.id)
     } else if (d.kind === 'blockCluster') {
       const blockId = node.id.split('::').pop() ?? null
       setHighlightBlock(blockId)
       setFocus(blockId ? { kind: 'block', value: blockId, fileid: d.fileid } : null)
+      look = () => g.toggleBlock(node.id)
     } else {
       setHighlightBlock(null)
       setFocus({ kind: 'file', value: d.fileid })
+      if (d.kind === 'file' || d.kind === 'fileCluster') look = () => g.toggle(d.fileid!)
     }
-  }, [])
+    if (clickTimer.current) clearTimeout(clickTimer.current)
+    clickTimer.current = setTimeout(() => { clickTimer.current = null; look() }, 220)
+  }, [g.toggle, g.toggleBlock, g.toggleTable])
+  // double click: show the connected ones — every node on the other end of this
+  // node's edges opens (a file into its tables, a table into its columns) and those
+  // edges light up. Double click again to drop the light. Re-seeding stays in the explorer.
   const onNodeDoubleClick: NodeMouseHandler<Node<FlowNodeData>> = useCallback((_, node) => {
-    if (node.data.fileid) pickFile(node.data.fileid)
-  }, [pickFile])
+    if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null }
+    const nodes = rf.getNodes() as Node<FlowNodeData>[]
+    const byId = new Map(nodes.map((n) => [n.id, n]))
+    const touching = (rf.getEdges() as Edge<FlowEdgeData>[]).filter((e) => e.source === node.id || e.target === node.id)
+    for (const e of touching) {
+      const other = byId.get(e.source === node.id ? e.target : e.source)
+      if (!other?.data.fileid) continue
+      if (other.data.kind === 'file') g.expand(other.data.fileid)
+      else if (other.data.kind === 'occurrence') g.openTable(other.id)
+    }
+    if (node.data.kind === 'file' && node.data.fileid) g.expand(node.data.fileid)
+    if (node.data.kind === 'occurrence') g.openTable(node.id)
+    setFocusNode((prev) => (prev?.id === node.id ? null : { id: node.id, fileid: node.data.fileid }))
+  }, [rf, g.expand, g.openTable])
 
   const onNodeDragStop: OnNodeDrag<Node<FlowNodeData>> = useCallback(async () => {
     const routed = await g.reroute(getPositions())
@@ -475,7 +543,7 @@ function Workbench({ params, setParams }: { params: Params; setParams: (p: Param
         status={<span className="mono">{selectedFile ?? (g.status === 'loading' ? 'loading…' : `${nodeCount} files`)}</span>}
       />
 
-      <StatusBar focusInfo={focusInfo} engineInfo={engineInfo} keys={KEY_HINTS} />
+      <StatusBar focusInfo={focusInfo} engineInfo={engineInfo} keys={KEY_HINTS} readability={score} />
     </div>
   )
 }

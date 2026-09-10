@@ -23,6 +23,8 @@ export interface LaidOutNode {
   blockId?: string
   cyclic?: boolean
   collapsed?: boolean
+  /** an opened table occurrence: its column names, one row each */
+  columns?: string[]
 }
 export interface LaidOutEdge {
   id: string
@@ -33,6 +35,11 @@ export interface LaidOutEdge {
   points: Point[]
   /** label centre chosen by ELK (only when settings.elkLabels) */
   labelAt?: Point
+  /** a column → column edge: which rows it lands on */
+  sourceHandle?: string
+  targetHandle?: string
+  column?: boolean
+  why?: string
 }
 export interface LaidOut { nodes: LaidOutNode[]; edges: LaidOutEdge[] }
 
@@ -45,10 +52,16 @@ export interface LayoutInput {
 }
 
 const CHAR_W = 7
-export function estimateSize(kind: Graph2Kind, label: string): { width: number; height: number } {
+export const COL_ROW_H = 20
+export function estimateSize(kind: Graph2Kind, label: string, columns?: string[]): { width: number; height: number } {
   const firstLine = label.split('\n')[0] ?? ''
   if (kind === 'file') return { width: Math.max(140, CHAR_W * firstLine.length + 40), height: 44 }
-  if (kind === 'occurrence') return { width: CHAR_W * firstLine.length + 24, height: 26 }
+  if (kind === 'occurrence') {
+    if (!columns) return { width: CHAR_W * firstLine.length + 24, height: 26 }
+    // opened: a header row plus one row per column (or one "no columns known" row)
+    const longest = Math.max(firstLine.length, ...columns.map((c) => c.length + 2), 16)
+    return { width: CHAR_W * longest + 32, height: 26 + COL_ROW_H * Math.max(1, columns.length) }
+  }
   if (kind === 'blockCluster') return { width: Math.max(150, CHAR_W * firstLine.length + 56), height: 34 }
   // containers: a minimum so a title always fits; ELK grows them to their children
   return { width: Math.max(160, CHAR_W * firstLine.length + 60), height: 60 }
@@ -136,10 +149,17 @@ export async function elkLayout(elements: Graph2Element[], input: LayoutInput = 
   const elkById = new Map<string, ElkNode>()
   for (const el of nodeEls) {
     const kind = (el.data.kind ?? 'file') as Graph2Kind
-    const size = estimateSize(kind, el.data.label ?? el.data.id)
+    const size = estimateSize(kind, el.data.label ?? el.data.id, (el.data as { columns?: string[] }).columns)
     const hasChildren = nodeEls.some((c) => c.data.parent === el.data.id)
     const isContainer = (kind === 'fileCluster' || kind === 'blockCluster' || kind === 'macro') && hasChildren
     const layoutOptions: Record<string, string> = { ...(isContainer ? CONTAINER_OPTIONS : {}) }
+    if (isContainer) {
+      // a labelled edge between two children (read table → written table, "inner join on acct_id · 4 cols")
+      // needs the gap between layers to fit the label, or the label lands under a box
+      const parentOf = new Map(nodeEls.map((c) => [c.data.id, c.data.parent]))
+      const longest = Math.max(0, ...edgeEls.filter((e) => e.data.label && parentOf.get(e.data.source!) === el.data.id && parentOf.get(e.data.target!) === el.data.id).map((e) => e.data.label!.length))
+      if (longest) layoutOptions['elk.layered.spacing.nodeNodeBetweenLayers'] = String(Math.max(50, CHAR_W * longest + 24))
+    }
     if (s.sidePorts) layoutOptions['elk.portConstraints'] = 'FIXED_SIDE'
     if (s.keepArrangement) {
       const pos = relPosition(el.data.id)
@@ -216,6 +236,7 @@ export async function elkLayout(elements: Graph2Element[], input: LayoutInput = 
         blockId: d.blockId,
         cyclic: d.cyclic,
         collapsed: (d as { collapsed?: boolean }).collapsed,
+        columns: (d as { columns?: string[] }).columns,
       })
       walk(c, x, y, c.id)
     }
@@ -248,7 +269,8 @@ export async function elkLayout(elements: Graph2Element[], input: LayoutInput = 
     if (s.elkLabels && lab && lab.x !== undefined && lab.y !== undefined) {
       labelAt = { x: lab.x + o.x + (lab.width ?? 0) / 2, y: lab.y + o.y + (lab.height ?? 0) / 2 }
     }
-    outEdges.push({ id: e.id, source: d.source!, target: d.target!, label: d.label, fact: d.fact, points, labelAt })
+    const ch = d as { sourceHandle?: string; targetHandle?: string; column?: boolean; why?: string }
+    outEdges.push({ id: e.id, source: d.source!, target: d.target!, label: d.label, fact: d.fact, points, labelAt, sourceHandle: ch.sourceHandle, targetHandle: ch.targetHandle, column: ch.column, why: ch.why })
   }
   return { nodes: outNodes, edges: outEdges }
 }

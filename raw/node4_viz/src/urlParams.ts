@@ -1,4 +1,4 @@
-export interface Params { file?: string; table?: string; block?: string; up: number; down: number }
+export interface Params { file?: string; table?: string; block?: string; up: number; down: number; mock?: boolean }
 
 const clamp = (v: string | null, d = 1) => {
   const n = v === null || v === '' ? d : Number(v)
@@ -15,6 +15,7 @@ export function readParams(search: string): Params {
   else if (table) p.table = table
   const block = q.get('block')
   if (block) p.block = block
+  if (q.has('mock')) p.mock = true   // no-backend mode rides along on every URL rewrite
   return p
 }
 
@@ -25,5 +26,6 @@ export function writeParams(p: Params): string {
   q.set('up', String(p.up))
   q.set('down', String(p.down))
   if (p.block) q.set('block', p.block)
+  if (p.mock) q.set('mock', '1')
   return `?${q}`
 }
