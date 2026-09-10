@@ -422,3 +422,7 @@ M4a returned `78027ea`, `32d93dd`, `2ed04ee`, `46ac09f`. Reproduced by the dispa
 | D16 | Store concurrency: a convert blocks every read for its duration (2.35 s on a 2000-block file). One connection with a mutex, or a reader pool plus one writer? | Keep the mutex through M4b; revisit in M5 when UI2 opens files while a folder converts. | M5 |
 
 Next dispatch: **M4b** (Tasks 13 + 14, D11), brief at `.superpowers/sdd/milestones/m4b-brief.md`.
+
+| ID | Question | Default until answered (in force for M4b) | Blocks |
+|---|---|---|---|
+| D17 | The Bench's thirteen routes: four map to Rust lineage answers; five are Bench-only corpus-contract routes (`files` Bench-shape, `listing`, `folder`, `similar`, `save`); four are Jupyter attach (`sessions`, `session`, `exec`, `term`). What ships in UI2 for phase 2? | Repoint the four; land the five under `/api/bench/<name>` (Ruling 6's prefix branch), `save` confined to `corpus/*/work/`; **drop Jupyter attach until M5** with a one-line placeholder in the Terminal tab. `GET /bench` on :8110 serves the extracted page. | M4b |
