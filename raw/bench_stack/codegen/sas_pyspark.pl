@@ -140,13 +140,39 @@ var_name(nvar(N, _), L) :- lower(N, L).
 
 % -------------------------------------------------------------- PROC SQL
 % CREATE TABLE out AS select  ->  put("out", <chain>)   (scalar subqueries first)
-sql_lines(Out, select_stmt([Core], OrderOpt, _Limit), Lines) :-
+% M3a defect 2 (2026-09-10): UNION ALL. `select_stmt(Cores, Order, Limit)` has
+% held a LIST of select_cores since task 5b, but this rule only ever matched a
+% one-element list, so a UNION ALL statement matched NO clause at all and the
+% whole PROC SQL step vanished from the generated program (18_dashboard_mart,
+% 25_final_pack: 4 branches, 0 lines emitted). Every branch is rendered now and
+% they are combined with `.union(...)`, left-associated.
+%
+% `.union` and not `.unionByName`: SQL UNION ALL is POSITIONAL — it matches
+% branches column by column, not by name — and that is exactly `DataFrame.union`.
+% `unionByName` would also be wrong in practice here: only the first branch of
+% 18_dashboard_mart names its columns (`'BRANCH' as metric_type, ...`), the other
+% three are bare projections whose Spark column names are `LARGETXN`, `l.acct_id`
+% and so on, so matching by name would raise instead of stacking the rows.
+%
+% The first branch sets the output schema, which is the rule sas_lineage.pl's
+% select_lineage/3 already follows (task 5d, the SetSchema flag).
+sql_lines(Out, select_stmt([Core|Cores], OrderOpt, _Limit), Lines) :-
     ds_key(Out, K),
-    core_chain(Core, Chain, [], Pre),
+    core_chain(Core, Chain0, [], Pre0),
+    union_chain(Cores, Chain0, Chain, Pre0, Pre),
     order_txt(OrderOpt, OrdTxt),
     format(atom(L), "put(\"~w\", ~w~w)", [K, Chain, OrdTxt]),
     core_out_cols(Core, Cols), set_schema(K, Cols),
     append(Pre, [L], Lines).
+
+% union_chain(+RemainingCores, +Acc, -Chain, +Pre0, -Pre): left-associated
+% `a.union(b).union(c)`; Pre keeps every branch's scalar-subquery lines in
+% branch order, the same way core_chain threads them within one branch.
+union_chain([], Chain, Chain, P, P).
+union_chain([C|Cs], Acc, Chain, P0, P) :-
+    core_chain(C, T, P0, P1),
+    format(atom(Acc1), "~w.union(~w)", [Acc, T]),
+    union_chain(Cs, Acc1, Chain, P1, P).
 
 order_txt(none, "").
 order_txt(some(Keys), T) :- maplist(px0, Keys, Ps), atomic_list_concat(Ps, ", ", PT), format(atom(T), ".orderBy(~w)", [PT]).

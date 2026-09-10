@@ -197,13 +197,41 @@ chain_lines(V, Src, Steps, Lines) :-
 indent_step(S, Lines) :- split_string(S, "\n", "", Parts), findall(L, ( member(P, Parts), format(atom(L), "    ~w", [P]) ), Lines).
 
 % -------------------------------------------------------------- PROC SQL
-sql_lines(Out, select_stmt([Core], OrderOpt, _), Lines) :-
+% M3a defect 2 (2026-09-10): UNION ALL. `select_stmt(Cores, Order, Limit)` has
+% held a LIST of select_cores since task 5b, but this rule only ever matched a
+% one-element list, so a UNION ALL statement matched NO clause at all and the
+% whole PROC SQL step vanished from the generated program (18_dashboard_mart,
+% 25_final_pack: 4 branches, 0 lines emitted). Every branch is rendered now and
+% they are combined with `.union(...)`, left-associated.
+%
+% `.union` and not `.unionByName`: SQL UNION ALL is POSITIONAL — it matches
+% branches column by column, not by name — and that is exactly `DataFrame.union`.
+% `unionByName` would also be wrong in practice here: only the first branch of
+% 18_dashboard_mart names its columns (`'BRANCH' as metric_type, ...`), the other
+% three are bare projections whose Spark column names are `LARGETXN`, `l.acct_id`
+% and so on, so matching by name would raise instead of stacking the rows.
+%
+% The first branch sets the output schema, which is the rule sas_lineage.pl's
+% select_lineage/3 already follows (task 5d, the SetSchema flag).
+sql_lines(Out, select_stmt([Core|Cores], OrderOpt, _), Lines) :-
     ds_key(Out, K), pyvar(Out, V),
-    core_parts(Core, Src, Steps0, [], Pre),
+    core_parts(Core, Src, Steps1, [], Pre1),
+    union_steps(Cores, US, Pre1, Pre),
+    append(Steps1, US, Steps0),
     ( OrderOpt = some(Keys) -> maplist(key_txt0, Keys, KTs), atomic_list_concat(KTs, ", ", KT), format(atom(OS), ".orderBy(~w)", [KT]), append(Steps0, [OS], Steps) ; Steps = Steps0 ),
     chain_lines(V, Src, Steps, CL),
     core_out_cols(Core, Cols), set_schema(K, Cols),
     append(Pre, CL, Lines).
+
+% union_steps(+Cores, -Steps, +Pre0, -Pre): one ".union(<branch>)" step per
+% extra UNION ALL branch, each branch flattened to a single expression the
+% same way from_txt/4's subquery arm already flattens a nested core.
+union_steps([], [], P, P).
+union_steps([C|Cs], [S|Ss], P0, P) :-
+    core_parts(C, Src, Steps, P0, P1),
+    atomic_list_concat(Steps, ST),
+    format(atom(S), ".union(~w~w)", [Src, ST]),
+    union_steps(Cs, Ss, P1, P).
 
 % core_parts(+Core, -SourceTxt, -Steps, +Pre0, -Pre)
 % task 5c: Joins is a LIST now (was `JoinOpt = none | some(join(JS,On))`);
