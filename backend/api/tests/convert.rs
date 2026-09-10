@@ -154,5 +154,4 @@ async fn convert_is_landed_and_no_longer_forwarded() {
         lineageq_api::ALL_ROUTES.len(),
         "Task 6b is the last route: all twelve questions are answered from the store"
     );
-    let _ = support::closed_addr(); // keep the helper referenced; see support's doc comment
 }

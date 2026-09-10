@@ -1,25 +1,24 @@
 //! `lineageq_api` — one HTTP API over the exp_005 store, fully serving UI1 and pointing
 //! UI2 (the Bench) at its own origin.
 //!
-//! **Why this exists.** Phase 2 replaces two Python backends — `app.py` (UI1's server)
+//! **Why this exists.** Phase 2 replaced two Python backends — `app.py` (UI1's server)
 //! and `convert_api.py` (the Bench) — with one Rust API reading a single DuckDB store
-//! (`docs/plan/silver/silver_phase2_implementation_plan.md`). Routes land one at a time;
-//! until a route lands, its handler forwards the question to whichever Python oracle
-//! answers it today and translates the reply into canonical shape (`oracle::forward`).
-//! `GET /api/health` reports which of the twelve questions in plan §6 are landed and
-//! which are still forwarded.
+//! (`docs/plan/silver/silver_phase2_implementation_plan.md`). Routes landed one at a
+//! time, forwarding to whichever Python oracle answered them until they did. Task 14
+//! (M4b) closed that: all twelve questions are answered from the store, `oracle.rs` and
+//! the `/api/*` fallback are deleted, and no Python process is involved in any answer.
+//! `GET /api/health` still reports the twelve, with nothing forwarded.
 //!
-//! **One door for UI1, not for UI2 (Ruling 6, 2026-09-09, final review fix wave).** UI1
-//! and the Bench both define `/api/files`, with different response shapes, so one origin
-//! cannot answer both until the Bench's own routes land in Rust (phase C) or are renamed
-//! under a prefix. `GET /bench` (`routes::bench`) is therefore a 302 to `oracle_b`'s own
-//! `/bench`, not a served page — see that module's doc comment.
+//! **One door, for both windows (Decision D17, M4b).** UI1 and the Bench both define
+//! `/api/files` with different shapes, which is why Ruling 6 (2026-09-09) made `/bench` a
+//! 302 rather than serving the page. D17 took the other branch: UI2's five Bench-only
+//! questions live under `/api/bench/`, where the names cannot collide, so `/bench` serves
+//! the extracted page from this origin again — see `routes::bench`.
 //!
 //! **Shape.** `app(state)` builds the router from an `AppState` alone — no globals, no
 //! listener — so `main` can serve it over TCP while a test drives the very same router
 //! in-process with `tower::ServiceExt::oneshot` (`tests/support/mod.rs`). `test_state()`
-//! gives a test a throwaway store instead of the real one, and default oracle addresses
-//! that are never dialled unless a test explicitly calls `oracle::forward`.
+//! gives a test a throwaway store instead of the real one.
 //!
 //! **On `lib.rs` and the test helpers existing at all.** The plan
 //! (`docs/plan/silver/silver_phase2_implementation_plan.md`, Task 3) gives the `api`
@@ -30,7 +29,6 @@
 //! `tests/support/mod.rs` exist to make that possible; see the Task 3 report for the
 //! ruling this was made under.
 
-pub mod oracle;
 pub mod spawn;
 pub mod routes;
 pub mod types;
@@ -59,20 +57,20 @@ pub const ALL_ROUTES: &[&str] = &[
     "run",
 ];
 
-/// Questions answered from the store today. Task 5 landed `files`/`search`; each later
-/// route task appended to this list as part of landing its route, and Task 6b (M4a) closed
-/// it: all twelve are here, and `LANDED` and `ALL_ROUTES` now hold the same names. `tests/landed.rs`
-/// (Ruling D6) fails loudly if this list and the router in `app()` ever disagree about
-/// which routes are actually wired up.
+/// Questions answered from the store. Task 5 landed `files`/`search`; each later route
+/// task appended to this list as part of landing its route, Task 6b (M4a) closed it, and
+/// Task 14 (M4b) deleted the forwarder that used to answer the rest. `LANDED` and
+/// `ALL_ROUTES` hold the same names and always will. `tests/landed.rs` (Ruling D6) fails
+/// loudly if this list and the router in `app()` ever disagree about which routes are
+/// actually wired up.
 pub const LANDED: &[&str] =
 &[
     "files", "search", "neighborhood", "convert", "blocklinks", "edges", "source", "file",
     "blocks", "tablegraph", "story", "run",
 ];
 
-/// Build the router from state alone. Called with a real store + real oracle addresses
-/// by `main`, and with `test_state()` by every integration test — same router, same
-/// handlers, either way.
+/// Build the router from state alone. Called with the real store by `main`, and with
+/// `test_state()` by every integration test — same router, same handlers, either way.
 pub fn app(state: AppState) -> Router {
     Router::new()
         .route("/api/health", get(routes::health::health))
@@ -105,9 +103,6 @@ pub fn app(state: AppState) -> Router {
         .route("/api/bench/similar", get(routes::bench::similar))
         .route("/api/bench/listing", get(routes::bench::listing))
         .route("/api/bench/save", axum::routing::post(routes::bench::save))
-        // Ruling 5's fallback (2026-09-09) still stands here; Task 14 deletes it, and
-        // `oracle.rs` with it, once nothing is left that needs a forwarder.
-        .fallback(routes::forward::fallback)
         .with_state(state)
 }
 
@@ -118,9 +113,7 @@ pub fn app(state: AppState) -> Router {
 /// its path relative to the seeded folder, so seeding the root yields fileids of the form
 /// `sas/raw/<name>.sas`, and `collect_sas`'s `.sas`-only filter skips the `.hql` files
 /// under `hive/raw` and every `.py` under the later `auto_convert`/`work`/`final_match`
-/// stages — the store still ends up with exactly the 25 raw SAS files. Oracle addresses
-/// are the same defaults `main` uses; nothing landed so far dials them, and a test that
-/// needs `oracle::forward` is free to point elsewhere.
+/// stages — the store still ends up with exactly the 25 raw SAS files.
 ///
 /// **Why seeded, not empty.** `support::get`/`post` (`tests/support/mod.rs`) each call
 /// this function fresh and drive the router they build from it — there is no way for a
@@ -135,7 +128,15 @@ pub fn app(state: AppState) -> Router {
 /// test suite slow for no benefit to this one. Whichever of those tasks needs `exp42` data
 /// seeds it the same way, here, when it lands.
 pub fn test_state() -> AppState {
-    test_state_with_oracle_a("http://127.0.0.1:8000".to_string())
+    let (mut conn, spec) = fresh_store();
+    let folder = std::path::Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../corpus/team_finance"
+    ));
+    inferred_duckdb::convert(&mut conn, spec, folder)
+        .expect("seed the team_finance corpus into the test store");
+    seed_human_edits(&conn);
+    AppState { db: std::sync::Arc::new(std::sync::Mutex::new(conn)) }
 }
 
 /// Load `tests/fixtures/human_edits.json` into a freshly seeded test store.
@@ -176,8 +177,8 @@ fn seed_human_edits(conn: &duckdb::Connection) {
 /// which counts what `/api/files` returns: 26 rows, not 25. That count is Task 5's stated
 /// answer for this corpus, and Ruling D13 says a pass mark is never edited to match an
 /// implementation, so the fixture gets its own store instead. The two corpora also answer
-/// two different oracles (`:8000` for team_finance, the Bench for the fixture); keeping
-/// them in separate stores keeps that separation visible.
+/// two different oracles while those existed (`:8000` for team_finance, the Bench for the
+/// fixture); keeping them in separate stores keeps that separation visible.
 ///
 /// The fixture's fileid here is the bare `test_vishnu_testdata_fixed.sas` — `convert` takes
 /// a fileid from the path relative to the folder it is pointed at, and `corpus/fixtures` is
@@ -192,15 +193,11 @@ pub fn test_state_fixtures() -> AppState {
     ));
     inferred_duckdb::convert(&mut conn, spec, folder)
         .expect("seed the exp42 fixture into the test store");
-    AppState {
-        db: std::sync::Arc::new(std::sync::Mutex::new(conn)),
-        oracle_a: "http://127.0.0.1:8000".to_string(),
-        oracle_b: "http://127.0.0.1:8042".to_string(),
-    }
+    AppState { db: std::sync::Arc::new(std::sync::Mutex::new(conn)) }
 }
 
 /// A fresh, empty store under the OS temp dir plus the spec path both seeders convert with.
-/// Shared by `test_state_with_oracle_a` and `test_state_fixtures` so the two can never drift
+/// Shared by `test_state` and `test_state_fixtures` so the two can never drift
 /// apart on DDL, spec, or naming.
 fn fresh_store() -> (duckdb::Connection, &'static std::path::Path) {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -222,35 +219,3 @@ fn fresh_store() -> (duckdb::Connection, &'static std::path::Path) {
     (conn, spec)
 }
 
-/// Like `test_state()`, but with `oracle_a` overridden.
-///
-/// **Why this exists (Ruling 5 fix round 2, 2026-09-09).** `test_state()`'s default
-/// `oracle_a` is a real, meaningful address — Ruling 1 exists precisely so something
-/// really does listen on `127.0.0.1:8000` most of the time (this track's own oracle,
-/// `raw/lineage_server`, serving UI1's edges/blocklinks/file until phase C lands them).
-/// A test that needs the `/api/*` fallback's forward attempt to *deterministically fail*
-/// (`tests/forward.rs`, `tests/landed.rs`) must not depend on that address happening to be
-/// unoccupied on whichever machine runs the suite — it was, on the machine this was first
-/// written on, which is exactly how the bug got past both authoring and the first review.
-/// Such a test calls this with an address it knows is closed (see
-/// `tests/support::closed_addr`, which binds an ephemeral port and drops it) instead.
-///
-/// Deliberately not a general "override anything" builder: only `oracle_a` varies here,
-/// because that is the only field any test so far has had a reason to control, and a
-/// narrower helper is harder to misuse for something the plan didn't ask for.
-pub fn test_state_with_oracle_a(oracle_a: String) -> AppState {
-    let (mut conn, spec) = fresh_store();
-    let folder = std::path::Path::new(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../corpus/team_finance"
-    ));
-    inferred_duckdb::convert(&mut conn, spec, folder)
-        .expect("seed the team_finance corpus into the test store");
-    seed_human_edits(&conn);
-
-    AppState {
-        db: std::sync::Arc::new(std::sync::Mutex::new(conn)),
-        oracle_a,
-        oracle_b: "http://127.0.0.1:8042".to_string(),
-    }
-}

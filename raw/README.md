@@ -24,7 +24,7 @@ so the copy mirrors that layout exactly, or nothing resolves.
 |---|---|---|
 | `bench_stack/` | UI2 plus the whole engine, laid out as exp_42's ROOT | `python3 server/convert_api.py --port 8042` → `/bench` |
 | `lineage_server/` | UI1's backend, FastAPI + DuckDB — see its own README | `:8000` |
-| `node4_viz/` | UI1 itself, Vite + React Flow | `npm run dev` → `:5174` |
+| `node4_viz/` | **deleted 2026-09-10 (Task 14, Decision D11)** — only its own README survives, as provenance for `frontend/ui_across_file_ui/` | — |
 | `corpus_ankitha_1/` | the 25-file SAS corpus in the owner's UI1 screenshot | data |
 
 ## Provenance
@@ -42,7 +42,8 @@ stated.
 | `lineage_server/` | `~/Desktop/sas2py_projects/file_dependencies_regex/` | see `lineage_server/README.md` |
 
 `node4_viz/README_from_node4_viz.md` is that repo's own README, renamed so it does not
-collide with this track's folder READMEs.
+collide with this track's folder READMEs. It is now the **only** file left under
+`node4_viz/` — see the 2026-09-10 note below.
 
 **Deliberately not copied**, both rebuildable, 1.2 GB together:
 
@@ -100,3 +101,23 @@ scope, same as `run_all.sh` above) — recorded here so it isn't a surprise late
   the sixteen files the Bench stack needs were checked present after the restructure.
 - **OPEN** — whether `node4_viz/scripts/hola_server/` (44M, absent) is ever needed. The
   HOLA layout tier is off by default, so it only bites if that toggle is turned on.
+
+## 2026-09-10 — `node4_viz/` is deleted; `frontend/ui_across_file_ui/` is the source of record
+
+**Decision D11.** UI1 was *copied* into `frontend/ui_across_file_ui/` by Task 8, not moved,
+so from 2026-09-09 to 2026-09-10 the repo carried two identical React apps and two
+174-test vitest suites. Nothing read the copy under `raw/` — Task 4 pointed the dev proxy
+at `:8110` in `frontend/`'s own `vite.config.ts`, and every later task edited
+`frontend/`'s files. A second copy that nobody edits is a copy that silently rots and then
+misleads whoever greps for a component.
+
+Task 14 deleted it: 529 tracked files, plus the untracked 141 MB `node_modules/` that both
+symlinks used to point at. **`README_from_node4_viz.md` is kept**, unchanged, because it
+is the provenance the copy commit named — where the app came from, how it was run, and
+what its layout means.
+
+Two symlinks pointed into the deleted tree and now point at a real install:
+`frontend/ui_across_file_ui/node_modules` is a real `npm ci` install (the lockfile is
+tracked, the install is not), and the repo-root `node_modules` symlink — which exists so
+`node tools/shot_ui1.mjs` resolves Playwright from the repo root (finding G4) — points at
+that install.

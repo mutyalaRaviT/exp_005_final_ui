@@ -1,0 +1,12 @@
+{
+  "pig": {
+    "lang": "pig",
+    "generated_at_run": "2026-09-10T08:15:50Z",
+    "files": []
+  },
+  "hive": {
+    "lang": "hive",
+    "generated_at_run": "2026-09-10T08:15:50Z",
+    "files": []
+  }
+}
