@@ -368,6 +368,24 @@ impl Emitter {
             ("col", 1) => format!("F.col(\"{}\")", lower(a[0].atom_text())),
             ("col", 2) => format!("F.col(\"{}.{}\")", lower(a[0].atom_text()), lower(a[1].atom_text())),
             ("lit", 1) | ("lit", 2) => if a[0].is_number() { format!("F.lit({})", a[0]) } else { format!("F.lit({})", py_str(a[0].atom_text())) },
+            // M3a defect 3 (2026-09-10): CASE WHEN ... END and the lone `.` (missing).
+            // case_expr([when(Cond,Then)...], none|some(Else)) has folded since task 5b
+            // and `missing` since task 5d, with no rule in either emitter: this arm
+            // panicked ("no PySpark rule for expression functor case_expr"), which is
+            // exactly the `LINEAGEQ warn` + empty program `lineageq_store convert`
+            // stored for 17_compliance_check.sas and 25_final_pack.sas.
+            // No `.otherwise(...)` when the source has no ELSE — Spark's own default is
+            // null, so writing one would invent a value the SAS never named.
+            ("case_expr", 2) => {
+                let mut s = String::new();
+                for w in a[0].list() {
+                    let c = self.px(&w.args()[0], pre);
+                    let v = self.px(&w.args()[1], pre);
+                    s = if s.is_empty() { format!("F.when({}, {})", c, v) } else { format!("{}.when({}, {})", s, c, v) };
+                }
+                match some_arg(&a[1]) { Some(e) => { let et = self.px(e, pre); format!("{}.otherwise({})", s, et) } None => s }
+            }
+            ("missing", 0) => "F.lit(None)".into(),
             ("star", 0) => "F.col(\"*\")".into(),
             ("star", 1) => format!("F.col(\"{}.*\")", lower(a[0].atom_text())),
             ("paren", 1) => format!("({})", self.px(&a[0], pre)),
