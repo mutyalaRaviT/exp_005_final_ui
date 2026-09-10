@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI2 mock — task flow and mapping (IDMC style)</title>
+<!--
+  html2. Static mock, no backend, no G6. Same frame as html1 (ui2_column_lineage_mock.html).
+  Clicking CODE FLOW flips the Lineage drawer to FLOW: an IDMC-style task flow of the file's blocks
+  across the top, and the selected task's MAPPING (Source → Joiner → Expression → Target, with ports)
+  below. File: corpus/team_finance/sas/raw/04_build_accounts.sas — the only two-block file in the corpus.
+  Original brief text: Shows how raw/B_tripane.html (the g6 "Code View — Tri-pane")
+  folds into UI2 (frontend/ui_file_ide, the Bench). Press n for the numbered notes.
+  Frame, tokens and keys are the Bench's (raw/bench_stack/server/bench.html); the column-grain
+  graph, flow strip, linkable code tokens, DrRacket connector lines and the inspector are B_tripane's.
+  File shown: corpus/team_finance/sas/raw/15_join_risk_txn.sas and its auto_convert .py.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#eef2f6; --panel:#ffffff; --panel2:#f5f8fb; --line:#d6dee7; --text:#1f2d3a; --muted:#6b7c8c; --faint:#9fb0bf;
+  --sas:#b8731a; --sas-bg:#fbf1e2; --py:#1f7fb8; --py-bg:#e6f2fa; --ir:#6a4fc2; --ir-bg:#eee9fa;
+  --good:#1c7a45; --good-bg:#e4f5ea; --bad:#b5302a; --bad-bg:#fbe7e5; --warn:#a4631a; --warn-bg:#fcf1e0;
+  --focus:#1f7fb8; --sel:#e6f2fa; --key:#f0f3f7; --shadow:0 6px 24px rgba(20,32,43,.12);
+  --join:#a47de8; --expr:#d4a64a; --filter:#e26060; --group:#4cb8b0;
+}
+:root[data-theme="dark"]{
+  --bg:#0f171f; --panel:#151f29; --panel2:#1b2733; --line:#273543; --text:#dbe5ee; --muted:#8fa3b5; --faint:#5e7183;
+  --sas:#e6a24a; --sas-bg:#2b2116; --py:#4fb0ea; --py-bg:#142a3a; --ir:#a58cf0; --ir-bg:#241f3a;
+  --good:#4fd08a; --good-bg:#12301f; --bad:#f0716a; --bad-bg:#3a1a18; --warn:#e8b45c; --warn-bg:#33261a;
+  --focus:#4fb0ea; --sel:#142a3a; --key:#1f2c39; --shadow:0 6px 24px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;height:100vh;overflow:hidden}
+code,pre,.mono,kbd{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--key);font-size:11px;line-height:16px;text-align:center;color:var(--text)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.tag{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.tag.sas{background:var(--sas-bg);color:var(--sas)}.tag.py{background:var(--py-bg);color:var(--py)}.tag.ir{background:var(--ir-bg);color:var(--ir)}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid transparent}
+.pill.good{background:var(--good-bg);color:var(--good)}.pill.idle{background:var(--panel2);color:var(--muted);border-color:var(--line)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.pill.prog{background:var(--panel2);color:var(--text);border-color:var(--line)}.pill.prog.done{background:var(--good-bg);color:var(--good);border-color:transparent}
+
+/* ---- frame (Bench) ---- */
+#app{display:grid;grid-template-rows:38px 1fr 210px 26px;height:100vh}
+#top{display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;position:relative}
+#top .brand{font-weight:700;letter-spacing:.02em}#top .brand span{color:var(--py)}
+#top .file{display:flex;align-items:center;gap:8px;color:var(--muted)}
+#top .file b{color:var(--text);font-weight:600;padding:2px 6px;border:1px solid transparent;border-radius:6px}
+#top .receipts{display:flex;gap:6px}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{padding:4px 10px;font-size:12px;color:var(--muted)}
+.seg button.on{background:var(--py-bg);color:var(--py);font-weight:600}
+.seg.sm button{padding:2px 8px;font-size:11px}
+.seg.hops button{padding:2px 6px;font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+#top .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+#top .theme{width:28px;height:26px;border:1px solid var(--line);border-radius:7px;color:var(--muted);font-size:14px}
+#main{display:grid;grid-template-columns:44px 210px 1fr 690px;min-height:0}
+#rail{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:4px}
+#rail button{width:32px;height:32px;border-radius:8px;color:var(--muted);display:grid;place-items:center;position:relative}
+#rail button.on{background:var(--sel);color:var(--focus)}
+#rail button kbd{position:absolute;right:-2px;bottom:-3px;min-width:14px;padding:0 3px;font-size:9px;line-height:13px}
+#rail svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.drawer{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;position:relative;min-width:0}
+.drawer.right{border-right:0;border-left:1px solid var(--line)}
+.dh{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap;position:relative}
+.dh kbd{margin-left:auto}
+.db{overflow:auto;flex:1;display:flex;flex-direction:column;min-height:0}
+
+/* ---- left: cells, same rows as the Files drawer ---- */
+.tree{padding:6px 0;font-size:12.5px}
+.tree .dir{padding:4px 12px;color:var(--muted);font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tree .f{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 22px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.tree .f:hover{background:var(--panel2)}
+.tree .f.on{background:var(--sel);color:var(--focus);font-weight:600}
+.tree .f .n{color:var(--faint);font-size:10.5px;width:12px}
+.tree .f .tag{margin-left:auto}
+.tree .f.st{padding-left:38px;font-size:11px;font-weight:400}
+.tree .f.st i{width:7px;height:7px;border-radius:50%;background:var(--c);flex:0 0 auto}
+.tree .f.st.on{box-shadow:inset 3px 0 0 var(--ir);color:var(--text)}
+/* ---- (old outline css, unused) ---- */
+.ol{padding:6px 0}
+.ol .t{padding:6px 12px 2px;color:var(--muted);font-weight:600;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase}
+.ol .r{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:5px 12px;cursor:pointer;font-size:12px;position:relative}
+.ol .r:hover{background:var(--panel2)}
+.ol .r.on{background:var(--sel)}
+.ol .r .n{color:var(--faint);font-family:"JetBrains Mono",monospace;font-size:10.5px}
+.ol .r .name{font-family:"JetBrains Mono",monospace;font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ol .r .name small{display:block;color:var(--muted);font-family:"IBM Plex Sans",sans-serif;font-size:11px}
+.ol .r.step{padding-left:30px}
+.ol .r.step .name{font-size:11px}
+.ol .r.step .n{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px var(--panel);margin-left:6px}
+.ol .r.step.on{box-shadow:inset 3px 0 0 var(--ir)}
+.ol .r .kind{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--c,var(--muted))}
+.ol .r.tbl .name{color:var(--sas)}
+.ol .r.tbl.tgt .name{color:var(--ir)}
+
+/* ---- center: the two buffers ---- */
+#center{display:grid;grid-template-rows:1fr;min-width:0;min-height:0;position:relative}
+#cells{overflow:auto;padding:14px 18px}
+.colhead{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 0 8px}
+.colhead div{display:flex;align-items:center;gap:8px;font-weight:600;font-size:12px;color:var(--muted)}
+.colhead .cnt{margin-left:auto;font-weight:500}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;position:relative}
+.pair::before{content:attr(data-n);position:absolute;left:-14px;top:9px;font-size:10px;color:var(--faint);font-weight:600;font-family:"JetBrains Mono",monospace}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-width:0;position:relative;display:flex;flex-direction:column}
+.pair.focus .cell{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.cell .ch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.cell .ch .name{font-weight:600;color:var(--text);font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.cell .ch .lines{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:10.5px}
+.cell .ch .exec{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--py);min-width:34px}
+.cell pre{margin:0;padding:10px 12px;font-size:12px;line-height:1.55;overflow:auto;white-space:pre;tab-size:4}
+.cell pre .k{color:var(--sas);font-weight:600}.cell pre .p{color:var(--py);font-weight:600}.cell pre .c{color:var(--faint)}.cell pre .s{color:var(--ir)}
+.cell .out{border-top:1px dashed var(--line);padding:8px 12px}
+.out table{border-collapse:collapse;font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.out th{text-align:left;color:var(--muted);font-weight:600;padding:2px 12px 4px 0;border-bottom:1px solid var(--line)}
+.out td{padding:3px 12px 3px 0}
+.out .meta{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:11px;color:var(--muted)}
+/* B_tripane: linkable column tokens, DrRacket style */
+.col{cursor:pointer;text-decoration:underline dotted var(--faint);text-underline-offset:3px;border-radius:3px;padding:0 1px}
+.col:hover{color:var(--ir);text-decoration-color:var(--ir)}
+.col.on{background:var(--ir-bg);color:var(--ir);box-shadow:inset 0 -2px 0 var(--ir);text-decoration:none;font-weight:600}
+.col.lin{background:var(--sel);text-decoration:none}
+/* the node/4 step band in the gutter of the SAS cell: which lines belong to which step */
+.stepband{position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:var(--c)}
+
+/* ---- right: Lineage drawer, column grain ---- */
+.lctl{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted);flex-wrap:wrap;position:relative}
+.lctl .cap{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:-4px}
+.chip{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border:1px solid var(--line);border-radius:999px;cursor:pointer;color:var(--faint);background:transparent}
+.chip.on{background:var(--panel2);color:var(--text)}
+.chip.on::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ir);margin-right:5px;vertical-align:middle}
+.flowstrip{display:flex;align-items:center;gap:2px;padding:7px 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap;position:relative}
+.flowstrip .flab{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:6px;flex:0 0 auto}
+.flowchip{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);cursor:pointer;font-size:10.5px;color:var(--text)}
+.flowchip:hover{border-color:var(--ir)}
+.flowchip i{width:7px;height:7px;border-radius:50%;background:var(--c,var(--faint))}
+.flowchip .fct{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.flowchip .fcl{font-family:"JetBrains Mono",monospace;font-size:10.5px}
+.flowchip.active{background:var(--ir-bg);border-color:var(--ir);box-shadow:inset 0 -2px 0 var(--ir)}
+.flowchip.active .fcl{font-weight:600}
+.flowarrow{flex:0 0 auto;color:var(--faint);font-family:"JetBrains Mono",monospace;font-size:12px;padding:0 2px}
+#canvas{position:relative;flex:1;min-height:0;overflow:auto;background:var(--bg)}
+#edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#edges path{fill:none;stroke:var(--faint);stroke-width:1.2;opacity:.9}
+#edges path.key{stroke-dasharray:4 3;stroke:var(--warn)}
+#edges path.hl{stroke:var(--ir);stroke-width:2.2;opacity:1}
+#edges path.dim{opacity:.12}
+.node{position:absolute;width:150px;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:11.5px;user-select:none}
+.node.inactive{opacity:.28}
+.node .hd{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;font-family:"JetBrains Mono",monospace;font-weight:600;font-size:11.5px;background:var(--panel2);border-bottom:2px solid var(--c)}
+.node .hd .kind{margin-left:auto;font:700 8.5px "IBM Plex Sans",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--c);border:1px solid currentColor;border-radius:3px;padding:1px 5px}
+.node .hd .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.node .row{display:flex;align-items:center;height:22px;padding:0 10px;border-top:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:11px;cursor:pointer;position:relative}
+.node .row:hover{background:var(--panel2)}
+.node .row.sel{background:var(--ir-bg);box-shadow:inset 3px 0 0 var(--ir);font-weight:600;color:var(--ir)}
+.node .row.off{opacity:.4}
+.node .row .ty{margin-left:auto;color:var(--faint);font-size:9.5px}
+.node .row.src::after{content:"";position:absolute;right:4px;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;background:var(--faint);box-shadow:0 0 0 2px var(--panel)}
+.node .row.src .ty{margin-right:10px}
+.node .sub{padding:3px 10px 5px;font-size:10px;color:var(--muted);border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"JetBrains Mono",monospace}
+.gstat{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ir);padding:5px 9px;font:10.5px "JetBrains Mono",monospace;color:var(--muted);z-index:2}
+.legend{display:flex;gap:12px;padding:6px 12px;font-size:11px;color:var(--muted);border-top:1px solid var(--line)}
+.legend i{display:inline-block;width:18px;border-top:2px solid var(--faint);vertical-align:middle;margin-right:4px}
+.legend i.hl{border-color:var(--ir)}.legend i.key{border-top-style:dashed;border-color:var(--warn)}
+.legend b{color:var(--ir);font-weight:600}
+
+/* ---- bottom strip: Column tab = B_tripane's inspector ---- */
+#bottom{display:flex;flex-direction:column;border-top:1px solid var(--line);background:var(--panel);min-height:0;position:relative}
+#bottom .tabs{display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--line);height:32px}
+#bottom .tabs button{padding:6px 10px;font-size:12px;color:var(--muted);border-bottom:2px solid transparent}
+#bottom .tabs button.on{color:var(--text);border-color:var(--ir)}
+#bottom .tabs .sp{margin-left:auto;color:var(--muted);font-size:11px;display:flex;gap:10px;align-items:center}
+#bottom .tabs .sp #bstat{display:inline-flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:11px}
+#bottom .tabs .sp #bstat i{width:7px;height:7px;border-radius:50%;background:var(--good);display:inline-block}
+.insp{flex:1;display:grid;grid-template-columns:1fr 44%;min-height:0}
+.insp .ihd{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.insp .ihd .kind{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ir);border:1px solid var(--ir);padding:1px 7px;border-radius:4px}
+.insp .ihd .nm{font-family:"JetBrains Mono",monospace;font-weight:600}.insp .ihd .loc{color:var(--muted);font-family:"JetBrains Mono",monospace;font-size:11px}
+.insp .ihd .x{margin-left:auto;color:var(--muted);font-size:11px}
+.insp .c1{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.insp .c2{display:flex;flex-direction:column;min-width:0}
+.insp .sec{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:6px 12px 2px}
+.insp pre{margin:0;padding:2px 12px 8px;overflow:auto;flex:1;font-size:11.5px;line-height:1.6;white-space:pre}
+.insp pre .f{color:var(--muted)}.insp pre .st{color:var(--ir)}
+.insp .elist{overflow:auto;flex:1;padding:0 12px 8px}
+.insp .erow{padding:3px 0;border-bottom:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:11px;display:flex;gap:6px;align-items:baseline}
+.insp .erow .ar{color:var(--muted)}.insp .erow .via{margin-left:auto;font-size:10px;color:var(--faint)}
+#status{display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--panel);border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
+#status .mode{font-weight:600;color:var(--text)}
+#status .keys{display:flex;gap:10px;margin-left:auto}
+#linkLayer{position:fixed;inset:0;width:100%;height:100%;z-index:50;pointer-events:none;overflow:visible}
+#linkLayer path{fill:none;stroke:var(--ir);stroke-width:1.6;opacity:.85}
+#linkLayer circle{fill:var(--ir)}
+
+/* ---- notes overlay (n) ---- */
+.nb{display:none;position:absolute;z-index:60;width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;font:700 11px/20px "JetBrains Mono",monospace;text-align:center;box-shadow:0 0 0 2px var(--panel)}
+body.notes .nb{display:block}
+#notes{display:none;position:fixed;right:14px;top:48px;z-index:70;width:440px;max-height:calc(100vh - 70px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);font-size:12px}
+body.notes #notes{display:block}
+#notes h2{margin:0;padding:10px 14px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+#notes .n{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);align-items:start}
+#notes .n .b{width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;font:700 11px/20px "JetBrains Mono",monospace;text-align:center}
+#notes .n b{display:block;margin-bottom:2px}
+#notes .n small{color:var(--muted)}
+#notes .n em{font-style:normal;color:var(--ir);font-family:"JetBrains Mono",monospace;font-size:11px}
+
+/* ---- FLOW view: task flow (IDMC taskflow) + mapping (IDMC mapping task) ---- */
+#canvas.flow{display:flex;flex-direction:column;overflow:hidden}
+.tf{flex:0 0 auto;border-bottom:1px solid var(--line);background:var(--panel);padding:8px 12px 10px;position:relative}
+.tf .cap,.mp .cap{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:6px;display:flex;gap:8px;align-items:center}
+.tf .cap b,.mp .cap b{color:var(--ir);font-family:"JetBrains Mono",monospace;font-weight:600;letter-spacing:0;text-transform:none;font-size:10.5px}
+.tf .lane{display:flex;align-items:center;gap:0;overflow-x:auto}
+.tf .end{width:22px;height:22px;border-radius:50%;border:2px solid var(--faint);display:grid;place-items:center;font-size:9px;font-weight:700;color:var(--muted);flex:0 0 auto;background:var(--panel2)}
+.tf .end.start{border-color:var(--good);color:var(--good)}
+.tf .arr{flex:0 0 auto;width:26px;height:2px;background:var(--faint);position:relative}
+.tf .arr::after{content:"";position:absolute;right:-1px;top:-4px;border:5px solid transparent;border-left:7px solid var(--faint);border-right:0}
+.task{flex:0 0 auto;width:190px;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer;overflow:hidden}
+.task:hover{border-color:var(--ir)}
+.task.on{border-color:var(--ir);box-shadow:0 0 0 1px var(--ir)}
+.task .th{display:flex;align-items:center;gap:7px;padding:5px 9px;background:var(--panel2);border-bottom:1px solid var(--line);font-size:10.5px;color:var(--muted)}
+.task .th .ic{width:18px;height:18px;border-radius:4px;display:grid;place-items:center;font:700 9px "JetBrains Mono",monospace;color:#fff;background:var(--c,var(--faint))}
+.task .th .n{font-family:"JetBrains Mono",monospace;color:var(--faint)}
+.task .th .ok{margin-left:auto;color:var(--good);font-weight:700}
+.task .tb{padding:6px 9px;font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.task .tb small{display:block;font:11px "IBM Plex Sans",sans-serif;color:var(--muted);font-weight:400}
+.mp{flex:1;min-height:0;position:relative;overflow:auto;padding:8px 12px}
+.mp .cap{position:sticky;top:0;z-index:2}
+.mp .cap .sp{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);letter-spacing:0;text-transform:none;font-weight:400}
+#mpsvg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#mpsvg path{fill:none;stroke:var(--faint);stroke-width:1.2;opacity:.35}
+#mpsvg path.hl{stroke:var(--ir);stroke-width:2.2;opacity:1}
+#mpsvg path.key{stroke:var(--warn);stroke-dasharray:4 3;opacity:.9}
+/* IDMC transformation box: icon square + name, coloured header strip, port list */
+.tx{position:absolute;width:150px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow:hidden;font-size:11px}
+.tx.on{border-color:var(--ir);box-shadow:0 0 0 1px var(--ir)}
+.tx.dim{opacity:.35}
+.tx .hd{display:flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 4px;border-bottom:2px solid var(--c);background:var(--panel2)}
+.tx .hd .ic{width:18px;height:18px;border-radius:3px;background:var(--c);color:#fff;display:grid;place-items:center;font:700 8.5px "JetBrains Mono",monospace;flex:0 0 auto}
+.tx .hd .nm{font-family:"JetBrains Mono",monospace;font-weight:600;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx .hd .ty{margin-left:auto;font:700 8px "IBM Plex Sans",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--c)}
+.tx .row{display:flex;align-items:center;height:20px;padding:0 8px;border-top:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:10.5px;position:relative;cursor:pointer}
+.tx .row.sel{background:var(--ir-bg);box-shadow:inset 3px 0 0 var(--ir);color:var(--ir);font-weight:600}
+.tx .row.new{color:var(--ir)}
+.tx .row .ty{margin-left:auto;color:var(--faint);font-size:9px}
+.tx .cond{padding:3px 8px 4px;border-top:1px solid var(--line);font:10px "JetBrains Mono",monospace;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pair.dim{opacity:.5}
+</style></head>
+<body>
+<div id="app">
+  <div id="top">
+    <div class="brand">lineage<span>Q</span> Bench</div>
+    <div class="file"><span class="tag sas">sas</span><b>team_finance/sas/raw/04_build_accounts.sas</b><kbd>⌘K</kbd></div>
+    <div class="receipts">
+      <span class="pill good" title="the conversion was checked twice (Rust and Prolog) and both agree"><i></i>verified</span>
+      <span class="pill prog done"><i></i>ran 2/2</span>
+    </div>
+    <div class="seg"><button class="on">Jupyter <kbd>j</kbd></button><button>IDE <kbd>i</kbd></button></div>
+    <div class="sp">
+      <button class="chip" id="notesBtn" title="numbered notes (n)">notes <kbd>n</kbd></button>
+      <button class="theme" id="themeBtn" title="Theme (t)">◐</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <nav id="rail">
+      <button title="Files (b)"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg><kbd>b</kbd></button>
+      <button class="on" title="Cells (c)"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="5"/><rect x="4" y="12" width="16" height="5"/></svg><kbd>c</kbd></button>
+      <button class="on" title="Lineage / Flow (g)"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="12" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7l8 4M8 17l8-4"/></svg><kbd>g</kbd></button>
+      <button title="Keys (?)" style="margin-top:auto;margin-bottom:8px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg></button>
+    </nav>
+
+    <aside class="drawer" id="left">
+      <div class="dh"><span>Cells</span><span class="nb" style="right:36px;top:6px">2</span><kbd>c</kbd></div>
+      <div class="db">
+        <div class="tree">
+          <div class="dir">04_build_accounts.sas · 2 blocks</div>
+          <div class="f"><span class="n">1</span>data → work.accounts_raw<span class="tag py">py</span></div>
+          <div class="f on"><span class="n">2</span>proc sql → work.accounts<span class="tag py">py</span></div>
+          <div class="f st" style="--c:var(--join)"><i></i>j1 · join customers on cust_id</div>
+          <div class="f st on" style="--c:var(--join)"><i></i>j2 · join products on prod_id</div>
+          <div class="f st" style="--c:var(--expr)"><i></i>p1 · select a.*, segment, prod_type</div>
+        </div>
+      </div>
+    </aside>
+
+    <section id="center">
+      <div id="cells">
+        <div class="colhead"><div><span class="tag sas">sas</span>SAS<span class="cnt">2 blocks · window 1–2</span></div><div><span class="tag py">py</span>PySpark<span class="cnt">converted · verified</span></div></div>
+        <div class="pair dim" data-n="1">
+          <div class="cell">
+            <div class="ch"><span class="exec">[1]</span><span class="name">work.accounts_raw</span><span class="tag sas">data</span><span class="lines">L10–24</span></div>
+<pre><span class="k">data</span> work.accounts_raw;
+  <span class="k">length</span> acct_id $10 cust_id $8 prod_id $8 branch_id $6 status $8;
+  <span class="k">infile</span> datalines dsd dlm='|' truncover;
+  <span class="k">input</span> acct_id cust_id prod_id branch_id status open_bal;
+  <span class="k">datalines</span>;
+A1001|C001|P01|B01|OPEN|1200
+A1002|C001|P05|B01|OPEN|300
+<span class="c">… 5 more rows</span>
+;
+<span class="k">run</span>;</pre>
+          </div>
+          <div class="cell">
+            <div class="ch"><span class="exec">[1]</span><span class="name">accounts_raw</span><span class="tag py">pyspark</span><span class="lines">L198–206</span></div>
+<pre>accounts_raw = <span class="p">put</span>(<span class="s">"work.accounts_raw"</span>, <span class="p">sas_datalines</span>(spark,
+    [(<span class="s">"acct_id"</span>,<span class="s">"char"</span>,None), (<span class="s">"cust_id"</span>,<span class="s">"char"</span>,None), (<span class="s">"prod_id"</span>,<span class="s">"char"</span>,None),
+     (<span class="s">"branch_id"</span>,<span class="s">"char"</span>,None), (<span class="s">"status"</span>,<span class="s">"char"</span>,None), (<span class="s">"open_bal"</span>,<span class="s">"num"</span>,None)],
+    [<span class="s">"A1001|C001|P01|B01|OPEN|1200"</span>, <span class="s">"A1002|C001|P05|B01|OPEN|300"</span>, <span class="c">…</span>]))</pre>
+          </div>
+        </div>
+        <div class="pair focus" data-n="2">
+          <div class="cell" style="position:relative">
+            <span class="nb" style="left:-10px;top:-10px">5</span>
+            <div class="ch"><span class="exec">[2]</span><span class="name">work.accounts</span><span class="tag sas">proc sql</span><span class="lines">L26–32</span></div>
+<pre><span class="k">proc sql</span>;
+  <span class="k">create table</span> work.accounts <span class="k">as</span>
+  <span class="k">select</span> a.*, c.segment, p.prod_type
+  <span class="k">from</span> work.accounts_raw a
+  <span class="k">inner join</span> work.customers c <span class="k">on</span> a.cust_id = c.cust_id
+  <span id="tokSas"><span class="k">inner join</span> work.products  p <span class="k">on</span> a.prod_id = p.prod_id</span>;
+<span class="k">quit</span>;</pre>
+            <div class="out">
+              <table><tr><th>acct_id</th><th>cust_id</th><th>prod_id</th><th>segment</th><th>prod_type</th></tr>
+              <tr><td>A1001</td><td>C001</td><td>P01</td><td>RETAIL</td><td>SAVINGS</td></tr>
+              <tr><td>A1003</td><td>C002</td><td>P02</td><td>SME</td><td>CURRENT</td></tr></table>
+              <div class="meta"><span class="pill good"><i></i>7 rows</span></div>
+            </div>
+          </div>
+          <div class="cell">
+            <div class="ch"><span class="exec">[2]</span><span class="name">accounts</span><span class="tag py">pyspark</span><span class="lines">L209–216</span></div>
+<pre><span class="c"># ---- work.accounts  (PROC SQL, SAS lines 26-32) ----</span>
+accounts = (
+    accounts_raw.<span class="p">alias</span>(<span class="s">"a"</span>)
+    .<span class="p">join</span>(customers.<span class="p">alias</span>(<span class="s">"c"</span>), F.col(<span class="s">"a.cust_id"</span>) == F.col(<span class="s">"c.cust_id"</span>), <span class="s">"inner"</span>)
+    <span id="tokPy">.<span class="p">join</span>(products.<span class="p">alias</span>(<span class="s">"p"</span>), F.col(<span class="s">"a.prod_id"</span>) == F.col(<span class="s">"p.prod_id"</span>), <span class="s">"inner"</span>)</span>
+    .<span class="p">select</span>(<span class="s">"a.*"</span>, F.col(<span class="s">"c.segment"</span>), F.col(<span class="s">"p.prod_type"</span>))
+)</pre>
+            <div class="out">
+              <table><tr><th>acct_id</th><th>cust_id</th><th>prod_id</th><th>segment</th><th>prod_type</th></tr>
+              <tr><td>A1001</td><td>C001</td><td>P01</td><td>RETAIL</td><td>SAVINGS</td></tr>
+              <tr><td>A1003</td><td>C002</td><td>P02</td><td>SME</td><td>CURRENT</td></tr></table>
+              <div class="meta"><span class="pill good"><i></i>same result as SAS</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="drawer right" id="right">
+      <div class="dh"><span>Lineage</span><span class="nb" style="left:84px;top:6px">1</span>
+        <span style="margin-left:10px;display:flex;gap:10px;align-items:center;font-weight:500;text-transform:none;letter-spacing:0">
+          <span class="seg sm"><button>Lineage</button><button class="on">Flow</button></span>
+          <span class="seg sm"><button>Tables</button><button class="on">Columns <kbd>k</kbd></button></span>
+        </span>
+        <kbd>g</kbd></div>
+      <div class="lctl"><span class="cap">show</span><span class="chip on">sources</span><span class="chip on">steps</span><span class="chip on">target</span>
+        <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px">focus <b style="color:var(--ir)">j2 · join products</b> · <kbd>esc</kbd> back to lineage</span></div>
+      <div class="flowstrip" style="background:var(--ir-bg)"><span class="nb" style="left:-4px;top:6px">3</span><span class="flab" style="color:var(--ir)">code flow ▾</span>
+        <span class="flowchip"><i></i><span class="fct">src</span><span class="fcl">accounts_raw</span></span><span class="flowarrow">→</span>
+        <span class="flowchip" style="--c:var(--join)"><i></i><span class="fct">join</span><span class="fcl">j1</span></span><span class="flowarrow">→</span>
+        <span class="flowchip active" style="--c:var(--join)"><i></i><span class="fct">join</span><span class="fcl">j2</span></span><span class="flowarrow">→</span>
+        <span class="flowchip" style="--c:var(--expr)"><i></i><span class="fct">select</span><span class="fcl">p1</span></span><span class="flowarrow">→</span>
+        <span class="flowchip" style="--c:var(--ir)"><i></i><span class="fct">tgt</span><span class="fcl">accounts</span></span></div>
+      <div id="canvas" class="flow">
+        <div class="tf"><span class="nb" style="left:-4px;top:6px">4</span>
+          <div class="cap">task flow <b>04_build_accounts.sas</b> · 2 tasks, run in order</div>
+          <div class="lane">
+            <span class="end start">▶</span><span class="arr"></span>
+            <div class="task" style="--c:var(--sas)"><div class="th"><span class="ic">DS</span><span class="n">task 1</span>data step<span class="ok">✓</span></div><div class="tb">accounts_raw<small>from datalines · 7 rows</small></div></div>
+            <span class="arr"></span>
+            <div class="task on" style="--c:var(--ir)"><div class="th"><span class="ic">MT</span><span class="n">task 2</span>mapping task<span class="ok">✓</span></div><div class="tb">accounts<small>accounts_raw ⋈ customers ⋈ products</small></div></div>
+            <span class="arr"></span><span class="end">■</span>
+          </div>
+        </div>
+        <div class="mp" id="mp"><span class="nb" style="left:-4px;top:30px">6</span>
+          <div class="cap">mapping <b>task 2 · work.accounts</b><span class="sp">3 sources · 2 joiners · 1 expression · 1 target · 22 links</span></div>
+          <svg id="mpsvg"></svg>
+          <div class="tx dim" data-node="accounts_raw" style="left:12px;top:36px;--c:var(--sas)"><div class="hd"><span class="ic">SRC</span><span class="nm">accounts_raw</span><span class="ty">source</span></div>
+            <div class="row" data-col="accounts_raw.acct_id">acct_id<span class="ty">$10</span></div><div class="row" data-col="accounts_raw.cust_id">cust_id<span class="ty">$8</span></div><div class="row" data-col="accounts_raw.prod_id">prod_id<span class="ty">$8</span></div><div class="row" data-col="accounts_raw.branch_id">branch_id<span class="ty">$6</span></div><div class="row" data-col="accounts_raw.status">status<span class="ty">$8</span></div><div class="row" data-col="accounts_raw.open_bal">open_bal<span class="ty">8</span></div></div>
+          <div class="tx dim" data-node="customers" style="left:12px;top:214px;--c:var(--sas)"><div class="hd"><span class="ic">SRC</span><span class="nm">customers</span><span class="ty">source</span></div>
+            <div class="row" data-col="customers.cust_id">cust_id<span class="ty">$8</span></div><div class="row" data-col="customers.segment">segment<span class="ty">$8</span></div></div>
+          <div class="tx" data-node="products" style="left:12px;top:300px;--c:var(--sas)"><div class="hd"><span class="ic">SRC</span><span class="nm">products</span><span class="ty">source</span></div>
+            <div class="row" data-col="products.prod_id">prod_id<span class="ty">$8</span></div><div class="row sel" data-col="products.prod_type">prod_type<span class="ty">$10</span></div></div>
+          <div class="tx dim" data-node="j1" style="left:190px;top:60px;--c:var(--join)"><div class="hd"><span class="ic">JNR</span><span class="nm">j1</span><span class="ty">joiner</span></div>
+            <div class="row" data-col="j1.acct_id">acct_id</div><div class="row" data-col="j1.cust_id">cust_id</div><div class="row" data-col="j1.prod_id">prod_id</div><div class="row" data-col="j1.branch_id">branch_id</div><div class="row" data-col="j1.status">status</div><div class="row" data-col="j1.open_bal">open_bal</div><div class="row new" data-col="j1.segment">segment</div><div class="cond">inner · a.cust_id = c.cust_id</div></div>
+          <div class="tx on" data-node="j2" style="left:366px;top:120px;--c:var(--join)"><div class="hd"><span class="ic">JNR</span><span class="nm">j2</span><span class="ty">joiner</span></div>
+            <div class="row" data-col="j2.acct_id">acct_id</div><div class="row" data-col="j2.cust_id">cust_id</div><div class="row" data-col="j2.prod_id">prod_id</div><div class="row" data-col="j2.branch_id">branch_id</div><div class="row" data-col="j2.status">status</div><div class="row" data-col="j2.open_bal">open_bal</div><div class="row" data-col="j2.segment">segment</div><div class="row sel" data-col="j2.prod_type">prod_type</div><div class="cond">inner · a.prod_id = p.prod_id</div></div>
+          <div class="tx" data-node="accounts" style="left:530px;top:36px;--c:var(--ir)"><div class="hd"><span class="ic">TGT</span><span class="nm">accounts</span><span class="ty">target</span></div>
+            <div class="row" data-col="accounts.acct_id">acct_id</div><div class="row" data-col="accounts.cust_id">cust_id</div><div class="row" data-col="accounts.prod_id">prod_id</div><div class="row" data-col="accounts.branch_id">branch_id</div><div class="row" data-col="accounts.status">status</div><div class="row" data-col="accounts.open_bal">open_bal</div><div class="row" data-col="accounts.segment">segment</div><div class="row sel" data-col="accounts.prod_type" id="rowTgt">prod_type</div></div>
+        </div>
+      </div>
+      <div class="legend"><span><i class="hl"></i>through the focused step</span><span><i></i>other link</span><span><i class="key"></i>join key</span><span style="margin-left:auto">click a task: its mapping · click a step: its code · <kbd>esc</kbd> lineage</span></div>
+    </aside>
+  </div>
+
+  <div id="bottom">
+    <span class="nb" style="left:250px;top:6px">7</span>
+    <div class="tabs">
+      <button>Story</button><button>Output</button><button>Compare</button><button>Column</button><button class="on">Step</button>
+      <div class="sp"><span id="bstat"><i></i>verified · task 2 of 2 · 22 links</span><kbd>⌄</kbd><kbd>×</kbd></div>
+    </div>
+    <div class="insp">
+      <div class="ihd"><span class="kind">joiner</span><span class="nm">j2 · join products on prod_id</span><span class="loc">04_build_accounts.sas · block 2 · SAS L31 · py L213</span><span class="x">esc clears</span></div>
+      <div class="c1"><div class="sec">What this step does</div>
+<pre>keeps every account that has a product   <span class="st">inner join · a.prod_id = p.prod_id</span>
+in   7 columns from j1 · 2 from products  <span class="f">prod_id is the key, used once</span>
+out  8 columns                            <span class="st">adds prod_type</span></pre></div>
+      <div class="c2"><div class="sec">Links through this step (8)</div>
+        <div class="elist">
+          <div class="erow"><span>products.prod_type</span><span class="ar">→</span><span>j2.prod_type</span><span class="via">new here</span></div>
+          <div class="erow"><span>j1.segment</span><span class="ar">→</span><span>j2.segment</span><span class="via">carried</span></div>
+          <div class="erow"><span>j1.acct_id … open_bal</span><span class="ar">→</span><span>j2.*</span><span class="via">6 carried</span></div>
+        </div></div>
+    </div>
+  </div>
+
+  <div id="status">
+    <span class="mode">COMMAND</span><span>block 2 · work.accounts · step j2</span><span>verified</span>
+    <div class="keys"><span><kbd>⌃⏎</kbd> run</span><span><kbd>k</kbd> tables ⇄ columns</span><span><kbd>/</kbd> find</span><span><kbd>s</kbd> story</span><span><kbd>?</kbd> keys</span></div>
+  </div>
+</div>
+<svg id="linkLayer"></svg>
+
+<div id="notes">
+  <h2>html2 · code flow → task flow + mapping</h2>
+  <div class="n"><span class="b">1</span><div><b>One more switch in the Lineage header: <em>Lineage | Flow</em></b><small>Lineage is html1 (the column graph). Flow is this page. Clicking the CODE FLOW strip, or a step in it, flips to Flow; <em>esc</em> or the switch goes back. Same drawer, same width — nothing new opens.</small></div></div>
+  <div class="n"><span class="b">2</span><div><b>Cells drawer, unchanged from html1</b><small>Two blocks here. Block 2 unfolds its steps. A step row, a flow chip, a task, a mapping box and the bottom Step tab are all the same thing — one focus lights all five.</small></div></div>
+  <div class="n"><span class="b">3</span><div><b>Code flow strip = the door into Flow</b><small>Tinted when Flow is open. The chips are the steps of the focused block in run order.</small></div></div>
+  <div class="n"><span class="b">4</span><div><b>Task flow (IDMC taskflow) = the file's blocks in run order</b><small>Start → one task per block → End. A data step is a <em>DS</em> task, a proc sql / proc means / proc sort is a <em>MT</em> mapping task. ✓ = ran and verified. Click a task: its mapping opens below; the cells scroll to it.</small></div></div>
+  <div class="n"><span class="b">5</span><div><b>The cell stays the truth</b><small>The focused step's lines in SAS and in PySpark are the two ends of the connector; the mapping box is the middle. No SQL pane.</small></div></div>
+  <div class="n"><span class="b">6</span><div><b>Mapping (IDMC mapping task) = the block's steps as transformation boxes</b><small><em>SRC</em> source, <em>JNR</em> joiner, <em>FIL</em> filter, <em>AGG</em> aggregator, <em>EXP</em> expression, <em>TGT</em> target, each with its ports. Links between ports; the join key dashed; a port the step creates in the accent colour ("new here"). Same boxes as html1's column graph, so the two views share one drawing.</small></div></div>
+  <div class="n"><span class="b">7</span><div><b>Step tab on the strip</b><small>What the step does in words, ports in / out, and the links through it. Column tab (html1) is one click away.</small></div></div>
+  <div class="n"><span class="b">✂</span><div><b>Not here on purpose</b><small>No blocks_view.html leftovers: no git-graph rail, no contract seams between cells, no gutter bands, no third "Hybrid" view. No IDMC extras a BA never touches (parameters, sessions, schedules). Corpus note: this is the only 2-block file; a 4–6 block file would make the task flow earn its space.</small></div></div>
+</div>
+
+<script>
+const EDGES = [
+  ["accounts_raw.acct_id","j1.acct_id"],["accounts_raw.cust_id","j1.cust_id"],["accounts_raw.prod_id","j1.prod_id"],["accounts_raw.branch_id","j1.branch_id"],["accounts_raw.status","j1.status"],["accounts_raw.open_bal","j1.open_bal"],
+  ["customers.cust_id","j1.cust_id","key"],["customers.segment","j1.segment"],
+  ["j1.acct_id","j2.acct_id"],["j1.cust_id","j2.cust_id"],["j1.prod_id","j2.prod_id"],["j1.branch_id","j2.branch_id"],["j1.status","j2.status"],["j1.open_bal","j2.open_bal"],["j1.segment","j2.segment"],
+  ["products.prod_id","j2.prod_id","key"],["products.prod_type","j2.prod_type","hl"],
+  ["j2.acct_id","accounts.acct_id"],["j2.cust_id","accounts.cust_id"],["j2.prod_id","accounts.prod_id"],["j2.branch_id","accounts.branch_id"],["j2.status","accounts.status"],["j2.open_bal","accounts.open_bal"],["j2.segment","accounts.segment"],["j2.prod_type","accounts.prod_type","hl"],
+];
+const mp=document.getElementById("mp"), svg=document.getElementById("mpsvg");
+const rowEl=id=>mp.querySelector(`.row[data-col="${id}"]`);
+function drawEdges(){
+  const c=mp.getBoundingClientRect(); let s="";
+  EDGES.forEach(([a,b,cls])=>{
+    const ra=rowEl(a), rb=rowEl(b); if(!ra||!rb) return;
+    const A=ra.getBoundingClientRect(), B=rb.getBoundingClientRect();
+    const x1=A.right-c.left+mp.scrollLeft, y1=A.top+A.height/2-c.top+mp.scrollTop;
+    const x2=B.left-c.left+mp.scrollLeft, y2=B.top+B.height/2-c.top+mp.scrollTop, mx=(x1+x2)/2;
+    s+=`<path class="${cls||""}" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+  });
+  svg.innerHTML=s;
+}
+// connector: focused joiner box <-> its join line in SAS and in PySpark
+const link=document.getElementById("linkLayer");
+function drawLinks(){
+  const box=mp.querySelector('.tx.on'); if(!box) return;
+  const r=box.getBoundingClientRect(); const x1=r.left, y1=r.top+13; let s="";
+  ["tokSas","tokPy"].forEach(id=>{
+    const t=document.getElementById(id).getBoundingClientRect(); const x2=t.right, y2=t.top+t.height/2, mx=(x1+x2)/2;
+    s+=`<path d="M${x2},${y2} C${mx},${y2} ${mx},${y1} ${x1},${y1}"/><circle cx="${x2}" cy="${y2}" r="3.5"/><circle cx="${x1}" cy="${y1}" r="3.5"/>`;
+  });
+  link.innerHTML=s;
+}
+function redraw(){drawEdges();drawLinks();}
+addEventListener("resize",redraw); document.getElementById("cells").addEventListener("scroll",drawLinks); mp.addEventListener("scroll",redraw);
+document.fonts?document.fonts.ready.then(redraw):redraw(); redraw();
+document.getElementById("themeBtn").onclick=()=>{const h=document.documentElement;h.dataset.theme=h.dataset.theme==="dark"?"":"dark";};
+const toggleNotes=()=>document.body.classList.toggle("notes");
+document.getElementById("notesBtn").onclick=toggleNotes;
+addEventListener("keydown",e=>{if(e.key==="n")toggleNotes();if(e.key==="t")document.getElementById("themeBtn").click();});
+</script>
+</body></html>

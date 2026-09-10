@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI2 mock — B_tripane inside the Bench</title>
+<!--
+  Static mock, no backend, no G6. Shows how raw/B_tripane.html (the g6 "Code View — Tri-pane")
+  folds into UI2 (frontend/ui_file_ide, the Bench). Press n for the numbered notes.
+  Frame, tokens and keys are the Bench's (raw/bench_stack/server/bench.html); the column-grain
+  graph, flow strip, linkable code tokens, DrRacket connector lines and the inspector are B_tripane's.
+  File shown: corpus/team_finance/sas/raw/15_join_risk_txn.sas and its auto_convert .py.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#eef2f6; --panel:#ffffff; --panel2:#f5f8fb; --line:#d6dee7; --text:#1f2d3a; --muted:#6b7c8c; --faint:#9fb0bf;
+  --sas:#b8731a; --sas-bg:#fbf1e2; --py:#1f7fb8; --py-bg:#e6f2fa; --ir:#6a4fc2; --ir-bg:#eee9fa;
+  --good:#1c7a45; --good-bg:#e4f5ea; --bad:#b5302a; --bad-bg:#fbe7e5; --warn:#a4631a; --warn-bg:#fcf1e0;
+  --focus:#1f7fb8; --sel:#e6f2fa; --key:#f0f3f7; --shadow:0 6px 24px rgba(20,32,43,.12);
+  --join:#a47de8; --expr:#d4a64a; --filter:#e26060; --group:#4cb8b0;
+}
+:root[data-theme="dark"]{
+  --bg:#0f171f; --panel:#151f29; --panel2:#1b2733; --line:#273543; --text:#dbe5ee; --muted:#8fa3b5; --faint:#5e7183;
+  --sas:#e6a24a; --sas-bg:#2b2116; --py:#4fb0ea; --py-bg:#142a3a; --ir:#a58cf0; --ir-bg:#241f3a;
+  --good:#4fd08a; --good-bg:#12301f; --bad:#f0716a; --bad-bg:#3a1a18; --warn:#e8b45c; --warn-bg:#33261a;
+  --focus:#4fb0ea; --sel:#142a3a; --key:#1f2c39; --shadow:0 6px 24px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;height:100vh;overflow:hidden}
+code,pre,.mono,kbd{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--key);font-size:11px;line-height:16px;text-align:center;color:var(--text)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.tag{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.tag.sas{background:var(--sas-bg);color:var(--sas)}.tag.py{background:var(--py-bg);color:var(--py)}.tag.ir{background:var(--ir-bg);color:var(--ir)}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid transparent}
+.pill.good{background:var(--good-bg);color:var(--good)}.pill.idle{background:var(--panel2);color:var(--muted);border-color:var(--line)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.pill.prog{background:var(--panel2);color:var(--text);border-color:var(--line)}.pill.prog.done{background:var(--good-bg);color:var(--good);border-color:transparent}
+
+/* ---- frame (Bench) ---- */
+#app{display:grid;grid-template-rows:38px 1fr 210px 26px;height:100vh}
+#top{display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;position:relative}
+#top .brand{font-weight:700;letter-spacing:.02em}#top .brand span{color:var(--py)}
+#top .file{display:flex;align-items:center;gap:8px;color:var(--muted)}
+#top .file b{color:var(--text);font-weight:600;padding:2px 6px;border:1px solid transparent;border-radius:6px}
+#top .receipts{display:flex;gap:6px}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{padding:4px 10px;font-size:12px;color:var(--muted)}
+.seg button.on{background:var(--py-bg);color:var(--py);font-weight:600}
+.seg.sm button{padding:2px 8px;font-size:11px}
+.seg.hops button{padding:2px 6px;font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+#top .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+#top .theme{width:28px;height:26px;border:1px solid var(--line);border-radius:7px;color:var(--muted);font-size:14px}
+#main{display:grid;grid-template-columns:44px 210px 1fr 690px;min-height:0}
+#rail{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:4px}
+#rail button{width:32px;height:32px;border-radius:8px;color:var(--muted);display:grid;place-items:center;position:relative}
+#rail button.on{background:var(--sel);color:var(--focus)}
+#rail button kbd{position:absolute;right:-2px;bottom:-3px;min-width:14px;padding:0 3px;font-size:9px;line-height:13px}
+#rail svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.drawer{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;position:relative;min-width:0}
+.drawer.right{border-right:0;border-left:1px solid var(--line)}
+.dh{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap;position:relative}
+.dh kbd{margin-left:auto}
+.db{overflow:auto;flex:1;display:flex;flex-direction:column;min-height:0}
+
+/* ---- left: cells, same rows as the Files drawer ---- */
+.tree{padding:6px 0;font-size:12.5px}
+.tree .dir{padding:4px 12px;color:var(--muted);font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tree .f{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 22px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.tree .f:hover{background:var(--panel2)}
+.tree .f.on{background:var(--sel);color:var(--focus);font-weight:600}
+.tree .f .n{color:var(--faint);font-size:10.5px;width:12px}
+.tree .f .tag{margin-left:auto}
+.tree .f.st{padding-left:38px;font-size:11px;font-weight:400}
+.tree .f.st i{width:7px;height:7px;border-radius:50%;background:var(--c);flex:0 0 auto}
+.tree .f.st.on{box-shadow:inset 3px 0 0 var(--ir);color:var(--text)}
+/* ---- (old outline css, unused) ---- */
+.ol{padding:6px 0}
+.ol .t{padding:6px 12px 2px;color:var(--muted);font-weight:600;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase}
+.ol .r{display:grid;grid-template-columns:22px 1fr auto;gap:8px;align-items:center;padding:5px 12px;cursor:pointer;font-size:12px;position:relative}
+.ol .r:hover{background:var(--panel2)}
+.ol .r.on{background:var(--sel)}
+.ol .r .n{color:var(--faint);font-family:"JetBrains Mono",monospace;font-size:10.5px}
+.ol .r .name{font-family:"JetBrains Mono",monospace;font-size:11.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ol .r .name small{display:block;color:var(--muted);font-family:"IBM Plex Sans",sans-serif;font-size:11px}
+.ol .r.step{padding-left:30px}
+.ol .r.step .name{font-size:11px}
+.ol .r.step .n{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px var(--panel);margin-left:6px}
+.ol .r.step.on{box-shadow:inset 3px 0 0 var(--ir)}
+.ol .r .kind{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--c,var(--muted))}
+.ol .r.tbl .name{color:var(--sas)}
+.ol .r.tbl.tgt .name{color:var(--ir)}
+
+/* ---- center: the two buffers ---- */
+#center{display:grid;grid-template-rows:1fr;min-width:0;min-height:0;position:relative}
+#cells{overflow:auto;padding:14px 18px}
+.colhead{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 0 8px}
+.colhead div{display:flex;align-items:center;gap:8px;font-weight:600;font-size:12px;color:var(--muted)}
+.colhead .cnt{margin-left:auto;font-weight:500}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px;position:relative}
+.pair::before{content:attr(data-n);position:absolute;left:-14px;top:9px;font-size:10px;color:var(--faint);font-weight:600;font-family:"JetBrains Mono",monospace}
+.cell{background:var(--panel);border:1px solid var(--line);border-radius:8px;min-width:0;position:relative;display:flex;flex-direction:column}
+.pair.focus .cell{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.cell .ch{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+.cell .ch .name{font-weight:600;color:var(--text);font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.cell .ch .lines{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:10.5px}
+.cell .ch .exec{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--py);min-width:34px}
+.cell pre{margin:0;padding:10px 12px;font-size:12px;line-height:1.55;overflow:auto;white-space:pre;tab-size:4}
+.cell pre .k{color:var(--sas);font-weight:600}.cell pre .p{color:var(--py);font-weight:600}.cell pre .c{color:var(--faint)}.cell pre .s{color:var(--ir)}
+.cell .out{border-top:1px dashed var(--line);padding:8px 12px}
+.out table{border-collapse:collapse;font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.out th{text-align:left;color:var(--muted);font-weight:600;padding:2px 12px 4px 0;border-bottom:1px solid var(--line)}
+.out td{padding:3px 12px 3px 0}
+.out .meta{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:11px;color:var(--muted)}
+/* B_tripane: linkable column tokens, DrRacket style */
+.col{cursor:pointer;text-decoration:underline dotted var(--faint);text-underline-offset:3px;border-radius:3px;padding:0 1px}
+.col:hover{color:var(--ir);text-decoration-color:var(--ir)}
+.col.on{background:var(--ir-bg);color:var(--ir);box-shadow:inset 0 -2px 0 var(--ir);text-decoration:none;font-weight:600}
+.col.lin{background:var(--sel);text-decoration:none}
+/* the node/4 step band in the gutter of the SAS cell: which lines belong to which step */
+.stepband{position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:var(--c)}
+
+/* ---- right: Lineage drawer, column grain ---- */
+.lctl{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted);flex-wrap:wrap;position:relative}
+.lctl .cap{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:-4px}
+.chip{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border:1px solid var(--line);border-radius:999px;cursor:pointer;color:var(--faint);background:transparent}
+.chip.on{background:var(--panel2);color:var(--text)}
+.chip.on::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ir);margin-right:5px;vertical-align:middle}
+.flowstrip{display:flex;align-items:center;gap:2px;padding:7px 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap;position:relative}
+.flowstrip .flab{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:6px;flex:0 0 auto}
+.flowchip{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:3px 9px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);cursor:pointer;font-size:10.5px;color:var(--text)}
+.flowchip:hover{border-color:var(--ir)}
+.flowchip i{width:7px;height:7px;border-radius:50%;background:var(--c,var(--faint))}
+.flowchip .fct{font-size:8.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.flowchip .fcl{font-family:"JetBrains Mono",monospace;font-size:10.5px}
+.flowchip.active{background:var(--ir-bg);border-color:var(--ir);box-shadow:inset 0 -2px 0 var(--ir)}
+.flowchip.active .fcl{font-weight:600}
+.flowarrow{flex:0 0 auto;color:var(--faint);font-family:"JetBrains Mono",monospace;font-size:12px;padding:0 2px}
+#canvas{position:relative;flex:1;min-height:0;overflow:auto;background:var(--bg)}
+#edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#edges path{fill:none;stroke:var(--faint);stroke-width:1.2;opacity:.9}
+#edges path.key{stroke-dasharray:4 3;stroke:var(--warn)}
+#edges path.hl{stroke:var(--ir);stroke-width:2.2;opacity:1}
+#edges path.dim{opacity:.12}
+.node{position:absolute;width:150px;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:11.5px;user-select:none}
+.node.inactive{opacity:.28}
+.node .hd{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;font-family:"JetBrains Mono",monospace;font-weight:600;font-size:11.5px;background:var(--panel2);border-bottom:2px solid var(--c)}
+.node .hd .kind{margin-left:auto;font:700 8.5px "IBM Plex Sans",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--c);border:1px solid currentColor;border-radius:3px;padding:1px 5px}
+.node .hd .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.node .row{display:flex;align-items:center;height:22px;padding:0 10px;border-top:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:11px;cursor:pointer;position:relative}
+.node .row:hover{background:var(--panel2)}
+.node .row.sel{background:var(--ir-bg);box-shadow:inset 3px 0 0 var(--ir);font-weight:600;color:var(--ir)}
+.node .row.off{opacity:.4}
+.node .row .ty{margin-left:auto;color:var(--faint);font-size:9.5px}
+.node .row.src::after{content:"";position:absolute;right:4px;top:50%;transform:translateY(-50%);width:6px;height:6px;border-radius:50%;background:var(--faint);box-shadow:0 0 0 2px var(--panel)}
+.node .row.src .ty{margin-right:10px}
+.node .sub{padding:3px 10px 5px;font-size:10px;color:var(--muted);border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"JetBrains Mono",monospace}
+.gstat{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ir);padding:5px 9px;font:10.5px "JetBrains Mono",monospace;color:var(--muted);z-index:2}
+.legend{display:flex;gap:12px;padding:6px 12px;font-size:11px;color:var(--muted);border-top:1px solid var(--line)}
+.legend i{display:inline-block;width:18px;border-top:2px solid var(--faint);vertical-align:middle;margin-right:4px}
+.legend i.hl{border-color:var(--ir)}.legend i.key{border-top-style:dashed;border-color:var(--warn)}
+.legend b{color:var(--ir);font-weight:600}
+
+/* what happens between two columns: a label on the edge (carried / renamed / computed / join key) */
+.elab{position:absolute;transform:translate(-50%,-50%);font:10px "JetBrains Mono",monospace;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:1px 6px;white-space:nowrap;pointer-events:none;z-index:2}
+.elab.hl{color:#fff;background:var(--ir);border-color:var(--ir)}
+.elab.key{color:var(--warn);border-color:var(--warn)}
+.elab.comp{color:var(--ir);border-color:var(--ir);background:var(--ir-bg)}
+/* Tables grain: the same drawer, boxes fold to tables; the focused column rides along as a chip */
+#canvasT{position:relative;flex:1;min-height:0;overflow:auto;background:var(--bg);display:none}
+#canvasT.on{display:block}#canvas.off{display:none}
+#edgesT{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#edgesT path{fill:none;stroke:var(--faint);stroke-width:1.4;opacity:.9}
+#edgesT path.hl{stroke:var(--ir);stroke-width:2.4}
+#edgesT path.dim{opacity:.25}
+.tnode{position:absolute;width:172px;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:11.5px;cursor:pointer}
+.tnode.inactive{opacity:.35}
+.tnode .hd{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;font-family:"JetBrains Mono",monospace;font-weight:600;font-size:11.5px;background:var(--panel2);border-bottom:2px solid var(--c)}
+.tnode .hd .kind{margin-left:auto;font:700 8.5px "IBM Plex Sans",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--c);border:1px solid currentColor;border-radius:3px;padding:1px 5px}
+.tnode .cnt{padding:4px 10px;font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tnode .cnt b{overflow:hidden;text-overflow:ellipsis}
+.tnode .cnt b{margin-left:auto;font-weight:500;color:var(--faint)}
+.tnode .chip{display:flex;align-items:center;gap:6px;margin:0 6px 6px;padding:2px 8px;border-radius:999px;background:var(--ir-bg);color:var(--ir);font:600 10.5px "JetBrains Mono",monospace;text-transform:none;letter-spacing:0;border:0}
+.tnode .chip::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ir)}
+.tnode .sub{padding:3px 10px 5px;font-size:10px;color:var(--muted);border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"JetBrains Mono",monospace}
+.tnode.step{width:120px}
+.tnode .pm{position:absolute;right:-1px;top:-1px;width:18px;height:18px;border-radius:0 8px 0 6px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:700 12px/16px "JetBrains Mono",monospace;text-align:center}
+.tnode .pm:hover{color:var(--focus);border-color:var(--focus)}
+
+/* ---- bottom strip: Column tab = B_tripane's inspector ---- */
+#bottom{display:flex;flex-direction:column;border-top:1px solid var(--line);background:var(--panel);min-height:0;position:relative}
+#bottom .tabs{display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--line);height:32px}
+#bottom .tabs button{padding:6px 10px;font-size:12px;color:var(--muted);border-bottom:2px solid transparent}
+#bottom .tabs button.on{color:var(--text);border-color:var(--ir)}
+#bottom .tabs .sp{margin-left:auto;color:var(--muted);font-size:11px;display:flex;gap:10px;align-items:center}
+#bottom .tabs .sp #bstat{display:inline-flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:11px}
+#bottom .tabs .sp #bstat i{width:7px;height:7px;border-radius:50%;background:var(--good);display:inline-block}
+.insp{flex:1;display:grid;grid-template-columns:1fr 44%;min-height:0}
+.insp .ihd{grid-column:1/-1;display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.insp .ihd .kind{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ir);border:1px solid var(--ir);padding:1px 7px;border-radius:4px}
+.insp .ihd .nm{font-family:"JetBrains Mono",monospace;font-weight:600}.insp .ihd .loc{color:var(--muted);font-family:"JetBrains Mono",monospace;font-size:11px}
+.insp .ihd .x{margin-left:auto;color:var(--muted);font-size:11px}
+.insp .c1{border-right:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
+.insp .c2{display:flex;flex-direction:column;min-width:0}
+.insp .sec{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:6px 12px 2px}
+.insp pre{margin:0;padding:2px 12px 8px;overflow:auto;flex:1;font-size:11.5px;line-height:1.6;white-space:pre}
+.insp pre .f{color:var(--muted)}.insp pre .st{color:var(--ir)}
+.insp .elist{overflow:auto;flex:1;padding:0 12px 8px}
+.insp .erow{padding:3px 0;border-bottom:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:11px;display:flex;gap:6px;align-items:baseline}
+.insp .erow .ar{color:var(--muted)}.insp .erow .via{margin-left:auto;font-size:10px;color:var(--faint)}
+#status{display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--panel);border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
+#status .mode{font-weight:600;color:var(--text)}
+#status .keys{display:flex;gap:10px;margin-left:auto}
+#linkLayer{position:fixed;inset:0;width:100%;height:100%;z-index:50;pointer-events:none;overflow:visible}
+#linkLayer path{fill:none;stroke:var(--ir);stroke-width:1.6;opacity:.85}
+#linkLayer circle{fill:var(--ir)}
+
+/* ---- notes overlay (n) ---- */
+.nb{display:none;position:absolute;z-index:60;width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;font:700 11px/20px "JetBrains Mono",monospace;text-align:center;box-shadow:0 0 0 2px var(--panel)}
+body.notes .nb{display:block}
+#notes{display:none;position:fixed;right:14px;top:48px;z-index:70;width:440px;max-height:calc(100vh - 70px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);font-size:12px}
+body.notes #notes{display:block}
+#notes h2{margin:0;padding:10px 14px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+#notes .n{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);align-items:start}
+#notes .n .b{width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;font:700 11px/20px "JetBrains Mono",monospace;text-align:center}
+#notes .n b{display:block;margin-bottom:2px}
+#notes .n small{color:var(--muted)}
+#notes .n em{font-style:normal;color:var(--ir);font-family:"JetBrains Mono",monospace;font-size:11px}
+</style></head>
+<body>
+<div id="app">
+  <div id="top">
+    <div class="brand">lineage<span>Q</span> Bench</div>
+    <div class="file"><span class="tag sas">sas</span><b>team_finance/sas/raw/15_join_risk_txn.sas</b><kbd>⌘K</kbd></div>
+    <div class="receipts">
+      <span class="pill good" title="the conversion was checked twice (Rust and Prolog) and both agree"><i></i>verified</span>
+      <span class="pill prog done"><i></i>ran 1/1</span>
+    </div>
+    <div class="seg"><button class="on">Jupyter <kbd>j</kbd></button><button>IDE <kbd>i</kbd></button></div>
+    <div class="sp">
+      <button class="chip" id="notesBtn" title="numbered notes: what came from B_tripane and where it lives (n)">notes <kbd>n</kbd></button>
+      <button class="theme" id="themeBtn" title="Theme (t)">◐</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <nav id="rail">
+      <button title="Files (b)"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg><kbd>b</kbd></button>
+      <button class="on" title="Cells / code blocks (c)"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="5"/><rect x="4" y="12" width="16" height="5"/></svg><kbd>c</kbd></button>
+      <button class="on" title="Lineage graph (g) · k flips table ⇄ column grain"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="12" r="2.5"/><circle cx="6" cy="18" r="2.5"/><path d="M8 7l8 4M8 17l8-4"/></svg><kbd>g</kbd></button>
+      <button title="Keys (?)" style="margin-top:auto;margin-bottom:8px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg></button>
+    </nav>
+
+    <aside class="drawer" id="left">
+      <div class="dh"><span>Cells</span><span class="nb" style="right:36px;top:6px">2</span><kbd>c</kbd></div>
+      <div class="db">
+        <div class="tree">
+          <div class="dir">15_join_risk_txn.sas · 1 block</div>
+          <div class="f on"><span class="n">1</span>proc sql → work.risk_txn<span class="tag py">py</span></div>
+          <div class="f st" style="--c:var(--join)"><i></i>j1 · join accounts on cust_id</div>
+          <div class="f st on" style="--c:var(--join)"><i></i>j2 · join txn_agg on acct_id</div>
+          <div class="f st" style="--c:var(--expr)"><i></i>p1 · select 8 columns</div>
+        </div>
+      </div>
+    </aside>
+
+    <section id="center">
+      <div id="cells">
+        <div class="colhead"><div><span class="tag sas">sas</span>SAS<span class="cnt">1 block · window 1–1</span></div><div><span class="tag py">py</span>PySpark<span class="cnt">converted · verified</span></div></div>
+        <div class="pair focus" data-n="1">
+          <div class="cell" style="position:relative">
+            <span class="nb" style="left:-10px;top:-10px">5</span>
+            <div class="ch"><span class="exec">[1]</span><span class="name">work.risk_txn</span><span class="tag sas">proc sql</span><span class="lines">L11–27</span></div>
+<pre><span class="k">proc sql</span>;
+  <span class="k">create table</span> work.risk_txn <span class="k">as</span>
+  <span class="k">select</span>
+      r.<span class="col" data-col="risk_txn.cust_id">cust_id</span>,
+      r.<span class="col" data-col="risk_txn.cust_name">cust_name</span>,
+      r.<span class="col" data-col="risk_txn.risk_band">risk_band</span>,
+      r.<span class="col" data-col="risk_txn.risk_score">risk_score</span>,
+      a.<span class="col" data-col="risk_txn.acct_id">acct_id</span>,
+      t.<span class="col" data-col="risk_txn.txn_type">txn_type</span>,
+      t.<span class="col" data-col="risk_txn.txn_cnt">txn_cnt</span>,
+      t.<span class="col on" data-col="risk_txn.amt_usd_sum" id="tokSas">amt_usd_sum</span>
+  <span class="k">from</span> work.risk_flags r
+  <span class="k">inner join</span> work.accounts a
+    <span class="k">on</span> r.<span class="col" data-col="risk_flags.cust_id">cust_id</span> = a.<span class="col" data-col="accounts.cust_id">cust_id</span>
+  <span class="k">left join</span> work.<span class="col lin">txn_agg</span> t
+    <span class="k">on</span> a.<span class="col" data-col="accounts.acct_id">acct_id</span> = t.<span class="col" data-col="txn_agg.acct_id">acct_id</span>;
+<span class="k">quit</span>;</pre>
+            <div class="out">
+              <table><tr><th>cust_id</th><th>risk_band</th><th>acct_id</th><th>txn_cnt</th><th>amt_usd_sum</th></tr>
+              <tr><td>C001</td><td>HIGH</td><td>A1001</td><td>14</td><td>18240.50</td></tr>
+              <tr><td>C002</td><td>LOW</td><td>A1002</td><td>3</td><td>410.00</td></tr></table>
+              <div class="meta"><span class="pill good"><i></i>2 rows</span></div>
+            </div>
+          </div>
+          <div class="cell">
+            <div class="ch"><span class="exec">[1]</span><span class="name">risk_txn</span><span class="tag py">pyspark</span><span class="lines">L203–216</span></div>
+<pre><span class="c"># ---- work.risk_txn  (PROC SQL, SAS lines 11-27) ----</span>
+risk_txn = (
+    risk_flags.<span class="p">alias</span>(<span class="s">"r"</span>)
+    .<span class="p">join</span>(accounts.<span class="p">alias</span>(<span class="s">"a"</span>), F.col(<span class="s">"r.cust_id"</span>) == F.col(<span class="s">"a.cust_id"</span>), <span class="s">"inner"</span>)
+    .<span class="p">join</span>(<span class="col lin">txn_agg</span>.<span class="p">alias</span>(<span class="s">"t"</span>), F.col(<span class="s">"a.acct_id"</span>) == F.col(<span class="s">"t.acct_id"</span>), <span class="s">"left"</span>)
+    .<span class="p">select</span>(
+        F.col(<span class="s">"r.cust_id"</span>),
+        F.col(<span class="s">"r.cust_name"</span>),
+        F.col(<span class="s">"r.risk_band"</span>),
+        F.col(<span class="s">"r.risk_score"</span>),
+        F.col(<span class="s">"a.acct_id"</span>),
+        F.col(<span class="s">"t.txn_type"</span>),
+        F.col(<span class="s">"t.txn_cnt"</span>),
+        F.col(<span class="s">"t.<span class="col on" id="tokPy">amt_usd_sum</span>"</span>),
+    )
+)</pre>
+            <div class="out">
+              <table><tr><th>cust_id</th><th>risk_band</th><th>acct_id</th><th>txn_cnt</th><th>amt_usd_sum</th></tr>
+              <tr><td>C001</td><td>HIGH</td><td>A1001</td><td>14</td><td>18240.50</td></tr>
+              <tr><td>C002</td><td>LOW</td><td>A1002</td><td>3</td><td>410.00</td></tr></table>
+              <div class="meta"><span class="pill good"><i></i>same result as SAS</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="drawer right" id="right">
+      <div class="dh"><span>Lineage</span><span class="nb" style="left:84px;top:6px">1</span>
+        <span style="margin-left:10px;display:flex;gap:10px;align-items:center;font-weight:500;text-transform:none;letter-spacing:0">
+          <span class="seg sm" id="grain"><button data-g="t">Tables</button><button class="on" data-g="c">Columns <kbd>k</kbd></button></span>
+          <span class="seg sm hops" title="how many upstream hops to draw"><button>−</button><button class="on">◀ 2</button><button>+</button></span><span class="seg sm hops" title="how many downstream hops to draw"><button>−</button><button class="on">1 ▶</button><button>+</button></span>
+        </span>
+        <kbd>g</kbd></div>
+      <div class="lctl"><span class="cap">show</span><span class="chip on">sources</span><span class="chip on">steps</span><span class="chip on">target</span>
+        <span style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10.5px">focus <b style="color:var(--ir)">risk_txn.amt_usd_sum</b> · <kbd>esc</kbd> clears</span></div>
+      <div class="flowstrip"><span class="nb" style="left:-4px;top:6px">3</span><span class="flab">code flow</span>
+        <span class="flowchip"><i></i><span class="fct">src</span><span class="fcl">risk_flags</span></span><span class="flowarrow">→</span>
+        <span class="flowchip" style="--c:var(--join)"><i></i><span class="fct">join</span><span class="fcl">j1</span></span><span class="flowarrow">→</span>
+        <span class="flowchip active" style="--c:var(--join)"><i></i><span class="fct">join</span><span class="fcl">j2</span></span><span class="flowarrow">→</span>
+        <span class="flowchip" style="--c:var(--expr)"><i></i><span class="fct">project</span><span class="fcl">p1</span></span><span class="flowarrow">→</span>
+        <span class="flowchip" style="--c:var(--ir)"><i></i><span class="fct">tgt</span><span class="fcl">risk_txn</span></span></div>
+      <div id="canvas">
+        <span class="nb" style="left:8px;top:8px">4</span>
+        <svg id="edges"></svg>
+        <div class="node inactive" data-node="risk_flags" style="left:12px;top:16px;--c:var(--sas)"><div class="hd"><span class="nm">risk_flags</span><span class="kind">source</span></div>
+          <div class="row src off" data-col="risk_flags.cust_id">cust_id<span class="ty">$8</span></div><div class="row src off" data-col="risk_flags.cust_name">cust_name<span class="ty">$40</span></div><div class="row src off" data-col="risk_flags.risk_band">risk_band<span class="ty">$6</span></div><div class="row src off" data-col="risk_flags.risk_score">risk_score<span class="ty">8</span></div></div>
+        <div class="node inactive" data-node="accounts" style="left:12px;top:158px;--c:var(--sas)"><div class="hd"><span class="nm">accounts</span><span class="kind">source</span></div>
+          <div class="row src off" data-col="accounts.acct_id">acct_id<span class="ty">$8</span></div><div class="row src off" data-col="accounts.cust_id">cust_id<span class="ty">$8</span></div></div>
+        <div class="node" data-node="txn_agg" style="left:12px;top:250px;--c:var(--sas)"><div class="hd"><span class="nm">txn_agg</span><span class="kind">source</span></div>
+          <div class="row src off" data-col="txn_agg.acct_id">acct_id<span class="ty">$8</span></div><div class="row src off" data-col="txn_agg.txn_type">txn_type<span class="ty">$8</span></div><div class="row src off" data-col="txn_agg.txn_cnt">txn_cnt<span class="ty">8</span></div><div class="row src sel" data-col="txn_agg.amt_usd_sum">amt_usd_sum<span class="ty">8</span></div></div>
+        <div class="node inactive" data-node="j1" style="left:176px;top:40px;--c:var(--join)"><div class="hd"><span class="nm">j1</span><span class="kind">join</span></div>
+          <div class="row src off" data-col="j1.cust_id">cust_id</div><div class="row src off" data-col="j1.cust_name">cust_name</div><div class="row src off" data-col="j1.risk_band">risk_band</div><div class="row src off" data-col="j1.risk_score">risk_score</div><div class="row src off" data-col="j1.acct_id">acct_id</div><div class="sub">inner · r.cust_id = a.cust_id</div></div>
+        <div class="node" data-node="j2" style="left:340px;top:210px;--c:var(--join)"><div class="hd"><span class="nm">j2</span><span class="kind">join</span></div>
+          <div class="row src off" data-col="j2.cust_id">cust_id</div><div class="row src off" data-col="j2.acct_id">acct_id</div><div class="row src off" data-col="j2.txn_type">txn_type</div><div class="row src off" data-col="j2.txn_cnt">txn_cnt</div><div class="row src sel" data-col="j2.amt_usd_sum">amt_usd_sum</div><div class="sub">left · a.acct_id = t.acct_id</div></div>
+        <div class="node" data-node="risk_txn" style="left:508px;top:30px;--c:var(--ir)"><div class="hd"><span class="nm">risk_txn</span><span class="kind">target</span></div>
+          <div class="row off" data-col="risk_txn.cust_id">cust_id</div><div class="row off" data-col="risk_txn.cust_name">cust_name</div><div class="row off" data-col="risk_txn.risk_band">risk_band</div><div class="row off" data-col="risk_txn.risk_score">risk_score</div><div class="row off" data-col="risk_txn.acct_id">acct_id</div><div class="row off" data-col="risk_txn.txn_type">txn_type</div><div class="row off" data-col="risk_txn.txn_cnt">txn_cnt</div><div class="row sel" data-col="risk_txn.amt_usd_sum" id="rowTgt">amt_usd_sum</div></div>
+        <div class="gstat">3 steps · 3 tables in, 1 out · 23 column links · verified</div>
+      </div>
+      <div id="canvasT">
+        <svg id="edgesT"></svg>
+        <div class="tnode inactive" data-node="risk_flags" style="left:12px;top:20px;--c:var(--sas)"><div class="hd"><span>risk_flags</span><span class="kind">source</span></div><div class="cnt">4 columns<b>13_risk_flags.sas</b></div><span class="pm" title="show columns">+</span></div>
+        <div class="tnode inactive" data-node="accounts" style="left:12px;top:150px;--c:var(--sas)"><div class="hd"><span>accounts</span><span class="kind">source</span></div><div class="cnt">2 columns<b>04_build_accounts.sas</b></div><span class="pm">+</span></div>
+        <div class="tnode" data-node="txn_agg" style="left:12px;top:300px;--c:var(--sas)"><div class="hd"><span>txn_agg</span><span class="kind">source</span></div><div class="cnt">4 columns<b>12_txn_agg.sas</b></div><span class="chip">amt_usd_sum</span><span class="pm">+</span></div>
+        <div class="tnode step inactive" data-node="j1" style="left:268px;top:70px;--c:var(--join)"><div class="hd"><span>j1</span><span class="kind">join</span></div><div class="sub">inner · on cust_id</div></div>
+        <div class="tnode step" data-node="j2" style="left:430px;top:250px;--c:var(--join)"><div class="hd"><span>j2</span><span class="kind">join</span></div><div class="sub">left · on acct_id</div></div>
+        <div class="tnode" data-node="risk_txn" style="left:500px;top:60px;--c:var(--ir)"><div class="hd"><span>risk_txn</span><span class="kind">target</span></div><div class="cnt">8 columns<b>→ 18_dashboard_mart</b></div><span class="chip" id="chipTgt">amt_usd_sum</span><span class="pm">+</span></div>
+        <div class="gstat">Tables · 4 tables, 2 steps · the focused column stays as a chip · <kbd>+</kbd> opens one table's columns</div>
+      </div>
+      <div class="legend"><span><i class="hl"></i>lineage of <b>amt_usd_sum</b></span><span><i></i>other link</span><span><i class="key"></i>join key</span><span>labels: carried · renamed · <b style="color:var(--ir)">computed</b></span><span style="margin-left:auto"><kbd>esc</kbd> clears</span></div>
+    </aside>
+  </div>
+
+  <div id="bottom">
+    <span class="nb" style="left:250px;top:6px">6</span>
+    <div class="tabs">
+      <button>Story</button><button>Output</button><button>Compare</button><button class="on">Column</button>
+      <div class="sp"><span id="bstat"><i></i>verified · 23 column links</span><kbd>⌄</kbd><kbd>×</kbd></div>
+    </div>
+    <div class="insp">
+      <div class="ihd"><span class="kind">column</span><span class="nm">amt_usd_sum</span><span class="loc">work.risk_txn · 15_join_risk_txn.sas · block 1</span><span class="x">esc clears</span></div>
+      <div class="c1"><div class="sec">How it gets here</div>
+<pre>risk_txn.amt_usd_sum  <span class="f">←</span>  j2.amt_usd_sum       <span class="st">carried through the join on acct_id</span>
+j2.amt_usd_sum        <span class="f">←</span>  txn_agg.amt_usd_sum  <span class="st">12_txn_agg.sas · sum(amount_usd) per account</span>
+txn_agg.amt_usd_sum   <span class="f">←</span>  txns_fx.amount_usd   <span class="st">07_enrich_fx.sas · amount × fx rate · open across files ↗</span></pre></div>
+      <div class="c2"><div class="sec">Links (2 in · 1 out)</div>
+        <div class="elist">
+          <div class="erow"><span>txn_agg.amt_usd_sum</span><span class="ar">→</span><span>j2.amt_usd_sum</span><span class="via">12_txn_agg.sas</span></div>
+          <div class="erow"><span>j2.amt_usd_sum</span><span class="ar">→</span><span>risk_txn.amt_usd_sum</span><span class="via">this file</span></div>
+          <div class="erow"><span>risk_txn.amt_usd_sum</span><span class="ar">→</span><span>dashboard_mart.risk_amt</span><span class="via">18_dashboard_mart.sas</span></div>
+        </div></div>
+    </div>
+  </div>
+
+  <div id="status">
+    <span class="mode">COMMAND</span><span>block 1 · work.risk_txn · step j2</span><span>verified</span>
+    <div class="keys"><span><kbd>⌃⏎</kbd> run</span><span><kbd>k</kbd> tables ⇄ columns</span><span><kbd>/</kbd> find</span><span><kbd>s</kbd> story</span><span><kbd>?</kbd> keys</span></div>
+  </div>
+</div>
+<svg id="linkLayer"></svg>
+
+<div id="notes">
+  <h2>B_tripane → UI2, after the BA pass</h2>
+  <div class="n"><span class="b">1</span><div><b>Header controls → the Lineage drawer header</b><small>Grain <em>Tables | Columns</em> (<em>k</em>). The Base / +Transforms layer switch is gone: the <em>steps</em> show-chip does the same job (off = tables only, on = the join / select / filter / group steps in between). Depth is UI1's <em>− ◀ 2 +</em> upstream and <em>− 1 ▶ +</em> downstream hops, not All / ±1 / ±2.</small></div></div>
+  <div class="n"><span class="b">2</span><div><b>Code-blocks spine → the Cells drawer, drawn like Files</b><small>One heading (the file), then plain rows: block 1, and under it its steps with a colour dot. No Reads / Creates sections — the graph already shows those tables. Click a row = focus its cell, its graph node, its flow chip.</small></div></div>
+  <div class="n"><span class="b">3</span><div><b>Flow strip → top of the Lineage drawer</b><small>One chip per table in, step, table out, in the order the code runs.</small></div></div>
+  <div class="n"><span class="b">4</span><div><b>G6 column graph → the Bench's own SVG at Columns grain</b><small>No G6. Boxes with column rows, links between columns. <b>Every link on the traced path says what happens</b>: <em>carried</em> (same value), <em>renamed</em>, <em>computed</em> (the expression, e.g. sum(amount_usd)), <em>join key</em>. Other links show their label on hover.</small></div></div>
+  <div class="n"><span class="b">k</span><div><b>The dualism: press <em>k</em> now</b><small>Tables grain folds every box to its table with a column count and its file. The focused column does not get lost — it rides along as a chip on the tables that have it, the path stays highlighted, and the connector lines follow the chip. Steps stay as small boxes, and the edge labels become the step in words. <em>+</em> on one table opens only that table's columns.</small></div></div>
+  <div class="n"><span class="b">5</span><div><b>SQL panel → gone; the cells are the code</b><small>Column names in the focused cell are clickable; the line runs from the graph row to that name in SAS and in PySpark.</small></div></div>
+  <div class="n"><span class="b">6</span><div><b>Inspector → the <em>Column</em> tab on the bottom strip</b><small>Left: how the column gets here, hop by hop, in words, with the file of each hop; the last hop crosses files and opens UI1. Right: the links.</small></div></div>
+  <div class="n"><span class="b">7</span><div><b>Search / ⌘K / ace-jump → <em>/</em> and the palette</b><small><em>/</em> finds a column or step; Enter focuses it. Ace-jump <em>f</em> dropped — a BA will click.</small></div></div>
+  <div class="n"><span class="b">✂</span><div><b>Cut in my own review (BA would not use them)</b><small>Rust ⇄ Prolog switch and the four receipt pills → one <em>verified</em> pill (hover says why). All timings (18 ms, 1.9 s, 0.6 ms). Console <em>p</em>, Log <em>l</em>, Terminal tab. "node/4", "fold", "proof", "edge" → steps, verified, link. DataMatch → <em>Compare</em>, "same result as SAS". Keys line trimmed to run, k, /, s, ?. Kept: run, story, the receipt idea (one word), the two views j / i.</small></div></div>
+  <div class="n"><span class="b">?</span><div><b>Open for the owner</b><small>Do BAs run cells at all (⌃⏎, ran 1/1, Output tab), or only read? If read-only, the run keys and Output go too and the strip is Story · Compare · Column.</small></div></div>
+</div>
+
+<script>
+// edges: [from, to, class]. Same shapes as B_tripane's OVERLAY list, one per column hop.
+const EDGES = [
+  ["risk_flags.cust_id","j1.cust_id"],["risk_flags.cust_name","j1.cust_name"],["risk_flags.risk_band","j1.risk_band"],["risk_flags.risk_score","j1.risk_score"],
+  ["accounts.acct_id","j1.acct_id"],["accounts.cust_id","j1.cust_id","key","join key"],
+  ["j1.cust_id","j2.cust_id"],["j1.acct_id","j2.acct_id"],
+  ["txn_agg.acct_id","j2.acct_id","key","join key"],["txn_agg.txn_type","j2.txn_type"],["txn_agg.txn_cnt","j2.txn_cnt"],["txn_agg.amt_usd_sum","j2.amt_usd_sum","hl","carried · left join"],
+  ["j2.cust_id","risk_txn.cust_id"],["j1.cust_name","risk_txn.cust_name"],["j1.risk_band","risk_txn.risk_band"],["j1.risk_score","risk_txn.risk_score"],
+  ["j2.acct_id","risk_txn.acct_id"],["j2.txn_type","risk_txn.txn_type"],["j2.txn_cnt","risk_txn.txn_cnt"],["j2.amt_usd_sum","risk_txn.amt_usd_sum","hl","carried · same name"],
+];
+const canvas=document.getElementById("canvas"), svg=document.getElementById("edges");
+const rowEl=id=>canvas.querySelector(`.row[data-col="${id}"]`);
+function drawEdges(){
+  canvas.querySelectorAll(".elab").forEach(e=>e.remove());
+  const c=canvas.getBoundingClientRect(); let s="", labs="";
+  EDGES.forEach(([a,b,cls,lab])=>{
+    const ra=rowEl(a), rb=rowEl(b); if(!ra||!rb) return;
+    const A=ra.getBoundingClientRect(), B=rb.getBoundingClientRect();
+    const x1=A.right-c.left+canvas.scrollLeft, y1=A.top+A.height/2-c.top+canvas.scrollTop;
+    const x2=B.left-c.left+canvas.scrollLeft, y2=B.top+B.height/2-c.top+canvas.scrollTop;
+    const mx=(x1+x2)/2;
+    s+=`<path class="${cls||"dim"}" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+    // the label sits at the curve's midpoint and says what happens between the two columns
+    if(lab) labs+=`<div class="elab ${cls}" style="left:${mx}px;top:${(y1+y2)/2}px">${lab}</div>`;
+  });
+  svg.innerHTML=s; svg.insertAdjacentHTML("afterend",labs);
+}
+// Tables grain: one edge per table→step→table hop, labelled with the step
+const EDGES_T=[["risk_flags","j1","dim","inner join"],["accounts","j1","dim","on cust_id"],["j1","j2","dim","carried"],["txn_agg","j2","hl","left join · on acct_id"],["j2","risk_txn","hl","select 8 columns"]];
+const canvasT=document.getElementById("canvasT"), svgT=document.getElementById("edgesT");
+function drawEdgesT(){
+  canvasT.querySelectorAll(".elab").forEach(e=>e.remove());
+  const c=canvasT.getBoundingClientRect(); let s="", labs="";
+  EDGES_T.forEach(([a,b,cls,lab])=>{
+    const A=canvasT.querySelector(`.tnode[data-node="${a}"] .hd`).getBoundingClientRect(), B=canvasT.querySelector(`.tnode[data-node="${b}"] .hd`).getBoundingClientRect();
+    const x1=A.right-c.left, y1=A.top+A.height/2-c.top, x2=B.left-c.left, y2=B.top+B.height/2-c.top, mx=(x1+x2)/2;
+    s+=`<path class="${cls}" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+    labs+=`<div class="elab ${cls==="hl"?"hl":""}" style="left:${mx}px;top:${(y1+y2)/2}px">${lab}</div>`;
+  });
+  svgT.innerHTML=s; svgT.insertAdjacentHTML("afterend",labs);
+}
+// DrRacket lines: focused graph row -> the same column's token in the SAS cell and in the PySpark cell
+const link=document.getElementById("linkLayer");
+function drawLinks(){
+  // in Tables grain the focused column is the chip on the target table; the lines follow it
+  const row=canvasT.classList.contains("on")?document.getElementById("chipTgt"):document.getElementById("rowTgt"); if(!row) return;
+  const r=row.getBoundingClientRect(); const x1=r.left, y1=r.top+r.height/2; let s="";
+  ["tokSas","tokPy"].forEach(id=>{
+    const t=document.getElementById(id).getBoundingClientRect(); const x2=t.right, y2=t.top+t.height/2, mx=(x1+x2)/2;
+    s+=`<path d="M${x2},${y2} C${mx},${y2} ${mx},${y1} ${x1},${y1}"/><circle cx="${x2}" cy="${y2}" r="3.5"/><circle cx="${x1}" cy="${y1}" r="3.5"/>`;
+  });
+  link.innerHTML=s;
+}
+function redraw(){drawEdges();drawEdgesT();drawLinks();}
+function setGrain(g){ canvasT.classList.toggle("on",g==="t"); canvas.classList.toggle("off",g==="t"); document.querySelectorAll("#grain button").forEach(b=>b.classList.toggle("on",b.dataset.g===g)); requestAnimationFrame(redraw); }
+document.querySelectorAll("#grain button").forEach(b=>b.onclick=()=>setGrain(b.dataset.g));
+addEventListener("resize",redraw); document.getElementById("cells").addEventListener("scroll",drawLinks); canvas.addEventListener("scroll",redraw);
+document.fonts?document.fonts.ready.then(redraw):redraw(); redraw();
+document.getElementById("themeBtn").onclick=()=>{const h=document.documentElement;h.dataset.theme=h.dataset.theme==="dark"?"":"dark";};
+const toggleNotes=()=>document.body.classList.toggle("notes");
+document.getElementById("notesBtn").onclick=toggleNotes;
+addEventListener("keydown",e=>{if(e.key==="n")toggleNotes();if(e.key==="t")document.getElementById("themeBtn").click();if(e.key==="k")setGrain(canvasT.classList.contains("on")?"c":"t");});
+</script>
+</body></html>
