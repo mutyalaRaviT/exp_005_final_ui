@@ -81,6 +81,10 @@ pub fn app(state: AppState) -> Router {
         .route("/api/edges", get(routes::edges::edges))
         .route("/api/source", get(routes::source::source))
         .route("/api/file", get(routes::file::file))
+        // UI1 has always asked for `/api/file/<fileid>` — a different answer on a different
+        // path, not `file()` with a path parameter. See `routes::file`'s doc comment; it is
+        // finding G7 (UI1's `could not load blocks` banner with the Python oracle dead).
+        .route("/api/file/*fileid", get(routes::file::file_detail))
         .route("/api/blocks", get(routes::blocks::blocks))
         .route("/api/tablegraph", get(routes::tablegraph::tablegraph))
         .route("/api/story", get(routes::story::story))

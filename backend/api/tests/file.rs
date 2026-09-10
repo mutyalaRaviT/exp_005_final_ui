@@ -53,3 +53,44 @@ async fn a_missing_fileid_is_a_400() {
     let res = get_raw("/api/file").await;
     assert_eq!(res.status, 400, "body was: {}", res.body);
 }
+
+/// UI1's own `/api/file/<fileid>` — a different answer on a different path (see
+/// `routes::file`'s doc comment). Finding G7: with `:8000` dead, UI1 showed `could not load
+/// blocks for <fileid>` because nothing in Rust served this. These two use the team_finance
+/// store, the corpus UI1 actually draws, not the exp42 fixture the rest of this file uses.
+#[tokio::test]
+async fn ui1_file_detail_has_code_blocks_and_block_edges() {
+    let r = support::get_team_finance("/api/file/sas/raw/11_branch_rollup.sas").await;
+    assert_eq!(r["fileid"], "sas/raw/11_branch_rollup.sas");
+    assert_eq!(r["name"], "11_branch_rollup.sas");
+    assert_eq!(r["folder"], "sas/raw");
+    assert!(r["code"].as_str().unwrap().contains("branch_rollup"), "the file's own text");
+
+    let blocks = r["blocks"].as_array().unwrap();
+    assert!(!blocks.is_empty());
+    let b = &blocks[0];
+    assert_eq!(b["status"], "PARSED");
+    assert!(b["line_start"].as_i64().unwrap() > 0);
+    // every occurrence ref is `<block_id>:<table>` — the same ref `blocklinks` emits, which
+    // is what `graph2.ts::ownerOf` matches a link against.
+    for occ in b["occurrences"].as_array().unwrap() {
+        let id = occ["id"].as_str().unwrap();
+        assert!(id.starts_with(b["id"].as_str().unwrap()), "occurrence ref {id}");
+        assert!(occ["role"] == "read" || occ["role"] == "write");
+    }
+    assert_eq!(
+        b["reads"].as_u64().unwrap() + b["writes"].as_u64().unwrap(),
+        b["occurrences"].as_array().unwrap().len() as u64
+    );
+
+    // the fields UI1 reads unconditionally: absent ones would crash graph2.ts, not degrade
+    for k in ["block_edges", "file_edges", "macro_calls", "includes", "missing_includes"] {
+        assert!(r[k].is_array(), "{k} must be a list");
+    }
+}
+
+#[tokio::test]
+async fn ui1_file_detail_404s_for_a_file_the_store_never_saw() {
+    let res = support::get_raw_team_finance("/api/file/sas/raw/not_a_file.sas").await;
+    assert_eq!(res.status, 404, "body was: {}", res.body);
+}

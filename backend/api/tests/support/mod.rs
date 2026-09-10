@@ -55,6 +55,17 @@ pub async fn get_raw_fixtures(path: &str) -> RawRes {
     get_raw_with_state(lineageq_api::test_state_fixtures(), path).await
 }
 
+/// `get`/`get_raw` against the default `test_state()` store (team_finance) — named
+/// explicitly for the tests in a file that has aliased `get` to the fixtures store.
+pub async fn get_team_finance(path: &str) -> Value {
+    let req = Request::builder().method("GET").uri(path).body(Body::empty()).expect("build GET request");
+    send_with_state(lineageq_api::test_state(), req).await
+}
+
+pub async fn get_raw_team_finance(path: &str) -> RawRes {
+    get_raw_with_state(lineageq_api::test_state(), path).await
+}
+
 pub async fn post(path: &str, body: Value) -> Value {
     let req = Request::builder()
         .method("POST")

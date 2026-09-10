@@ -33,6 +33,25 @@
 //! out of `edges` — except for a block that makes nothing, where the Bench falls back to
 //! every `ds(lib,tab)` the block's node/4 terms name, and so does this.
 //!
+//! **A second shape on a second path: `GET /api/file/<fileid>` (`file_detail`).** UI1 has
+//! asked `:8000` for `/api/file/<path segments>` since long before this plan — a *different*
+//! answer to a different question (`api.ts::fetchFileDetail` -> `FileDetail`: the file's
+//! code, its blocks with their table occurrences, and the intra-file edges the canvas draws
+//! when you expand a file box). It is not `file()` with a path parameter; it is UI1's
+//! thirteenth question, and until it reads the store UI1 shows `could not load blocks for
+//! <fileid>` and a 502 the moment `:8000` is stopped (plan Part G, finding G7 — M2's to
+//! close). Both live here because both are "what does the store know about one file", and
+//! splitting them across two modules would hide that one of them exists.
+//!
+//! Its `occurrences[].id` is `"<block_id>:<table>"`, the same ref `blocklinks` emits, so
+//! `graph2.ts::ownerOf` can match a link's `src_ref`/`dst_ref` to the block that owns it.
+//! `:8000` numbers table tokens instead (`b_1_4505bc19:t_1`); that difference is already an
+//! accepted divergence in the ledger (cause B1, Task 7) and is not re-litigated here.
+//! `macro_calls`, `includes` and `missing_includes` are empty lists: the engine has no macro
+//! handling at all (milestone plan, Part A — 0 hits), and an empty list is the honest answer
+//! rather than a field UI1 would crash without. `file_edges` is empty for the same reason
+//! `edges()`'s `file` level is: this store has no `FILE_FLOW` fact (ledger cause B2).
+//!
 //! **Inputs → outputs.** `files`, `blocks`, `edges`, `node4`, `receipts` + a fileid → the
 //! header answer, or 404 if the store has never converted that fileid.
 
@@ -220,6 +239,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn folder_and_name_split_on_the_last_slash() {
+        assert_eq!(split_folder("sas/raw/11_branch_rollup.sas"), ("sas/raw".into(), "11_branch_rollup.sas".into()));
+        assert_eq!(split_folder("x.sas"), (String::new(), "x.sas".into()));
+    }
+
+    #[test]
     fn stem_drops_the_folder_and_the_extension() {
         assert_eq!(stem_of("sas/raw/11_branch_rollup.sas"), "11_branch_rollup");
         assert_eq!(stem_of("test_vishnu_testdata_fixed.sas"), "test_vishnu_testdata_fixed");
@@ -233,5 +258,109 @@ mod tests {
             vec!["sales.a".to_string(), "sales.b".to_string()]
         );
         assert!(ds_tables("libname(sales,lit('C:\\SASData'))").is_empty());
+    }
+}
+
+// ---------------------------------------------------------------- UI1's file detail
+
+/// `GET /api/file/<fileid>` — UI1's `FileDetail` (`raw/node4_viz/src/api.ts:50`). See this
+/// module's doc comment for why this is a second shape on a second path rather than `file()`
+/// with a path parameter.
+pub async fn file_detail(
+    State(state): State<AppState>,
+    axum::extract::Path(fileid): axum::extract::Path<String>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    let fileid = fileid.trim().trim_start_matches('/').to_string();
+    if fileid.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "file(): fileid is required".into()));
+    }
+    let ise = |e: String| (StatusCode::INTERNAL_SERVER_ERROR, e);
+    let conn = state.db.lock().map_err(|e| ise(e.to_string()))?;
+
+    let ans = match inferred_duckdb::file(&conn, &fileid) {
+        Ok(a) => a,
+        Err(e) if e.to_string().contains("no rows") || e.to_string().contains("NoRows") => {
+            return Err((StatusCode::NOT_FOUND, format!("file(): no such fileid {fileid}")))
+        }
+        Err(e) => return Err(ise(e.to_string())),
+    };
+    let code: Option<String> = conn
+        .query_row("SELECT source FROM files WHERE fileid = ?", duckdb::params![&fileid], |r| r.get(0))
+        .map_err(|e| ise(e.to_string()))?;
+
+    let scope = vec![fileid.clone()];
+    let facts = super::blocklinks::block_facts(&conn, &scope).map_err(|e| ise(e.to_string()))?;
+    let block_rows = super::edges::block_flow_rows(&conn, &scope).map_err(|e| ise(e.to_string()))?;
+    let human = inferred_duckdb::human_edits(&conn).map_err(|e| ise(e.to_string()))?;
+    drop(conn);
+
+    // The same merge `edges()` answers with, so the canvas and the drawer can never disagree
+    // about a flow inside one file. Only the block level belongs in a *file's* detail; the
+    // project level is the cross-file roll-up UI1 already gets from `neighborhood`.
+    let merged = super::edges::merge_human_edits(
+        super::edges::provided_rows(&block_rows, &facts),
+        &human,
+    );
+    let block_edges: Vec<Value> = merged
+        .into_iter()
+        .filter(|r| r.level == "block" && r.fileid == fileid)
+        .map(|r| {
+            let b = r.block_id.clone().unwrap_or_default();
+            json!({
+                "src": r.src, "dst": r.dst, "tables": r.tables, "level": r.level,
+                "provenance": r.provenance, "freshness": r.freshness, "fileid": r.fileid,
+                "block": b, "src_ref": format!("{b}:{}", r.src), "dst_ref": format!("{b}:{}", r.dst),
+            })
+        })
+        .collect();
+
+    let blocks: Vec<Value> = ans
+        .blocks
+        .iter()
+        .map(|b| {
+            let f = facts.get(&(fileid.clone(), b.block_id.clone()));
+            let reads: Vec<&String> = f.map(|f| f.reads.iter().collect()).unwrap_or_default();
+            let writes: Vec<&String> = f.map(|f| f.writes.iter().collect()).unwrap_or_default();
+            let mut occ: Vec<Value> = Vec::new();
+            for t in &reads {
+                occ.push(json!({ "id": format!("{}:{}", b.block_id, t), "name": t, "role": "read" }));
+            }
+            for t in &writes {
+                occ.push(json!({ "id": format!("{}:{}", b.block_id, t), "name": t, "role": "write" }));
+            }
+            json!({
+                "id": b.block_id,
+                "status": if ans.status == "ok" { "PARSED" } else { "ERROR" },
+                "kind": b.kind,
+                "reads": reads.len(),
+                "writes": writes.len(),
+                "line_start": b.l0,
+                "line_end": b.l1,
+                "occurrences": occ,
+            })
+        })
+        .collect();
+
+    let (folder, name) = split_folder(&fileid);
+    Ok(Json(json!({
+        "fileid": fileid,
+        "name": name,
+        "folder": folder,
+        "code": code.unwrap_or_default(),
+        "blocks": blocks,
+        "block_edges": block_edges,
+        "file_edges": Vec::<Value>::new(),
+        "macro_calls": Vec::<Value>::new(),
+        "includes": Vec::<String>::new(),
+        "missing_includes": Vec::<String>::new(),
+    })))
+}
+
+/// `sas/raw/x.sas` -> `("sas/raw", "x.sas")`; a bare filename -> `("", "x.sas")`, the same
+/// split `files()` already makes for its `folder`/`label` pair.
+fn split_folder(fileid: &str) -> (String, String) {
+    match fileid.rfind('/') {
+        Some(i) => (fileid[..i].to_string(), fileid[i + 1..].to_string()),
+        None => (String::new(), fileid.to_string()),
     }
 }
