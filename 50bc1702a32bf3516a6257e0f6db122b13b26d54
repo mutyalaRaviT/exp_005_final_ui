@@ -1,0 +1,36 @@
+M4b receipts — measured 2026-09-10, one sitting, this repo's Python stopped by verified pid.
+
+no Python alive: pgrep -fl "app.py|convert_api.py" -> 97158 only,
+  cwd lineageQ_aug_experiments/exp_42_test_vishnu (foreign :8042, never touched)
+
+pass mark 1  11_branch_rollup     files=6 edges=7   edgeRows=23/23 humanGold=1
+pass mark 2  07_enrich_fx         files=4 edges=3
+             18_dashboard_mart    files=7 edges=6   edgeRows=25/25 humanGold=1
+             no console errors
+pass mark 3  9/9 diffable routes clean
+             ankitha (oracle :8000, rust :8113 team_finance-only):
+               files search neighborhood blocklinks edges  -> 0 diffs, 1/1/25/1/1 calls
+             exp42 (Bench :8342, rust :8112 corpus/fixtures):
+               source file blocks tablegraph              -> 0 diffs, 1 file each
+             convert story run: no_oracle by their briefs (K4)
+pass mark 4  UI2 23 blocks · 80 statements · folded 80/80 · round trip 80/80
+             pills ["folded 80/80","round trip 80/80","ran 0/23"] — no prolog == rust
+             cells 46, sasCells 23, LINEAGE edges 12, no console errors
+             grep -ci prolog frontend/ui_file_ide/bench.html = 0
+pass mark 5  run() 11/11 match, b_002..b_012, engine rust
+             left 1.2-4.1 ms, right 4407-4725 ms (Spark)
+pass mark 6  big_1000.sas over HTTP, store :8111, 3x each
+             file()        8.7 / 4.4 / 3.6 ms   (1000 blocks, 3303/3303/3303)
+             blocks(0,40)  4.4 / 4.0 / 4.1 ms
+pass mark 7  5 PNGs in docs/plan/bronze/evidence_2026-09-10/
+             17 differences from the 2026-09-09 UI2 baselines + 1 from UI1's,
+             all listed in bronze_phase2_receipts.md
+
+cargo test --workspace --release  84 passed 0 failed  (87 before, -3 with tests/forward.rs)
+npx vitest run (frontend/ui_across_file_ui, after npm ci)  174 passed, 33 files
+/api/health  landed 12, forwarded 0;  unknown /api/ path -> 404
+
+deleted: oracle.rs 47, routes/forward.rs 74, tests/forward.rs 92,
+         raw/node4_viz 528 tracked files (README_from_node4_viz.md kept, D11)
+store:   backend/lineageq.duckdb = 26 files, 49 blocks, 206 node4, 88 edges,
+         37 tables, 26 receipts, 1 human edit (team_finance 25 + fixtures 1)
