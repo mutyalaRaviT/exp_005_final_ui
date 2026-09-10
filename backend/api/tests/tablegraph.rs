@@ -13,7 +13,23 @@ use support::{get_fixtures as get, get_raw_fixtures as get_raw};
 #[tokio::test]
 async fn tablegraph_matches_the_bench_screenshot() {
     let r = get("/api/tablegraph?fileid=test_vishnu_testdata_fixed.sas").await;
-    assert_eq!(r["edges"].as_array().unwrap().len(), 12, "the baseline says '12 edges'");
+    // M3a defect 4 (root cause C7): the store now also carries the Bench's `ctl` label,
+    // so this file answers 12 `ds` edges + 4 `ctl` edges. The pass mark is UNCHANGED and
+    // is asserted here more precisely than before, not loosened: the owner's screenshot
+    // counts the twelve DATASET flows, and every one of the four `ctl` edges is a second,
+    // control-flavoured label on a (src, dst, block) triple that is already one of those
+    // twelve — no new table pair is drawn. Both counts are pinned so neither can drift.
+    let edges = r["edges"].as_array().unwrap();
+    let ds: Vec<_> = edges.iter().filter(|e| e["kind"] == "ds").collect();
+    let ctl: Vec<_> = edges.iter().filter(|e| e["kind"] == "ctl").collect();
+    assert_eq!(ds.len(), 12, "the baseline says '12 edges' — twelve dataset flows");
+    assert_eq!(ctl.len(), 4, "the Bench emits 4 ctl_lineage edges for this fixture");
+    for c in &ctl {
+        assert!(
+            ds.iter().any(|d| d["src"] == c["src"] && d["dst"] == c["dst"] && d["block_id"] == c["block_id"]),
+            "ctl edge {:?} draws a table pair the 12 ds edges do not", c
+        );
+    }
     let t: Vec<&str> = r["tables"].as_array().unwrap().iter()
         .map(|x| x["name"].as_str().unwrap()).collect();
     for want in ["sales.sales_data", "sales.q1_avg_sales", "sales.final_summary"] {
