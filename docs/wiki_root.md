@@ -27,6 +27,7 @@ Later dimensions, opened when their first page exists: `backend`, `frontend`, `r
   `docs/superpowers/plans/2026-09-09-team-finance-corpus.md` /
   `docs/superpowers/specs/2026-09-09-team-finance-corpus-design.md`.
 - 2026-09-10 — M0 re-baseline: briefs 7–14 corrected, corpus/fixtures/ registered. Plan: docs/superpowers/plans/2026-09-10-milestone-plan.md.
+- 2026-09-10 — M1: UI1 without Python. `blocklinks`, `edges` and `source` land in Rust (Tasks 7–8); UI1 extracted from `raw/node4_viz` to `frontend/ui_across_file_ui/`; pass marks 6/7, 4/3 and 25/25 re-measured with `:8000` stopped. Evidence: `docs/plan/bronze/evidence_2026-09-10/`.
 
 ## Story
 

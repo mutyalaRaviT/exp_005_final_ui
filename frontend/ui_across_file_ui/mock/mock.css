@@ -1,0 +1,58 @@
+/* mock-only styling, on the bench tokens so it previews the real thing */
+.mk-app{display:grid;grid-template-rows:38px 1fr auto 26px;height:100vh}
+.mk-canvas{min-height:0;background:var(--bg)}
+.mk-note{color:var(--muted);font-size:11.5px}
+
+/* the block: UI1 already draws this box, it just gains depth */
+.mk-blk{width:100%;height:100%;border:1px dashed var(--ir);border-radius:10px;background:color-mix(in srgb,var(--ir) 5%,transparent)}
+.mk-blk-hd{display:flex;align-items:center;gap:8px;padding:8px 12px;font:600 11px var(--dbx-font);color:var(--muted);letter-spacing:.04em}
+.mk-blk-kind{font:700 8px var(--dbx-font);letter-spacing:.1em;text-transform:uppercase;padding:3px 6px;border-radius:4px;background:var(--ir-bg);color:var(--ir)}
+
+/* the new node type: a table you can see inside */
+.mk-tbl{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden;box-shadow:0 1px 2px rgba(17,23,28,.08);transition:opacity .12s}
+.mk-tbl.off{opacity:.38}
+.mk-tbl-hd{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:var(--panel2);border-bottom:1px solid var(--line);border-left:3px solid var(--focus);font:600 11.5px var(--dbx-font-mono);color:var(--text)}
+.mk-tbl.role-read .mk-tbl-hd{border-left-color:var(--warn)}
+.mk-tbl.role-write .mk-tbl-hd{border-left-color:var(--good)}
+.mk-dot{width:6px;height:6px;border-radius:50%;background:var(--focus)}
+.mk-tbl.role-read .mk-dot{background:var(--warn)}
+.mk-tbl.role-write .mk-dot{background:var(--good)}
+.mk-kind{margin-left:auto;font:700 8px var(--dbx-font);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+
+.mk-col{position:relative;display:flex;align-items:center;gap:8px;padding:0 10px;border-top:1px solid var(--line);font:11px var(--dbx-font-mono);color:var(--text);cursor:pointer;transition:background .12s,opacity .12s}
+.mk-col:first-of-type{border-top:0}
+.mk-col:hover{background:var(--panel2)}
+.mk-col.lit{background:var(--sel);box-shadow:inset 3px 0 0 var(--focus);font-weight:600}
+.mk-cn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mk-pk{font:700 8px var(--dbx-font);letter-spacing:.08em;text-transform:uppercase;color:var(--warn)}
+.mk-ct{margin-left:auto;color:var(--faint);font-size:9.5px}
+/* one handle per column row — this is what lets an edge land on a column */
+.mk-h{width:7px;height:7px;min-width:0;min-height:0;border:0;background:transparent}
+
+/* edges carry the transform */
+.mk-edge .react-flow__edge-path{stroke:var(--faint)}
+.mk-edge.kind-copy .react-flow__edge-path{stroke:var(--faint);stroke-dasharray:none}
+.mk-edge.kind-cast .react-flow__edge-path{stroke:var(--py)}
+.mk-edge.kind-expr .react-flow__edge-path{stroke:var(--ir)}
+.mk-edge.kind-join .react-flow__edge-path{stroke:var(--warn);stroke-dasharray:4 3}
+.mk-edge.on .react-flow__edge-path{stroke:var(--focus)}
+.mk-edge.off{opacity:.18}
+.mk-edge .react-flow__edge-text{font:9.5px var(--dbx-font-mono);fill:var(--muted)}
+.mk-edge.on .react-flow__edge-text{fill:var(--focus);font-weight:600}
+.mk-edge .react-flow__edge-textbg{fill:var(--bg)}
+
+/* the inspector: the reference's bottom panel, in bench clothes */
+.mk-inspect{border-top:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;max-height:210px}
+.mk-ih{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.mk-ih b{font:600 12px var(--dbx-font-mono)}
+.mk-count{margin-left:auto;font:11px var(--dbx-font-mono);color:var(--muted)}
+.mk-ib{overflow:auto;padding:4px 0}
+.mk-row{display:grid;grid-template-columns:1fr 14px 1fr 1.2fr auto;gap:10px;align-items:center;padding:5px 12px;font:11px var(--dbx-font-mono);border-bottom:1px solid var(--line)}
+.mk-arrow{color:var(--faint);text-align:center}
+.mk-from,.mk-to{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mk-tx{color:var(--text);font-weight:600}
+.mk-row.kind-copy .mk-tx{color:var(--muted);font-weight:400}
+.mk-row.kind-cast .mk-tx{color:var(--py)}
+.mk-row.kind-expr .mk-tx{color:var(--ir)}
+.mk-row.kind-join .mk-tx{color:var(--warn)}
+.mk-kindchip{font:700 8px var(--dbx-font);letter-spacing:.1em;text-transform:uppercase;padding:2px 6px;border-radius:4px;background:var(--panel2);color:var(--muted)}

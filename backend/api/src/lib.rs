@@ -62,7 +62,7 @@ pub const ALL_ROUTES: &[&str] = &[
 /// route task appends to this list as part of landing its route. `tests/landed.rs`
 /// (Ruling D6) fails loudly if this list and the router in `app()` ever disagree about
 /// which routes are actually wired up.
-pub const LANDED: &[&str] = &["files", "search", "neighborhood", "blocklinks", "edges"];
+pub const LANDED: &[&str] = &["files", "search", "neighborhood", "blocklinks", "edges", "source"];
 
 /// Build the router from state alone. Called with a real store + real oracle addresses
 /// by `main`, and with `test_state()` by every integration test — same router, same
@@ -75,6 +75,7 @@ pub fn app(state: AppState) -> Router {
         .route("/api/neighborhood", get(routes::neighborhood::neighborhood))
         .route("/api/blocklinks", get(routes::blocklinks::blocklinks))
         .route("/api/edges", get(routes::edges::edges))
+        .route("/api/source", get(routes::source::source))
         // Ruling 6 (2026-09-09, final review fix wave): `/bench` redirects to oracle_b
         // rather than serving the page itself — see `routes::bench` for why.
         .route("/bench", get(routes::bench::bench))
