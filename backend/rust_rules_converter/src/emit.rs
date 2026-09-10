@@ -196,12 +196,28 @@ impl Emitter {
     }
 
     // ------------------------------------------------------------ PROC SQL
+    // M3a defect 2 (2026-09-10): UNION ALL. `select_stmt(Cores, Order, Limit)` has
+    // held a LIST of select_cores since task 5b; this took `cores[0]` and emitted the
+    // first branch only, so 18_dashboard_mart.sas and 25_final_pack.sas silently lost
+    // three of their four source tables. (Prolog's own sql_lines/3 matched `[Core]`
+    // and so emitted nothing at all for those statements — both are fixed, Prolog
+    // first, in the previous commit.)
+    //
+    // `.union` and not `.unionByName`: SQL UNION ALL is POSITIONAL — column by
+    // column, which is exactly `DataFrame.union`. Only the first branch of
+    // 18_dashboard_mart names its columns, so by-name matching would raise rather
+    // than stack rows. The FIRST branch sets the output schema, the rule
+    // lineage.rs's select_lineage already follows (task 5d's set_schema flag).
     fn sql_lines(&mut self, out: &Term, sel: &Term) -> Vec<String> {
         let k = ds_key(out);
         let cores = sel.args()[0].list();
         let core = &cores[0];
         let mut pre = Vec::new();
-        let chain = self.core_chain(core, &mut pre);
+        let mut chain = self.core_chain(core, &mut pre);
+        for c in &cores[1..] {
+            let t = self.core_chain(c, &mut pre);
+            chain = format!("{}.union({})", chain, t);
+        }
         let ord = match some_arg(&sel.args()[1]) {
             Some(keys) => {
                 let ps: Vec<String> = keys.list().iter().map(|kk| { let mut p = Vec::new(); self.px(kk, &mut p) }).collect();
