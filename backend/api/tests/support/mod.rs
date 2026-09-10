@@ -109,12 +109,29 @@ pub async fn get_raw_with_oracle_a(oracle_a: &str, path: &str) -> RawRes {
     get_raw_with_state(lineageq_api::test_state_with_oracle_a(oracle_a.to_string()), path).await
 }
 
+/// Like `post`, but keeps the status and the body text instead of parsing JSON — for a
+/// route whose *refusals* are the thing under test (`POST /api/bench/save`, M4b): a 400
+/// answers with a plain-text reason, which `post` would panic trying to parse.
+pub async fn post_raw(path: &str, body: Value) -> RawRes {
+    let req = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).expect("serialize request body")))
+        .expect("build POST request");
+    raw_send_with_state(lineageq_api::test_state(), req).await
+}
+
 async fn get_raw_with_state(state: lineageq_api::AppState, path: &str) -> RawRes {
     let req = Request::builder()
         .method("GET")
         .uri(path)
         .body(Body::empty())
         .expect("build GET request");
+    raw_send_with_state(state, req).await
+}
+
+async fn raw_send_with_state(state: lineageq_api::AppState, req: Request<Body>) -> RawRes {
     let app = lineageq_api::app(state);
     let res = app.oneshot(req).await.expect("router call");
     let status = res.status().as_u16();

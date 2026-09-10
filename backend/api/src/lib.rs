@@ -96,15 +96,17 @@ pub fn app(state: AppState) -> Router {
         // Task 6b (M4a): the twelfth question and the only one that writes. POST, like
         // `run`, and it takes the store mutex for the whole call — see `routes::convert`.
         .route("/api/convert", axum::routing::post(routes::convert::convert))
-        // Ruling 6 (2026-09-09, final review fix wave): `/bench` redirects to oracle_b
-        // rather than serving the page itself — see `routes::bench` for why.
+        // Decision D17 (M4b): `/bench` serves the extracted page again, and the five
+        // Bench-only questions land beside it under `/api/bench/` where they cannot
+        // collide with UI1's names — see `routes::bench`.
         .route("/bench", get(routes::bench::bench))
-        // Ruling 5 (2026-09-09, Task 5 fix round 1): every other `/api/*` path forwards
-        // to oracle_a instead of 404ing — see `routes::forward` for why a fallback and
-        // not nine more named routes. With `convert` landed (Task 6b, M4a) there is no
-        // `/api/*` GET left for it to forward: it now only catches names that are not
-        // questions at all. Deleting it, and `oracle.rs` with it, is Task 14 (M4b), whose
-        // job is to prove nothing still needs them — not this task's to assume.
+        .route("/api/bench/files", get(routes::bench::files))
+        .route("/api/bench/folder", get(routes::bench::folder))
+        .route("/api/bench/similar", get(routes::bench::similar))
+        .route("/api/bench/listing", get(routes::bench::listing))
+        .route("/api/bench/save", axum::routing::post(routes::bench::save))
+        // Ruling 5's fallback (2026-09-09) still stands here; Task 14 deletes it, and
+        // `oracle.rs` with it, once nothing is left that needs a forwarder.
         .fallback(routes::forward::fallback)
         .with_state(state)
 }
