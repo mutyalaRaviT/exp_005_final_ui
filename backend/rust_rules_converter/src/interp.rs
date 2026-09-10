@@ -3,7 +3,7 @@
 //! low, arithmetic with missing is missing, aggregates skip missing), same CSV
 //! bytes. Every function names the Prolog clause it copies.
 use crate::lineage::{blocks, ds_key};
-use crate::term::Term;
+use crate::term::{lit_num, Term};
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -97,7 +97,7 @@ impl Interp {
                 }
                 // DATA out; IF _N_ = 1 THEN SET look; SET main
                 if let (Some(its), Some(set)) = (find(body, "if_then_set", 3), find(body, "set", 1)) {
-                    if its.args()[1] == Term::compound("lit", vec![Term::Int(1)]) {
+                    if lit_num(&its.args()[1]) == Some(1.0) {
                         let (d1, d2) = (self.get(&ds_key(&set.args()[0])), self.get(&ds_key(&its.args()[2])));
                         let first: Vec<Value> = d2.rows.first().cloned().unwrap_or_else(|| vec![Value::Missing; d2.cols.len()]);
                         let mut cols = d1.cols.clone(); cols.extend(d2.cols.clone());
@@ -295,7 +295,9 @@ impl Interp {
         match e.functor() {
             ("col", 1) => value_of(&lower(e.args()[0].atom_text()), cols, row),
             ("col", 2) => value_of(&lower(e.args()[1].atom_text()), cols, row),
-            ("lit", 1) => match &e.args()[0] { Term::Int(i) => Value::Num(*i as f64), Term::Float(f) => Value::Num(*f), Term::Atom(a) => Value::Str(a.clone()), t => panic!("lit {}", t) },
+            // M3a defect 1: lit/2 (a number plus its source lexeme) evaluates to the number;
+            // the lexeme is print-only, so interp arithmetic is unchanged by construction.
+            ("lit", 1) | ("lit", 2) => match &e.args()[0] { Term::Int(i) => Value::Num(*i as f64), Term::Float(f) => Value::Num(*f), Term::Atom(a) => Value::Str(a.clone()), t => panic!("lit {}", t) },
             ("paren", 1) => self.eval(&e.args()[0], cols, row),
             // task 5c: project()/proj_values already unwraps distinct(...) itself
             // (dedup happens at the aggregate, not per row) — this is the
@@ -427,7 +429,7 @@ fn expr_type(e: &Term, cols: &[Col]) -> Ty {
     match e.functor() {
         ("col", 1) => cols.iter().find(|c| c.name == lower(e.args()[0].atom_text())).map(|c| c.ty).unwrap_or(Ty::Num),
         ("call", 2) if matches!(lower(e.args()[0].atom_text()).as_str(), "max" | "min") => expr_type(&e.args()[1].list()[0], cols),
-        ("lit", 1) => if e.args()[0].is_number() { Ty::Num } else { Ty::Char },
+        ("lit", 1) | ("lit", 2) => if e.args()[0].is_number() { Ty::Num } else { Ty::Char },
         _ => Ty::Num,
     }
 }

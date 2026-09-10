@@ -107,3 +107,22 @@ impl fmt::Display for Term {
         }
     }
 }
+
+/// M3a (2026-09-10) defect 1: the numeric value of a literal, whichever arity it has.
+///
+/// The SAS `number` expr leaf now folds to `lit(Value, Lexeme)` (pipeline/specs/sas.py,
+/// keep_lexeme=True) so the printer can put `0.40` back as `0.40`. Rules that used to test
+/// a literal by comparing the whole term against `lit(1)` — the `IF _N_ = 1 THEN SET look`
+/// lookup-table pattern in `lineage`, `interp`, `emit` and `emit_pretty` — ask this instead,
+/// so they read the value and never the spelling. Mirrors nothing in Prolog by itself: there
+/// the same job is done by writing the pattern as `lit(1, _)`.
+pub fn lit_num(t: &Term) -> Option<f64> {
+    match t.functor() {
+        ("lit", 1) | ("lit", 2) => match &t.args()[0] {
+            Term::Int(i) => Some(*i as f64),
+            Term::Float(f) => Some(*f),
+            _ => None,
+        },
+        _ => None,
+    }
+}

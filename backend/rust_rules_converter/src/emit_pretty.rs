@@ -244,7 +244,7 @@ impl<'a> Pretty<'a> {
                     lines.extend(fmt_lines);
                     return Some(lines);
                 }
-                if let (Some(its), Some(set)) = (body.iter().find(|t| t.functor() == ("if_then_set", 3) && t.args()[1] == Term::Compound("lit".into(), vec![Term::Int(1)])).copied(), Self::find(body, "set", 1)) {
+                if let (Some(its), Some(set)) = (body.iter().find(|t| t.functor() == ("if_then_set", 3) && crate::term::lit_num(&t.args()[1]) == Some(1.0)).copied(), Self::find(body, "set", 1)) {
                     let (ki, kl) = (ds_key(&set.args()[0]), ds_key(&its.args()[2]));
                     let mut cols: Vec<String> = Vec::new();
                     for dk in [&ki, &kl] { if let Some(cs) = self.schema.get(dk) { for c in cs { if !cols.contains(c) { cols.push(c.clone()); } } } }
@@ -489,7 +489,7 @@ impl<'a> Pretty<'a> {
         match (f, ar) {
             ("col", 1) => if ctx == Ctx::Arg { format!("\"{}\"", lower(a[0].atom_text())) } else { format!("F.col(\"{}\")", lower(a[0].atom_text())) },
             ("col", 2) => format!("F.col(\"{}.{}\")", lower(a[0].atom_text()), lower(a[1].atom_text())),
-            ("lit", 1) => if ctx == Ctx::Top { format!("F.lit({})", py_lit(&a[0])) } else { py_lit(&a[0]) },
+            ("lit", 1) | ("lit", 2) => if ctx == Ctx::Top { format!("F.lit({})", py_lit(&a[0])) } else { py_lit(&a[0]) },
             ("star", 0) => "\"*\"".into(),
             ("star", 1) => format!("\"{}.*\"", lower(a[0].atom_text())),
             ("paren", 1) => format!("({})", self.pe(&a[0], Ctx::Sub, pre)),

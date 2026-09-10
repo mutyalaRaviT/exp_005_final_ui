@@ -328,7 +328,13 @@ impl<'a> Parser<'a> {
         if let Some(t) = self.tok(pos) {
             for lf in &self.spec.expr_leaves {
                 match lf.name.as_str() {
-                    "number" => if t.kind == "number" { out.push((pos + 1, Term::compound("lit", vec![Term::number(&t.text)]))); },
+                    // M3a defect 1: keep_lexeme -> lit(Value, Text), so print_expr can write the
+                    // source spelling back (`0.40`, not the canonical `0.4`).
+                    "number" => if t.kind == "number" {
+                        let mut args = vec![Term::number(&t.text)];
+                        if lf.keep_lexeme { args.push(Term::atom(&t.text)); }
+                        out.push((pos + 1, Term::compound("lit", args)));
+                    },
                     "string" => if t.kind == "string" {
                         let v = if lf.backslash_escape { unquote_escaped(&t.text, lf.double_delim) } else { unquote_plain(&t.text) };
                         out.push((pos + 1, Term::compound("lit", vec![Term::atom(&v)])));
@@ -483,6 +489,8 @@ impl<'a> Printer<'a> {
         }
         // leaves
         match (f, ar) {
+            // M3a defect 1: lit/2 prints its stored lexeme verbatim — that IS the fix.
+            ("lit", 2) if t.args()[0].is_number() => return (100, vec![t.args()[1].atom_text().to_string()]),
             ("lit", 1) => match &t.args()[0] {
                 Term::Int(i) => return (100, vec![i.to_string()]),
                 Term::Float(x) => return (100, vec![float_text(*x)]),

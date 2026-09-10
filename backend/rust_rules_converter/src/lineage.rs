@@ -2,7 +2,7 @@
 //! pyspark_lineage.pl (exp_42, 2026-09-07). Same four facts, same sorted text
 //! output, so `diff` proves the two engines agree. Every function names the
 //! Prolog clause it copies.
-use crate::term::Term;
+use crate::term::{lit_num, Term};
 use std::collections::{BTreeSet, HashMap};
 
 fn lower(s: &str) -> String { s.to_lowercase() }
@@ -99,7 +99,7 @@ pub mod sas {
                 }
                 // DATA out; IF _N_ = 1 THEN SET look; SET main
                 if let (Some(its), Some(set)) = (find(body, "if_then_set", 3), find(body, "set", 1)) {
-                    if its.args()[1] == Term::compound("lit", vec![Term::Int(1)]) {
+                    if lit_num(&its.args()[1]) == Some(1.0) {
                         let (ki, kl) = (ds_key(&set.args()[0]), ds_key(&its.args()[2]));
                         f.reads(&k, &ki); f.reads(&k, &kl); f.copy_cols(&k, &ki); f.copy_cols(&k, &kl);
                         let mut cols = f.schema_or_empty(&ki); cols.extend(f.schema_or_empty(&kl));

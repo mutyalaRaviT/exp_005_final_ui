@@ -142,7 +142,7 @@ impl Emitter {
                     ]);
                     return Some(lines);
                 }
-                if let (Some(its), Some(set)) = (body.iter().find(|t| t.functor() == ("if_then_set", 3) && t.args()[1] == Term::Compound("lit".into(), vec![Term::Int(1)])).copied(), Self::find(body, "set", 1)) {
+                if let (Some(its), Some(set)) = (body.iter().find(|t| t.functor() == ("if_then_set", 3) && crate::term::lit_num(&t.args()[1]) == Some(1.0)).copied(), Self::find(body, "set", 1)) {
                     let (ki, kl) = (ds_key(&set.args()[0]), ds_key(&its.args()[2]));
                     let mut cols: Vec<String> = Vec::new();
                     for dk in [&ki, &kl] { if let Some(cs) = self.schema.get(dk) { for c in cs { if !cols.contains(c) { cols.push(c.clone()); } } } }
@@ -351,7 +351,7 @@ impl Emitter {
         match (f, ar) {
             ("col", 1) => format!("F.col(\"{}\")", lower(a[0].atom_text())),
             ("col", 2) => format!("F.col(\"{}.{}\")", lower(a[0].atom_text()), lower(a[1].atom_text())),
-            ("lit", 1) => if a[0].is_number() { format!("F.lit({})", a[0]) } else { format!("F.lit({})", py_str(a[0].atom_text())) },
+            ("lit", 1) | ("lit", 2) => if a[0].is_number() { format!("F.lit({})", a[0]) } else { format!("F.lit({})", py_str(a[0].atom_text())) },
             ("star", 0) => "F.col(\"*\")".into(),
             ("star", 1) => format!("F.col(\"{}.*\")", lower(a[0].atom_text())),
             ("paren", 1) => format!("({})", self.px(&a[0], pre)),
