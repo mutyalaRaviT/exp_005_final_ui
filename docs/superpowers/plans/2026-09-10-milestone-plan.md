@@ -426,3 +426,27 @@ Next dispatch: **M4b** (Tasks 13 + 14, D11), brief at `.superpowers/sdd/mileston
 | ID | Question | Default until answered (in force for M4b) | Blocks |
 |---|---|---|---|
 | D17 | The Bench's thirteen routes: four map to Rust lineage answers; five are Bench-only corpus-contract routes (`files` Bench-shape, `listing`, `folder`, `similar`, `save`); four are Jupyter attach (`sessions`, `session`, `exec`, `term`). What ships in UI2 for phase 2? | Repoint the four; land the five under `/api/bench/<name>` (Ruling 6's prefix branch), `save` confined to `corpus/*/work/`; **drop Jupyter attach until M5** with a one-line placeholder in the Terminal tab. `GET /bench` on :8110 serves the extracted page. | M4b |
+
+---
+
+## Part L — M4b exam (2026-09-10): phase 2 closed
+
+M4b returned `c5641ab` (Task 13), `3c62b6f` (Task 14), `50bc170` (docs). Reproduced by the dispatcher with `pgrep -fl "app.py|convert_api.py"` showing only the foreign `:8042`: `cargo test --workspace --release` 84 passed 0 failed; `/api/health` 12 landed 0 forwarded, unknown `/api/` path 404; `oracle.rs`, `routes/forward.rs` and `raw/node4_viz` (README kept) gone; UI1 6/7, 4/3, 25/25 with one HUMAN_GOLD and no console errors; UI2 on `:8110/bench` header `23 blocks · 80 statements · folded 80/80 · round trip 80/80`, pills without `prolog == rust`, 12 edges, `grep -ci prolog` 0; `POST /api/run` 11/11 match with `engine: rust`; PR #4 `phase-2 → main` open, not merged. **M4b accepted. Phase 2 (M0–M4) is closed: one Rust store, two UIs, twelve questions, no Python.**
+
+| # | finding | ruling |
+|---|---|---|
+| L1 | Pass mark 3's ankitha diffs ran against a team_finance-only Rust store on `:8113`, because the dev store now also holds the fixture (UI1 shows 26 files). Not a divergence. | Accepted; the receipts page says so. |
+| L2 | `similar` and `listing` landed as honest stubs (`[]` / `{loaded:false}` with a note) because their Python inputs (`out/bench/sig`, `out/pyspark_ravi` CSVs) are not in the store. | M5 decides whether they return or are removed. **D18.** |
+| L3 | `bench.html` is compiled in via `include_str!` with an env override; editing the page needs a rebuild. Vanilla JS until M5 (D2). | Fine for the closing slice. |
+| L4 | The UI2 buffer key hardcodes `corpus/team_finance/sas/work/<stem>.py`; a second corpus needs it derived from the fileid. | M9. |
+| L5 | C7 (`raw_sources_to_copy.md` still says `ankitha_1` came from `exp_003`) was not applied to that page: it was outside M4b's scope. Recorded in `raw/README.md` and pointed to from the draft plan. | One-line owner edit or M5's docs pass. |
+| L6 | The three UI2 shot tools were repointed to the fixture fileid and clear `localStorage` first; `shot_bench.mjs` prints the edge count. | Good. |
+| L7 | `git notes` were pushed to `refs/notes/commits` so the receipts travel with the PR. | Good. |
+| L8 | This repo's Python servers were left stopped so "no Python alive" is reproducible; only the foreign `:8042` runs. | Restart `:8000` only if a future oracle diff needs it. |
+
+| ID | Question | Default until answered | Blocks |
+|---|---|---|---|
+| D18 | UI2's `similar` (signature index) and `listing` (SAS listing paste for DataMatch): port their inputs into the store in M5, or remove the panels? | Remove from UI2; DataMatch lives in UI3 (gold C3). | M5 |
+| D19 | **M5 design choice**: port the safe bet (html1: column-grain lineage drawer, `k` toggles table grain) or the UI1 bet (html3: the project canvas becomes the centre of the in-file window)? The mockup README says the owner's review of html1/html2 was pending and html3 would move to `exp_007_static_ui12_ide`. | No default — **owner's call before M5 is briefed.** | M5 |
+
+**Phase 2 receipts:** `docs/plan/bronze/bronze_phase2_receipts.md`. **Next:** M5 needs a design pass (brainstorm against gold §2 and the mockups) once D19 is answered; M6 (L4 lineage compare + verdict writer) and M9 (Hive) can be briefed without it and do not touch `frontend/`.
