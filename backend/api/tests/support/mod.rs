@@ -78,6 +78,17 @@ pub async fn post(path: &str, body: Value) -> Value {
     send(req).await
 }
 
+/// `post`, against the fixtures store — `POST /api/run`'s only corpus (Task 12).
+pub async fn post_fixtures(path: &str, body: serde_json::Value) -> Value {
+    let req = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).expect("serialize request body")))
+        .expect("build POST request");
+    send_with_state(lineageq_api::test_state_fixtures(), req).await
+}
+
 pub struct RawRes {
     pub status: u16,
     pub content_type: String,

@@ -205,7 +205,7 @@ fn block_write_target(bn: &[(String, &term::Term)]) -> Option<String> {
 /// for every warn block on a real corpus — `main` still hears about it, just via the
 /// return value instead of a printed backtrace. The caller stores empty text and sets
 /// `warn = true` on `Err`; the panic message becomes the finding the Task 5 report lists.
-fn catch_emit<F: FnOnce() -> String + std::panic::UnwindSafe>(f: F) -> Result<String, String> {
+pub fn catch_emit<F: FnOnce() -> String + std::panic::UnwindSafe>(f: F) -> Result<String, String> {
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
     let result = std::panic::catch_unwind(f);

@@ -8,10 +8,9 @@ async fn health_reports_which_routes_have_landed() {
     assert!(res["landed"].is_array());
     assert!(res["forwarded"].is_array());
     // Task 5 landed `files`/`search`; Task 6 `neighborhood`; Task 7 `blocklinks`/`edges`;
-    // Task 8 `source`; Task 9 `file`/`blocks`; Task 10 `tablegraph`/`story`: ten of the
-    // twelve questions read the store now, two (`convert` and `run`, both POST-shaped and
-    // both Task 11/12's) are still forwarded. The last route task deletes this pair along
-    // with the fallback itself.
-    assert_eq!(res["landed"].as_array().unwrap().len(), 10);
-    assert_eq!(res["forwarded"].as_array().unwrap().len(), 2);
+    // Task 8 `source`; Task 9 `file`/`blocks`; Task 10 `tablegraph`/`story`; Task 12
+    // `run`: eleven of the twelve questions are answered here now, and only `convert`
+    // still forwards. Landing that one deletes this line along with the fallback itself.
+    assert_eq!(res["landed"].as_array().unwrap().len(), 11);
+    assert_eq!(res["forwarded"].as_array().unwrap().len(), 1);
 }

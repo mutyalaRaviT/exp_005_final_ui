@@ -31,6 +31,7 @@
 //! ruling this was made under.
 
 pub mod oracle;
+pub mod spawn;
 pub mod routes;
 pub mod types;
 
@@ -65,7 +66,7 @@ pub const ALL_ROUTES: &[&str] = &[
 pub const LANDED: &[&str] =
 &[
     "files", "search", "neighborhood", "blocklinks", "edges", "source", "file", "blocks",
-    "tablegraph", "story",
+    "tablegraph", "story", "run",
 ];
 
 /// Build the router from state alone. Called with a real store + real oracle addresses
@@ -88,6 +89,9 @@ pub fn app(state: AppState) -> Router {
         .route("/api/blocks", get(routes::blocks::blocks))
         .route("/api/tablegraph", get(routes::tablegraph::tablegraph))
         .route("/api/story", get(routes::story::story))
+        // Task 12: the only POST among the twelve, and the only route that runs other
+        // programs rather than reading the store — see `routes::run`.
+        .route("/api/run", axum::routing::post(routes::run::run))
         // Ruling 6 (2026-09-09, final review fix wave): `/bench` redirects to oracle_b
         // rather than serving the page itself — see `routes::bench` for why.
         .route("/bench", get(routes::bench::bench))

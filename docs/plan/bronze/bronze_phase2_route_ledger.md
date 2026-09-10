@@ -27,7 +27,7 @@ does it silently. See `tools/diff_route.py`'s module doc comment and Task 4's re
 | blocks | yes | yes (81 accepted, 6 root causes — Task 9 note) | 81 |
 | tablegraph | yes | yes (4 accepted, 1 root cause — Task 10 note) | 4 |
 | story | yes | no oracle — the Bench has no story surface (Task 10 note) | — |
-| run | no | — | — |
+| run | yes | no oracle — the pass mark is the 2026-09-09 receipt, 11/11 (Task 12 note) | — |
 
 `landed`: `no` until the route reads from the store instead of forwarding to a Python oracle
 (`oracle::forward` deleted for that arm) and its `diff_route.py` run — or, for `convert`/`run`,
@@ -657,3 +657,48 @@ there) and copied that table's rows across verbatim — **1 row**, an `action='c
 dev store on :8110. Its `src`/`dst` still carry pre-Task-5 `ankitha_1/` fileids: that is what the
 row says on *both* sides, so both answers carry it identically and it produces no diff. Rewriting
 it for tidiness would have created one.
+
+## Task 12 note: `run()` is landed against a receipt, not an oracle — and what the 11/11 rests on
+
+**Why there is no oracle row for `run`.** Neither Python server answers this question. `:8000`
+knows nothing about executing anything, and the Bench's `/api/run_block` is not a shape
+`diff_route.py` can line up field for field — it returns whole CSV tables per side, keyed by
+table, with the block's SAS and PySpark text attached. `tools/diff_route.py` therefore keeps
+`run` as `no_oracle` (its own brief's wording, unchanged by Task 12). What replaces the oracle is
+a **known-good receipt**: `raw/bench_stack/server/bench_receipt.py` on
+`corpus/fixtures/test_vishnu_testdata_fixed.sas` said 11/11 blocks match, both engines, on
+2026-09-09. Reproduced on 2026-09-10 before any code was written (M3b step 0), then reproduced
+again through `POST /api/run`.
+
+**Measured 2026-09-10, `POST /api/run` on `:8113` over a store built from `corpus/team_finance`
+plus `corpus/fixtures`:** `b_002`…`b_012`, all eleven `match` with `engine: rust` (left 1.2–2.0 ms,
+right 4327–4602 ms) and all eleven `match` with `engine: prolog` (left 25.6–43.9 ms, right
+4310–4852 ms). 22 `runs` rows, 22 `run_tables` rows, 0 `run_samples` rows — nothing differed, so
+there was nothing to sample.
+
+**The one thing the 11/11 does *not* prove, and the reader should know it.**
+`raw/bench_stack/loops/gen_block_testdata.py` — the Z3 row generator both the receipt and this
+route shell out to (Decision D1) — **cannot regenerate this fixture's inputs today**. Its
+`Schemas.core_cols` unpacks a SELECT projection as `e, a = targs(p)`, and the SAS pyDSL has
+emitted `proj(Expr, Alias, Length)` — three arguments — since commit `4bc57dc` (Task 5b, the
+CASE/LENGTH/JOIN wave). Every run since then, the receipt's included, has been reusing the
+`out/api/<stem>/blocks/` tree that was generated *before* that change; `bench_api._ensure_blocks`
+caches on `manifest.json` existing and never checks the generator's exit code, so the staleness
+has been silent. It surfaced here only because `run()`'s first end-to-end test ran with that
+cache deleted.
+
+The rows themselves are still good rows — they are inputs, not expectations (Decision D9), and
+both engines read the same ones — so the 11/11 verdict is a real comparison of two independent
+implementations. But it is a comparison on **inputs generated from an older node/4**, and a new
+file, or this file after a spec change, cannot get inputs at all until the generator is fixed.
+The fix is one line, measured: `e, a = targs(p)` → take the first two of `targs(p)`, after which
+the generator produces all 11 blocks from today's node/4 (probed at
+`raw/bench_stack/out/gen_block_testdata_probe.py`, a gitignored copy — M3b's write scope
+excludes `raw/bench_stack/`, so the fix was proved and left for the owner rather than applied).
+
+**Finding I5 is handled, not fixed.** The four team_finance files the Rust emitter still panics on
+come back as a structured answer, not a 500: measured 2026-09-10, `sas/raw/07_enrich_fx.sas`
+returns HTTP 200 with `match: "error"`, `message: "emit PySpark for 07_enrich_fx: LINEAGEQ: no
+PySpark mapping for SAS function coalesce"`, and `sas/raw/14_large_txn_report.sas` likewise with
+`not a list: orderby(col(t,amt_usd_sum),some(desc))`. A block that creates no table (`b_001`, the
+LIBNAME) answers `match: "no inputs"`. Neither hangs; every child process carries a 300 s deadline.
