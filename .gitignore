@@ -16,3 +16,6 @@ raw/bench_stack/out/*
 backend/target/
 # build output of `lineageq_store convert` / `main.rs`'s default --db, not source
 backend/*.duckdb
+
+# agent debug artifacts (console logs, page dumps, screenshots), not source
+.playwright-mcp/
