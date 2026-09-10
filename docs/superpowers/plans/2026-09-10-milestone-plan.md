@@ -330,3 +330,27 @@ What M1 left behind, and who picks it up:
 | D11 | After M4, does `raw/node4_viz` get deleted (frontend/ is the source of record) or kept read-only as provenance? | Delete in Task 14, keep the README with the commit that named the source | M4 |
 
 Next dispatch: **M2** (Tasks 9 + 10 plus G1–G4), brief at `.superpowers/sdd/milestones/m2-brief.md`.
+
+---
+
+## Part H — M2 exam (2026-09-10)
+
+M2 returned six commits `6870787 … cb77f1f`. Reproduced by the dispatcher: `cargo test --workspace --release` 61 passed 0 failed; tools pytest 13 passed; `diff_route.py` files / search / neighborhood / blocklinks / edges clean on `:8110`; `file()` and `blocks(0,40)` on `big_1000.sas` over HTTP against a `corpus/perf` store on :8111: 13.3 / 6.4 / 5.4 ms and 5.8 / 5.0 / 5.0 ms (all under the 20 ms mark; `file()` returns 1000 blocks, receipts 3303/3303/3303); with `:8000` stopped and cwd verified, `shot_ui1.mjs` prints 6/7, 4/3, 25/25 and **no console errors**, the "could not load blocks" banner is gone. `LANDED` is 10 of 12; only `convert` and `run` still forward. **M2 accepted.**
+
+What M2 changed in the plan's own assumptions:
+
+| # | finding | consequence |
+|---|---|---|
+| H1 | UI1's banner was not `file()` at all: UI1 calls `GET /api/file/<path>` expecting `FileDetail` (code, blocks with occurrences, block_edges, macro_calls, includes). M2 landed it as a thirteenth route, `file_detail`. | The plan's twelve-question table is thirteen. Ledger and health test count it. |
+| H2 | `diff_route.py` gained `--rust-base` and `--oracle-b`. The exp42 arm needs its own Rust instance over a `corpus/fixtures` store (adding the fixture to the team_finance store would break Task 5's "25 files" answer) and this repo's Bench on a private port (`:8042` is foreign and answers, so the old constant silently compared against another checkout). | Every later brief that runs the exp42 arm names three ports: `:8112` Rust-fixtures, `:8342` Bench, `:8110` team_finance. |
+| H3 | `story` has no oracle: the Bench has no route taking a table name. Lands on its own pass mark. | Ledger note corrected; no owner action. |
+| H4 | `tablegraph.tables[].kind` vocabulary (`source` / `derived`) was chosen by the implementer; nothing validates it. | **Decision D12** |
+| H5 | Root cause C7: `rust_rules_converter` emits `ds` facts only; the Bench also emits 4 `ctl_lineage` facts for the fixture. Same triples, so the graph is complete at 12 edges, but the `ctl` label does not exist in Rust. Four rows accepted with the instruction to delete them when the engine lands it. | M3a lands ctl facts and retires the rows. |
+| H6 | `test_state_fixtures()` is a second API test state; `convert` can append but doing so changes `/api/files` for the team_finance tests. | Fine; keep two states. |
+| H7 | With a fileid the oracle does not know, TDD red is provable with `:8000` up (the fallback 404s). G6 in Part G is narrower than stated. | Wording only. |
+
+| ID | Question | Default until answered | Blocks |
+|---|---|---|---|
+| D12 | `tablegraph.tables[].kind`: keep `source` / `derived` (does this file write it), or use the Bench's SOURCE / STEP n layering? | Keep; M5's graph computes layers client-side from edges as the Bench does. | M5 |
+
+**M3 is dispatched in two halves**, same lane, sequential: **M3a** engine prerequisites (0.40 printer; UNION ALL PySpark all branches; CASE `px`/`pe`; ctl_lineage facts; the Unicode byte/code-point pretty drift), Prolog first then Rust, with the full regression net; **M3b** Tasks 11 and 12. Brief for M3a at `.superpowers/sdd/milestones/m3a-brief.md`.
