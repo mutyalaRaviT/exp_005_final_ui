@@ -92,7 +92,7 @@ step_lines([data(Out)|Body], Lines) :-
 
 % DATA step: IF _N_ = 1 THEN SET lookup; SET main  ->  every row of main carries the lookup's one row
 step_lines([data(Out)|Body], Lines) :-
-    memberchk(if_then_set(_, lit(1), Look), Body), memberchk(set(In), Body), !,
+    memberchk(if_then_set(_, lit(1, _), Look), Body), memberchk(set(In), Body), !,
     ds_key(Out, K), ds_key(In, KI), ds_key(Look, KL),
     format(atom(L1), "put(\"~w\", sas_attach_first_row(ds[\"~w\"], ds[\"~w\"]))", [K, KI, KL]),
     format_lines(Body, FmtLines), append(FmtLines, [L1], Lines),
@@ -245,6 +245,11 @@ px0(T, P) :- px(T, P, [], _).
 
 px(col(N), T, P, P) :- lower(N, L), format(atom(T), "F.col(\"~w\")", [L]).
 px(col(A, N), T, P, P) :- lower(A, LA), lower(N, L), format(atom(T), "F.col(\"~w.~w\")", [LA, L]).
+% M3a defect 1: a NUMBER leaf now folds to lit(Value, Lexeme) (specs/sas.py
+% keep_lexeme=True). Only the printer reads the lexeme; every consumer below
+% reads Value and ignores it, so lit/2 is handled by one clause that defers to
+% the existing lit/1 clause rather than by duplicating any rule.
+px(lit(V, _), T, P, P) :- !, format(atom(T), "F.lit(~w)", [V]).
 px(lit(V), T, P, P) :- number(V), !, format(atom(T), "F.lit(~w)", [V]).
 px(lit(V), T, P, P) :- py_str(V, S), format(atom(T), "F.lit(~w)", [S]).
 px(star, "F.col(\"*\")", P, P).
@@ -284,6 +289,7 @@ sas_fn(sum, sum).  sas_fn(avg, avg).  sas_fn(mean, avg).  sas_fn(max, max).  sas
 sas_fn(upcase, upper).  sas_fn(lowcase, lower).  sas_fn(abs, abs).  sas_fn(round, round).  sas_fn(substr, substring).
 sas_fn(F, _) :- \+ clause(sas_fn(F, _), true), format(user_error, "LINEAGEQ: no PySpark mapping for SAS function ~w~n", [F]), fail.
 
+py_lit(lit(V, _), T) :- !, format(atom(T), "~w", [V]).
 py_lit(lit(V), T) :- number(V), !, format(atom(T), "~w", [V]).
 py_lit(lit(V), T) :- py_str(V, T).
 

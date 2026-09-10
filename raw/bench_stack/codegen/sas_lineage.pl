@@ -31,7 +31,7 @@ step([data(Out)|Body]) :-
 
 % DATA out; IF _N_ = 1 THEN SET look; SET main  ->  every column of both rides along
 step([data(Out)|Body]) :-
-    memberchk(if_then_set(_, lit(1), Look), Body), memberchk(set(In), Body), !,
+    memberchk(if_then_set(_, lit(1, _), Look), Body), memberchk(set(In), Body), !,
     ds_key(Out, K), ds_key(In, KI), ds_key(Look, KL),
     reads(K, KI), reads(K, KL), copy_cols(K, KI), copy_cols(K, KL),
     schema_or_empty(KI, C1), schema_or_empty(KL, C2), append(C1, C2, C0), list_to_set(C0, Cols), set_schema(K, Cols).
@@ -146,6 +146,11 @@ sub_term_of(X, T) :- compound(T), T =.. [_|As], member(A, As), sub_term_of(X, A)
 % expr_cols(+Expr, -Cols): the column names an expression reads (not inside a subquery)
 expr_cols(col(N), [L]) :- !, lower(N, L).
 expr_cols(col(_, N), [L]) :- !, lower(N, L).
+% M3a defect 1: a NUMBER leaf now folds to lit(Value, Lexeme) (specs/sas.py
+% keep_lexeme=True). Only the printer reads the lexeme; every consumer below
+% reads Value and ignores it, so lit/2 is handled by one clause that defers to
+% the existing lit/1 clause rather than by duplicating any rule.
+expr_cols(lit(_, _), []) :- !.
 expr_cols(lit(_), []) :- !.
 expr_cols(star, []) :- !.
 expr_cols(star(_), []) :- !.   % task 5d: a qualified star `a.*` — proj_lineage/6, not expr_cols, resolves it

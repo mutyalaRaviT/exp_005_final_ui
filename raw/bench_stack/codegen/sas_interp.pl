@@ -62,7 +62,7 @@ step([data(Out)|Body]) :-
 
 % DATA out; IF _N_ = 1 THEN SET look; SET main  ->  main's rows, each carrying look's first row
 step([data(Out)|Body]) :-
-    memberchk(if_then_set(_, lit(1), Look), Body), memberchk(set(In), Body),
+    memberchk(if_then_set(_, lit(1, _), Look), Body), memberchk(set(In), Body),
     ds_key(Out, K), ds_key(In, KI), ds_key(Look, KL), remember_formats(Body),
     get(KI, C1, R1), get(KL, C2, R2),
     ( R2 = [First|_] -> true ; length(C2, N2), length(First, N2), maplist(=(missing), First) ),
@@ -248,6 +248,11 @@ out_col(E, none, Cols, _AliasCols, col('_auto', T)) :- expr_type(E, Cols, T).
 
 expr_type(col(N), Cols, T) :- lower(N, L), memberchk(col(L, T), Cols), !.
 expr_type(call(F, [A]), Cols, T) :- lower(F, LF), memberchk(LF, [max, min]), !, expr_type(A, Cols, T).
+% M3a defect 1: a NUMBER leaf now folds to lit(Value, Lexeme) (specs/sas.py
+% keep_lexeme=True). Only the printer reads the lexeme; every consumer below
+% reads Value and ignores it, so lit/2 is handled by one clause that defers to
+% the existing lit/1 clause rather than by duplicating any rule.
+expr_type(lit(V, _), _, T) :- !, ( number(V) -> T = num ; T = char ).
 expr_type(lit(V), _, T) :- !, ( number(V) -> T = num ; T = char ).
 expr_type(_, _, num).
 
@@ -279,6 +284,7 @@ value_of(_, _, _, missing).
 
 eval(col(N), Cols, Row, V) :- !, lower(N, L), value_of(L, Cols, Row, V).
 eval(col(_, N), Cols, Row, V) :- !, lower(N, L), value_of(L, Cols, Row, V).
+eval(lit(X, _), _, _, X) :- !.
 eval(lit(X), _, _, X) :- !.
 eval(paren(E), Cols, Row, V) :- !, eval(E, Cols, Row, V).
 % task 5c: proj_values/4 always unwraps distinct(...) itself before calling eval/4
@@ -290,7 +296,10 @@ eval(not(E), Cols, Row, V) :- !, eval(E, Cols, Row, X), ( truthy(X) -> V = 0 ; V
 eval(and(A, B), Cols, Row, V) :- !, eval(A, Cols, Row, X), eval(B, Cols, Row, Y), ( truthy(X), truthy(Y) -> V = 1 ; V = 0 ).
 eval(or(A, B), Cols, Row, V) :- !, eval(A, Cols, Row, X), eval(B, Cols, Row, Y), ( ( truthy(X) ; truthy(Y) ) -> V = 1 ; V = 0 ).
 eval(subquery_expr(Core), _, _, V) :- !, select_core(Core, _, Rows), ( Rows = [[V|_]|_] -> true ; V = missing ).
-eval(in(E, Items), Cols, Row, V) :- !, eval(E, Cols, Row, X), ( member(lit(X), Items) -> V = 1 ; V = 0 ).
+eval(in(E, Items), Cols, Row, V) :- !, eval(E, Cols, Row, X), ( member(I, Items), lit_value(I, X) -> V = 1 ; V = 0 ).
+% M3a defect 1: an IN list item is lit/1 (string) or lit/2 (number).
+lit_value(lit(V), V).
+lit_value(lit(V, _), V).
 eval(call(F, Args), Cols, Row, V) :- !, lower(F, LF), maplist([A, X]>>eval(A, Cols, Row, X), Args, Xs), sas_fn(LF, Xs, V).
 eval(T, Cols, Row, V) :- T =.. [Op, A, B], eval(A, Cols, Row, X), eval(B, Cols, Row, Y), binop(Op, X, Y, V).
 

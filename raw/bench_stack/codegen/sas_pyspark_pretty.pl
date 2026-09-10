@@ -142,7 +142,7 @@ step_lines([data(Out)|Body], Lines) :-
 
 % IF _N_ = 1 THEN SET lookup; SET main
 step_lines([data(Out)|Body], [L1|FmtLines]) :-
-    memberchk(if_then_set(_, lit(1), Look), Body), memberchk(set(In), Body), !,
+    memberchk(if_then_set(_, lit(1, _), Look), Body), memberchk(set(In), Body), !,
     ds_key(Out, K), ds_key(In, KI), ds_key(Look, KL), pyvar(Out, V), pyvar(In, VI), pyvar(Look, VL),
     format(atom(L1), "~w = attach_first_row(~w, ~w)", [V, VI, VL]),
     format_lines(Body, FmtLines),
@@ -303,6 +303,11 @@ table_schema(_, []).
 pe(col(N), arg, T, P, P) :- !, lower(N, L), format(atom(T), "\"~w\"", [L]).
 pe(col(N), _, T, P, P) :- lower(N, L), format(atom(T), "F.col(\"~w\")", [L]).
 pe(col(A, N), _, T, P, P) :- lower(A, LA), lower(N, L), format(atom(T), "F.col(\"~w.~w\")", [LA, L]).
+% M3a defect 1: a NUMBER leaf now folds to lit(Value, Lexeme) (specs/sas.py
+% keep_lexeme=True). Only the printer reads the lexeme; every consumer below
+% reads Value and ignores it, so lit/2 is handled by one clause that defers to
+% the existing lit/1 clause rather than by duplicating any rule.
+pe(lit(V, _), Ctx, T, P0, P) :- !, pe(lit(V), Ctx, T, P0, P).
 pe(lit(V), top, T, P, P) :- !, py_lit(V, X), format(atom(T), "F.lit(~w)", [X]).
 pe(lit(V), _, T, P, P) :- py_lit(V, T).
 pe(star, _, "\"*\"", P, P).
@@ -311,7 +316,7 @@ pe(paren(E), _, T, P0, P) :- pe(E, sub, X, P0, P), format(atom(T), "(~w)", [X]).
 pe(neg(E), _, T, P0, P) :- wrap(E, X, P0, P), format(atom(T), "-~w", [X]).
 pe(not(E), _, T, P0, P) :- wrap(E, X, P0, P), format(atom(T), "~~~w", [X]).
 pe(cat(A, B), _, T, P0, P) :- pe(A, arg, X, P0, P1), pe(B, arg, Y, P1, P), format(atom(T), "F.concat(~w, ~w)", [X, Y]).
-pe(in(A, Items), _, T, P0, P) :- wrap(A, X, P0, P), maplist([lit(V), S]>>py_lit(V, S), Items, Ls), atomic_list_concat(Ls, ", ", LT), format(atom(T), "~w.isin([~w])", [X, LT]).
+pe(in(A, Items), _, T, P0, P) :- wrap(A, X, P0, P), maplist([I, S]>>(lit_value(I, V), py_lit(V, S)), Items, Ls), atomic_list_concat(Ls, ", ", LT), format(atom(T), "~w.isin([~w])", [X, LT]).
 % task 5c: the "simple" fast-path guard used to compare the JOIN position to
 % the atom `none`; it is a LIST now, so "no join" is `[]`, not `none` — the
 % other three tail positions (WHERE/GROUP BY/HAVING) are unaffected and stay
@@ -356,6 +361,9 @@ sas_fn(sum, sum).  sas_fn(avg, avg).  sas_fn(mean, avg).  sas_fn(max, max).  sas
 sas_fn(upcase, upper).  sas_fn(lowcase, lower).  sas_fn(abs, abs).  sas_fn(round, round).  sas_fn(substr, substring).
 sas_fn(F, _) :- \+ clause(sas_fn(F, _), true), format(user_error, "LINEAGEQ: no PySpark mapping for SAS function ~w~n", [F]), fail.
 
+% M3a defect 1: an IN list item is lit/1 (string) or lit/2 (number).
+lit_value(lit(V), V).
+lit_value(lit(V, _), V).
 py_lit(V, T) :- number(V), !, format(atom(T), "~w", [V]).
 py_lit(V, T) :- py_str(V, T).
 
