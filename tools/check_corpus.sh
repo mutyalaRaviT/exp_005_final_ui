@@ -22,5 +22,13 @@ for stem in 09_customer_summary 15_join_risk_txn 18_dashboard_mart; do
   [[ -f "$v" ]] || { echo "MISSING $v"; fail=1 }
   python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$v" 2>/dev/null || { echo "BAD JSON $v"; fail=1 }
 done
+# 2026-09-10 (M0.1): corpus/fixtures/ — files that pin a pass mark, beside corpus/perf/.
+# Not a four-stage corpus: the exp_42 receipt file only, see corpus/fixtures/README.md.
+fx="${0:A:h}/../corpus/fixtures"
+[[ -d "$fx" ]] || { echo "MISSING fixtures/"; fail=1 }
+[[ -f "$fx/test_vishnu_testdata_fixed.sas" ]] || { echo "MISSING fixtures/test_vishnu_testdata_fixed.sas"; fail=1 }
+[[ -f "$fx/README.md" ]] || { echo "MISSING fixtures/README.md"; fail=1 }
+n_fx=$(ls "$fx"/*.sas 2>/dev/null | wc -l | tr -d ' ')
+
 (( fail )) && { echo "corpus check FAILED"; exit 1 }
-echo "corpus check ok: 25 sas, 6 hql, 8 stage folders"
+echo "corpus check ok: 25 sas, 6 hql, 8 stage folders, $n_fx fixture sas"

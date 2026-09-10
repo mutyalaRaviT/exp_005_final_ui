@@ -425,7 +425,7 @@ def run_block(stem, block, engine="rust", session_id=None):
 
 
 # ---------------------------------------------------------------- similar programs
-SAS_DIRS = ["../../corpus/team_finance/sas/raw"]   # 2026-09-09: one corpus, see docs/superpowers/specs/2026-09-09-team-finance-corpus-design.md
+SAS_DIRS = ["../../corpus/team_finance/sas/raw", "../../corpus/fixtures"]   # 2026-09-09: one corpus, see docs/superpowers/specs/2026-09-09-team-finance-corpus-design.md; 2026-09-10 (M0.1): + corpus/fixtures, the exp_42 receipt file diff_route --corpus exp42 asks this oracle about
 SIG_DIR = BENCH / "sig"
 
 

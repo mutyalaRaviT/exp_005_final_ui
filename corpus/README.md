@@ -54,6 +54,11 @@ The resulting `backend/lineageq.duckdb` is build output, not source — it is ge
   never been executed and there is no `out/spec/hive.json`. That is phase B.
 - `perf/` — `big_100.sas`, `big_1000.sas`, `big_2000.sas`. Fixtures, not a corpus:
   `backend/api/src/lib.rs` names `big_2000.sas` for route tasks 8-10.
+- `fixtures/` — `test_vishnu_testdata_fixed.sas`, the exp_42 receipt file (23 blocks, 80
+  statements, folded 80/80, round trip 80/80, 12 table edges, 11 runnable blocks). Fixtures,
+  not a corpus: it is what `diff_route.py --corpus exp42` and Tasks 9/10/12/13 assert
+  against. Task 5 deleted the folders it used to live in; registered here on 2026-09-10 by
+  M0.1. See `fixtures/README.md`.
 
 ## Checks
 

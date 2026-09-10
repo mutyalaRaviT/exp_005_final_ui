@@ -149,3 +149,11 @@ def test_accepting_one_missing_item_does_not_accept_a_different_one_at_the_same_
 def test_root_level_list_diffs_by_index():
     d = diff_json([{"id": "a"}], [{"id": "b"}])
     assert d == [("[0].id", "a", "b")]
+
+
+def test_exp42_corpus_reads_corpus_fixtures():
+    """M0.1: Task 5 deleted raw/bench_stack/{corpus,testdata}/; the exp_42 receipt file now
+    lives in corpus/fixtures/ and the exp42 corpus must resolve to it."""
+    from tools.diff_route import exp42_files
+    files = exp42_files()
+    assert any(f[0].endswith("test_vishnu_testdata_fixed.sas") for f in files), files

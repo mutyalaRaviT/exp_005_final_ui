@@ -36,11 +36,12 @@ unexplained difference exists; 2 for a usage error or an oracle/the Rust API bei
 **Corpora** (`docs/plan/plan/bronze/bronze_phase2_route_ledger.md`, Task 4 brief):
   - `ankitha`: the 25 files under `raw/lineage_server/inputs/ankitha_1/`, fileid
     `ankitha_1/<name>.sas` — checked against oracle_a, `:8000` (`app.py`, UI1's backend).
-  - `exp42`: the SAS files under `raw/bench_stack/corpus/` and `raw/bench_stack/testdata/`,
-    fileid = bare filename (no folder — `rust_inferred_duckdb::convert` takes the fileid
-    from the path relative to whichever folder it is pointed at, and both exp42 folders are
-    converted as their own root) — checked against oracle_b, `:8042` (`convert_api.py`, the
-    Bench).
+  - `exp42`: the SAS files under `corpus/fixtures/` (M0.1, 2026-09-10 — Task 5 deleted the
+    old `raw/bench_stack/corpus/` and `raw/bench_stack/testdata/` folders; the exp_42 receipt
+    file `test_vishnu_testdata_fixed.sas` lives in `corpus/fixtures/` now), fileid = bare
+    filename (no folder — `rust_inferred_duckdb::convert` takes the fileid from the path
+    relative to whichever folder it is pointed at, and `corpus/fixtures` is converted as its
+    own root) — checked against oracle_b, `:8042` (`convert_api.py`, the Bench).
 
 **On `unordered`.** `diff_json`'s `unordered` set names *dict keys*, not paths: a list found
 under a key in that set is compared as a multiset (order-blind), everything else is
@@ -293,20 +294,27 @@ def ankitha_files() -> list[str]:
     return [f"ankitha_1/{p.name}" for p in sorted(root.glob("*.sas"))]
 
 
+# The Bench oracle resolves an `/api/open`/`/api/file` `path` against `raw/bench_stack/`;
+# `corpus/` is two levels up from there (`bench_api.CORPUS_ROOT`).
+BENCH_REL_FIXTURES = "../../corpus/fixtures"
+
+
 def exp42_files() -> list[tuple[str, str]]:
-    """Returns `(fileid, path-relative-to-bench-root)` pairs — fileid is the bare filename
-    (see the module docstring on the exp42 corpus); the relative path is what the Bench's
-    `/api/open` and `/api/file` need in their `path` field, since it serves two folders
-    (`corpus/`, `testdata/`) under one root."""
-    bench_root = REPO_ROOT / "raw" / "bench_stack"
-    out = []
-    for sub in ("corpus", "testdata"):
-        d = bench_root / sub
-        if not d.is_dir():
-            continue
-        for p in sorted(d.glob("*.sas")):
-            out.append((p.name, f"{sub}/{p.name}"))
-    return out
+    """Returns `(fileid, path-the-Bench-oracle-accepts)` pairs — fileid is the bare filename
+    (see the module docstring on the exp42 corpus, and what `rust_inferred_duckdb::convert`
+    produces when pointed at `corpus/fixtures` as its own root); the second element is what
+    the Bench's `/api/open` and `/api/file` need in their `path` field, and the Bench
+    resolves `path` against its own root (`raw/bench_stack/`, `bench_api.confine`), so it is
+    `../../corpus/fixtures/<name>.sas` and not the repo-relative `corpus/fixtures/<name>.sas`.
+    Measured 2026-09-10: `GET /api/file?path=fixtures/<name>.sas` returns
+    `{"error": ...}`; `?path=../../corpus/fixtures/<name>.sas` returns the text.
+
+    M0.1 (2026-09-10): this used to glob `raw/bench_stack/{corpus,testdata}/`, both deleted
+    by Task 5; the file it needs survives in `corpus/fixtures/`."""
+    d = REPO_ROOT / "corpus" / "fixtures"
+    if not d.is_dir():
+        return []
+    return [(p.name, f"{BENCH_REL_FIXTURES}/{p.name}") for p in sorted(d.glob("*.sas"))]
 
 
 # --------------------------------------------------------------------------- exp42 adapters
