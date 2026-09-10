@@ -41,3 +41,33 @@ pub struct SearchHit {
     pub value: String,
     pub files: Vec<String>,
 }
+
+/// One cross-file block-to-block link — matches UI1's `BlockLink`
+/// (`raw/node4_viz/src/api.ts:62`) field for field. `src_ref`/`dst_ref` identify the table
+/// occurrence inside each block; see `routes::blocklinks` for why this store's refs are
+/// `"<block_id>:<table>"` and not `:8000`'s `t_<n>` token numbering.
+#[derive(Debug, Clone, Serialize)]
+pub struct BlockLink {
+    pub src_file: String,
+    pub src_block: String,
+    pub src_ref: String,
+    pub dst_file: String,
+    pub dst_block: String,
+    pub dst_ref: String,
+    pub table: String,
+}
+
+/// One row of `GET /api/edges` — matches UI1's `EdgeRow` (`api.ts:76`). `block_id` is
+/// `None` for a row that has no single block behind it (a project-level roll-up, or a
+/// human edit made at file/project level), which is what UI1 reads as `null`.
+#[derive(Debug, Clone, Serialize)]
+pub struct EdgeRow {
+    pub fileid: String,
+    pub block_id: Option<String>,
+    pub src: String,
+    pub dst: String,
+    pub tables: Vec<String>,
+    pub level: String,
+    pub provenance: String,
+    pub freshness: String,
+}

@@ -62,7 +62,7 @@ pub const ALL_ROUTES: &[&str] = &[
 /// route task appends to this list as part of landing its route. `tests/landed.rs`
 /// (Ruling D6) fails loudly if this list and the router in `app()` ever disagree about
 /// which routes are actually wired up.
-pub const LANDED: &[&str] = &["files", "search", "neighborhood"];
+pub const LANDED: &[&str] = &["files", "search", "neighborhood", "blocklinks", "edges"];
 
 /// Build the router from state alone. Called with a real store + real oracle addresses
 /// by `main`, and with `test_state()` by every integration test — same router, same
@@ -73,6 +73,8 @@ pub fn app(state: AppState) -> Router {
         .route("/api/files", get(routes::files::files))
         .route("/api/search", get(routes::search::search))
         .route("/api/neighborhood", get(routes::neighborhood::neighborhood))
+        .route("/api/blocklinks", get(routes::blocklinks::blocklinks))
+        .route("/api/edges", get(routes::edges::edges))
         // Ruling 6 (2026-09-09, final review fix wave): `/bench` redirects to oracle_b
         // rather than serving the page itself — see `routes::bench` for why.
         .route("/bench", get(routes::bench::bench))
@@ -109,6 +111,35 @@ pub fn app(state: AppState) -> Router {
 /// seeds it the same way, here, when it lands.
 pub fn test_state() -> AppState {
     test_state_with_oracle_a("http://127.0.0.1:8000".to_string())
+}
+
+/// Load `tests/fixtures/human_edits.json` into a freshly seeded test store.
+///
+/// **Why this exists (Task 7, 2026-09-10).** `edges()` answers the merged view — inferred
+/// rows with un-flagged customer edits applied — and its pass mark
+/// (`tests/edges.rs::dashboard_mart_has_twenty_five_edges`, the owner's 2026-09-09 "25 / 25
+/// with one HUMAN_GOLD row" screenshot) can only be met if a customer edit exists to merge.
+/// `convert` never writes one: a human edit is not something folding a folder can infer.
+/// The fixture is the `human_edits` table of the oracle store this corpus's answers are
+/// checked against (`raw/lineage_server/output/explorer.duckdb`, exported verbatim,
+/// **1 row** — an `action='correct'` project-level assertion that
+/// `09_customer_summary.sas` feeds `18_dashboard_mart.sas` through `work.cust_summary`),
+/// so both engines merge exactly the same assertions and `diff_route.py edges` compares
+/// like with like. Its `src`/`dst` still carry the pre-Task-5 `ankitha_1/` fileids: that is
+/// what the row says on both sides, and rewriting it here would make the two answers differ
+/// for no reason but tidiness.
+///
+/// A missing or unparseable fixture is a panic, not a silent skip: a test store quietly
+/// without its edits would fail the pass mark with a number nobody could explain.
+fn seed_human_edits(conn: &duckdb::Connection) {
+    let path = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/human_edits.json"));
+    let text = std::fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let edits: Vec<inferred_duckdb::HumanEdit> =
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()));
+    for e in &edits {
+        inferred_duckdb::insert_human_edit(conn, e).expect("seed one human edit");
+    }
 }
 
 /// Like `test_state()`, but with `oracle_a` overridden.
@@ -151,6 +182,7 @@ pub fn test_state_with_oracle_a(oracle_a: String) -> AppState {
     ));
     inferred_duckdb::convert(&mut conn, spec, folder)
         .expect("seed the team_finance corpus into the test store");
+    seed_human_edits(&conn);
 
     AppState {
         db: std::sync::Arc::new(std::sync::Mutex::new(conn)),

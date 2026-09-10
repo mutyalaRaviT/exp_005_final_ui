@@ -105,6 +105,36 @@ CREATE TABLE IF NOT EXISTS run_samples (
 );
 CREATE TABLE IF NOT EXISTS meta (key VARCHAR PRIMARY KEY, value VARCHAR);
 
+-- What a human asserted about a flow, never mixed into the inferred tables above.
+--
+-- **Why this exists (Task 7, 2026-09-10).** `edges()` must answer the same merged view
+-- `:8000` answers (`service.py::final_edges` over its `_merged_edges` CTE): the engine's
+-- own rows with un-flagged customer edits applied — `reject` drops the matching block's
+-- rows, `confirm` upgrades their provenance to `human_gold`, `add`/`correct` append a
+-- `human_gold` row of their own. That merge needs a table of human assertions to merge
+-- against, and this store had none. Columns are the fourteen `raw/lineage_server`'s own
+-- `human_edits` carries (`server/indexer.py`), same names, same order, so a row can be
+-- copied across without translation.
+--
+-- Additive only: nothing that converts a folder writes here. Rows arrive through
+-- `insert_human_edit` (a UI action today, `edge_overrides` in M7).
+CREATE TABLE IF NOT EXISTS human_edits (
+    edit_id        VARCHAR PRIMARY KEY,
+    edited_at      TIMESTAMP,
+    editor         VARCHAR,
+    action         VARCHAR,   -- add | confirm | correct | reject
+    src            VARCHAR,
+    dst            VARCHAR,
+    table_name     VARCHAR,
+    level          VARCHAR,   -- block | file | project
+    comment        VARCHAR,
+    block_id       VARCHAR,   -- pins a block-level edit; NULL for file/project level
+    requires_check BOOLEAN,   -- the pinned block moved in a re-parse; ignored until re-confirmed
+    fileid         VARCHAR,   -- a block id is only unique within a file
+    dismissed      BOOLEAN,
+    freshness      VARCHAR
+);
+
 CREATE INDEX IF NOT EXISTS blocks_by_file ON blocks (fileid, n);
 CREATE INDEX IF NOT EXISTS node4_by_block ON node4  (fileid, block_id, seq);
 CREATE INDEX IF NOT EXISTS edges_by_file  ON edges  (fileid);

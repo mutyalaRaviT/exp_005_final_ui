@@ -18,7 +18,7 @@ pub mod schema;
 
 use duckdb::{params, Connection};
 use rules_converter::{emit, emit_pretty, fold_file, lineage, parser, rebuild_source, spec, term, tokenise};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Instant;
 
@@ -435,6 +435,80 @@ fn write_receipt(tx: &duckdb::Transaction, fileid: &str, f: &Folded) -> Res<()> 
 fn event(tx: &duckdb::Transaction, kind: &str, fileid: &str, detail: &str) -> Res<()> {
     tx.execute("INSERT INTO events (at_ts, kind, fileid, detail) VALUES (now(), ?,?,?)", params![kind, fileid, detail])?;
     Ok(())
+}
+
+
+// ---------------------------------------------------------------- human edits
+
+/// One human assertion about a flow — the `human_edits` row shape of `schema.rs`, which is
+/// `raw/lineage_server`'s own (`server/indexer.py`) column for column.
+///
+/// **Why this exists (Task 7, 2026-09-10).** `edges()` answers the *merged* view: inferred
+/// rows with un-flagged customer edits applied. Nothing in this store held a customer edit
+/// before, so the merge had nothing to merge. `edited_at` is carried as the string DuckDB
+/// prints it, not a chrono type: this crate has no date dependency, nothing sorts on it
+/// today, and a string survives the JSON fixture round trip the API's tests load it from.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HumanEdit {
+    pub edit_id: String,
+    pub edited_at: String,
+    pub editor: String,
+    pub action: String,
+    pub src: String,
+    pub dst: String,
+    pub table_name: String,
+    pub level: String,
+    pub comment: String,
+    pub block_id: Option<String>,
+    pub requires_check: bool,
+    pub fileid: Option<String>,
+    pub dismissed: bool,
+    pub freshness: String,
+}
+
+/// Write one human assertion. Idempotent on `edit_id` (a re-import of the same row
+/// replaces it) so seeding a store twice cannot double the merged view.
+pub fn insert_human_edit(conn: &Connection, e: &HumanEdit) -> Res<()> {
+    conn.execute("DELETE FROM human_edits WHERE edit_id = ?", params![e.edit_id])?;
+    conn.execute(
+        "INSERT INTO human_edits VALUES (?, CAST(? AS TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        params![
+            e.edit_id, e.edited_at, e.editor, e.action, e.src, e.dst, e.table_name,
+            e.level, e.comment, e.block_id, e.requires_check, e.fileid, e.dismissed,
+            e.freshness
+        ],
+    )?;
+    Ok(())
+}
+
+/// Every human assertion in the store, oldest first. `edges()` merges these over the
+/// inferred rows exactly as `service.py::_materialize_provided`'s `_merged_edges` does.
+pub fn human_edits(conn: &Connection) -> Res<Vec<HumanEdit>> {
+    let mut st = conn.prepare(
+        "SELECT edit_id, CAST(edited_at AS VARCHAR), editor, action, src, dst, table_name,
+                level, comment, block_id, requires_check, fileid, dismissed, freshness
+         FROM human_edits ORDER BY edited_at, edit_id",
+    )?;
+    Ok(st
+        .query_map([], |r| {
+            Ok(HumanEdit {
+                edit_id: r.get(0)?,
+                edited_at: r.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                editor: r.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                action: r.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                src: r.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                dst: r.get::<_, Option<String>>(5)?.unwrap_or_default(),
+                table_name: r.get::<_, Option<String>>(6)?.unwrap_or_default(),
+                level: r.get::<_, Option<String>>(7)?.unwrap_or_default(),
+                comment: r.get::<_, Option<String>>(8)?.unwrap_or_default(),
+                block_id: r.get(9)?,
+                requires_check: r.get::<_, Option<bool>>(10)?.unwrap_or(false),
+                fileid: r.get(11)?,
+                dismissed: r.get::<_, Option<bool>>(12)?.unwrap_or(false),
+                freshness: r.get::<_, Option<String>>(13)?.unwrap_or_else(|| "green".into()),
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?)
 }
 
 // ---------------------------------------------------------------- readers

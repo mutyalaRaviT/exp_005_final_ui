@@ -26,11 +26,13 @@ use tower::ServiceExt;
 
 #[tokio::test]
 async fn a_non_landed_api_path_is_forwarded_not_404() {
-    // "edges" is in `ALL_ROUTES`, not in `LANDED`, and has no `.route()` in `app()` —
-    // the exact shape of route Ruling 5 fixes.
-    assert!(!lineageq_api::LANDED.contains(&"edges"));
+    // "file" is in `ALL_ROUTES`, not in `LANDED`, and has no `.route()` in `app()` — the
+    // exact shape of route Ruling 5 fixes. (This was "edges" until Task 7 landed it,
+    // 2026-09-10; the test needs *some* still-unlanded name, and `file()` is Task 9's.
+    // Whoever lands the last one deletes this assertion along with the fallback.)
+    assert!(!lineageq_api::LANDED.contains(&"file"));
 
-    let res = get_raw_with_oracle_a(&closed_addr(), "/api/edges?files=sas%2Fraw%2F11_branch_rollup.sas").await;
+    let res = get_raw_with_oracle_a(&closed_addr(), "/api/file?fileid=sas%2Fraw%2F11_branch_rollup.sas").await;
 
     assert_ne!(res.status, 404, "a non-landed /api/* path must not 404 — the fallback should have caught it");
     assert_eq!(res.status, 502, "oracle_a is a deliberately closed port, so the fallback's forward() must report it unreachable");

@@ -1,0 +1,18 @@
+[
+  {
+    "edit_id": "25a86ff5109e47cb998f7ac7a442c1b0",
+    "edited_at": "2026-08-25 03:37:46.596113",
+    "editor": "web-ui",
+    "action": "correct",
+    "src": "ankitha_1/09_customer_summary.sas",
+    "dst": "ankitha_1/18_dashboard_mart.sas",
+    "table_name": "work.cust_summary",
+    "level": "project",
+    "comment": "",
+    "block_id": null,
+    "requires_check": false,
+    "fileid": null,
+    "dismissed": false,
+    "freshness": "green"
+  }
+]
