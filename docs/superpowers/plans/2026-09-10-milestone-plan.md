@@ -402,3 +402,23 @@ Findings and rulings:
 | D14 | Align `pipeline/datamatch.py`'s `"."` normalisation with the TypeScript and Rust (`""`), or keep three references with one disagreement? | Align Python in M4b's corpus sweep tooling pass; Rust and TS already agree. | nothing now |
 
 **M4 is dispatched in two halves.** **M4a**: Task 6b `convert()` with CRLF normalised on intake (D13 default), the generator fix and exit-code check (J1), regenerate the fixture's inputs and re-run pass mark 5 on fresh rows; brief at `.superpowers/sdd/milestones/m4a-brief.md`. **M4b**: Task 13 (extract UI2, strip Prolog) and Task 14 (close the slice, delete `oracle.rs`, delete `raw/node4_viz` per D11, receipts page, gold §7 C1–C7).
+
+---
+
+## Part K — M4a exam (2026-09-10)
+
+M4a returned `78027ea`, `32d93dd`, `2ed04ee`, `46ac09f`. Reproduced by the dispatcher: `cargo test --workspace --release` 78 passed 0 failed; five ankitha routes clean on the restarted `:8110`; `/api/health` lists **12 landed, 0 forwarded**; `POST /api/convert` on the unchanged corpus returns `blocks: 0` (idempotent, lock held 6.5 ms); the fixture's `blocks/manifest.json` is dated 2026-09-10 15:00 with 11 input sets from today's node/4 and the generator carries the fix; node/4 `prolog == rust` on the 25 team_finance files is **25/25 when Rust is fed the LF view** (the store's intake) and 0/25 on raw CRLF bytes, i.e. the claim holds for the path that matters. **M4a accepted. All twelve questions are in Rust; pass mark 5 stands on fresh inputs.**
+
+| # | finding | ruling |
+|---|---|---|
+| K1 | `lineageq_sas` (the engine CLI) does not normalise CRLF itself; only `rust_inferred_duckdb::convert` does. Anyone re-running the differential by hand on raw files will see 0/25 unless they feed LF. | Backlog: move the normalisation into the tokeniser entry so CLI and store agree (engine lane, after M4b). **D15.** |
+| K2 | `_ensure_blocks` gained a third guard (rc 0 but no manifest) and `schema::MIGRATIONS` was added so older stores get the new column. | Good. |
+| K3 | `lock_ms` is in the convert response; a first convert of `big_2000.sas` holds the store lock 2.35 s and blocks reads for that long. | Known cost; the plan's OPEN question on one connection vs per-thread stays open. **D16.** |
+| K4 | Ten of twelve routes are diffed against an oracle; `story`, `convert`, `run` are no-oracle by their briefs. The brief said "eleven"; nine is right. | Wording only. |
+
+| ID | Question | Default until answered | Blocks |
+|---|---|---|---|
+| D15 | Normalise CRLF in the engine's tokeniser too (so `lineageq_sas` and the Prolog `run_fold` agree on raw files), or keep it at the store intake only? | Tokeniser too, one engine-lane commit after M4b. | nothing now |
+| D16 | Store concurrency: a convert blocks every read for its duration (2.35 s on a 2000-block file). One connection with a mutex, or a reader pool plus one writer? | Keep the mutex through M4b; revisit in M5 when UI2 opens files while a folder converts. | M5 |
+
+Next dispatch: **M4b** (Tasks 13 + 14, D11), brief at `.superpowers/sdd/milestones/m4b-brief.md`.
