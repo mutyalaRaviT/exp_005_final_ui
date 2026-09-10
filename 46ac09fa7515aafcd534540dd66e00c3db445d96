@@ -1,0 +1,86 @@
+M4a receipt — 2026-09-10, this machine (darwin 25.5.0, Java 17, pyspark 4.2.0, z3 5.1.0)
+
+1. J1 — THE Z3 INPUT GENERATOR, FIXED AND RE-MEASURED ON FRESH ROWS
+  fix: gen_block_testdata.py core_cols `e, a = targs(p)` -> `_pa = targs(p); e, a = _pa[0], _pa[1]`
+       (proj/2 and proj/3 alike); bench_api._ensure_blocks raises + rmtree on a non-zero rc
+       from gen_block_testdata.py or `lineageq_sas block-programs`, and on rc=0 with no manifest.
+  out/api/test_vishnu_testdata_fixed/blocks/ DELETED, then regenerated:
+    generator standalone exit code           0
+    node4.json written                       2026-09-10 15:00:06  (today's node/4)
+    blocks/manifest.json written             2026-09-10 15:00:07, 11 block input sets
+                                             b_002..b_012
+  bench_receipt.py ../../corpus/fixtures/test_vishnu_testdata_fixed.sas --engine both
+    11/11 blocks match (rust interp   == spark, Z3 inputs, 49 s)
+    11/11 blocks match (prolog interp == spark, Z3 inputs, 49 s)
+  tools/xcheck_datamatch.py --blocks <fresh tree>
+    left=rust    11/11 identical (python vs rust verdict+n_mismatch)
+    left=prolog  11/11 identical
+  POST /api/run on :8116, db /tmp/m4a.duckdb (team_finance + fixtures), 22 verdicts:
+    block  engine=rust                    engine=prolog
+    b_002  match left 1.6 right 4442.2    match left 21.1 right 4433.9
+    b_003  match left 1.2 right 4419.0    match left 23.6 right 4579.7
+    b_004  match left 1.2 right 4416.1    match left 22.5 right 4502.0
+    b_005  match left 1.2 right 4401.4    match left 22.9 right 4400.7
+    b_006  match left 1.2 right 4472.5    match left 23.2 right 4635.5
+    b_007  match left 1.2 right 4366.5    match left 23.4 right 4538.8
+    b_008  match left 1.3 right 4412.0    match left 24.3 right 4572.5
+    b_009  match left 1.3 right 4393.4    match left 21.2 right 4840.8
+    b_010  match left 1.2 right 4405.9    match left 22.0 right 4353.6
+    b_011  match left 1.2 right 4563.6    match left 22.1 right 4643.2
+    b_012  match left 1.2 right 4475.0    match left 22.9 right 4846.7
+    TOTAL  11/11 match (rust)             11/11 match (prolog)
+  NO MISMATCH APPEARED ON THE FRESH ROWS. Pass mark 5 is now honest as itself.
+
+2. D13 — CRLF NORMALISED ON INTAKE (raw/ untouched)
+  differential, Prolog run_fold vs Rust lineageq_sas over the same 25 team_finance files
+  (grep "^node(" diff; plain PySpark diff):
+    node/4  prolog == rust :  0/25  ->  25/25
+    plain   prolog == rust : 13/25  ->  21/25
+    still differing after: 07_enrich_fx, 21_crm_overlay (no PySpark mapping for coalesce),
+      08_daily_balances (today), 14_large_txn_report (orderby(...) not a list) — the four
+      pre-existing emitter panics (Ruling D9 / finding I5). Rust emits nothing for them at
+      all, so this is not a line-ending difference. Tokeniser and grammar untouched.
+  store: files.crlf_normalised  true 25 (team_finance), false 1 (the LF fixture)
+  /api/source?fileid=sas/raw/01_seed_customers.sas -> 728 bytes, 20 CRLF pairs;
+    wc -c on the file on disk = 728. CRLF intact, byte for byte.
+  /api/blocks slices vs files.source lines l0..l1: 1/1 line up
+  cargo tests: backend/rust_inferred_duckdb/tests/crlf_intake.rs, 3 passed
+  UI1 code pane on a CRLF file (:5199 over :8110 on this binary, no console errors):
+    docs/plan/bronze/evidence_2026-09-10/crlf_code_pane.png — 21 lines, chip "#1 data L8-20"
+    landing on line 8 `data work.customers;`
+
+3. TASK 6b — POST /api/convert LANDS
+  idempotence (backend/api/tests/convert.rs, one router, one store, two requests):
+    first convert  ok=1, blocks>0        second convert (unchanged)  blocks=0   pass
+    guard: a_changed_file_is_reconverted, bytes change -> blocks>0 again        pass
+    7/7 tests green (idempotence, guard, single file, report shape, 400, 404, landed)
+  blocking duration over HTTP, :8116, empty store, GET /api/files polled every 20 ms:
+    convert                                files blocks  lock held  worst read  failed
+    corpus/team_finance      (first)          25     26   106.5 ms    81.3 ms       0
+    corpus/team_finance      (unchanged)      25      0     5.2 ms     1.1 ms       0
+    corpus/perf/big_2000.sas (first)           1   2000  2353.1 ms  2328.4 ms       0
+    corpus/perf/big_2000.sas (unchanged)       1      0     1.3 ms     1.3 ms       0
+  LANDED 11 -> 12 (== ALL_ROUTES); /api/health landed 12, forwarded 0.
+  tests/health.rs 11/1 -> 12/0; tests/forward.rs's "not landed" example is gone (no unlanded
+  name exists), rewritten to assert the fallback catches an UNKNOWN /api/* path.
+  oracle.rs and the fallback NOT deleted — that is Task 14 (M4b).
+  Synchronous, no SSE stream (plan §6's OPEN item, nothing consumes the events).
+
+4. REGRESSION
+  cargo test --workspace --release -> 78 passed, 0 failed
+  diff_route.py, all twelve questions:
+    ankitha (:8110 team_finance store + 1 human edit, oracle_a :8000)
+      files clean 1 · search clean 1 · neighborhood clean 25 · blocklinks clean 1 · edges clean 1
+      0 unexplained diffs
+    exp42 (:8112 fixtures Rust, :8342 this repo's Bench)
+      source clean 1 · file clean 1 · blocks clean 1 · tablegraph clean 1
+      0 unexplained diffs
+    no oracle: story (takes a table name, not a fileid — Task 10 note), convert (new surface
+      — Task 6b note), run (new surface — Task 12 note)
+  dev store backend/lineageq.duckdb rebuilt with this binary:
+    files 25, blocks 26, node4 126, edges 72, tables 26, receipts 25, events 25,
+    human_edits 1, runs 0; files.crlf_normalised true on all 25
+  fixtures store /tmp/m4a_fixtures.duckdb: 1 file, 23 blocks, 80 node4, 16 edges
+
+PORTS: started and stopped :8112, :8116, :8342. :8110 restarted on this binary (cwd verified
+as this repo before killing). :8042 never touched. :8000 never touched.
