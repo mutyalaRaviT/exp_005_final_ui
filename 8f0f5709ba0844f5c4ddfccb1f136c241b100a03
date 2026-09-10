@@ -1,0 +1,70 @@
+M3a receipts — five engine defects, Prolog first then Rust (2026-09-10)
+
+COMMITS (8, in order)
+  e59dc9b  spec    defect 1  number leaf keeps its lexeme: lit(V) -> lit(V, Text)
+  cc0fdf7  Prolog  defect 1  codegen mirrors read lit/2
+  e377c68  Rust    defect 1  parser/term/interp/emit/emit_pretty mirror lit/2
+  83fad92  Prolog  defect 2  UNION ALL: sql_lines renders every branch
+  06e542d  Rust    defect 2  UNION ALL: emit.rs/emit_pretty.rs render every branch
+  3575671  Prolog  defect 3  px/pe rules for case_expr/2 and missing/0
+  81010f4  Rust    defect 3  px/pe rules for case_expr/2 and missing/0
+  6a2db0c  store   defect 4  ctl_lineage reaches edges (root cause C7)
+  8040628  Prolog  defect 5  pretty printer slices by BYTES; 99-scalar cap removed
+  8f0f570  docs    ledger C7 rows deleted, corpus README, wiki_root
+
+VERDICTS
+  defect 1  CLOSED   design (b), lit(V, Text), opt-in per language (keep_lexeme)
+  defect 2  CLOSED   .union(...), left-associated, first branch sets the schema
+  defect 3  CLOSED   F.when(..).when(..).otherwise(..); no otherwise without ELSE
+  defect 4  CLOSED   lost in rust_inferred_duckdb's edge writer, not the engine
+  defect 5  CLOSED   two causes: byte/code-point, and between(2,99) capping names
+
+L1 ROUND TRIP (pipeline.run_fold sas, out/work), before -> after
+  team_finance source==rebuilt   24/25 -> 25/25   (13_risk_flags '0.40' vs '0.4')
+  team_finance folded/roundtrip  n/n unchanged on all 25
+  fixture test_vishnu_testdata_fixed  80/80 folded, 80/80 roundtrip, source==rebuilt yes
+  big_100 331/331/yes   big_1000 3303/3303/yes   big_2000 6606/6606/yes
+  ALL FOLDED AND ROUND-TRIPPED: true
+
+DIFFERENTIAL, Prolog == Rust, after M3a (29 files)
+  fully clean, node4 + plain + pretty byte for byte:
+    test_vishnu_testdata_fixed, big_100, big_1000, big_2000   (4/4)
+  team_finance (25): plain == on 13, plain differs on 8, engine panic on 4.
+    plain ==   09,10,11,12,13,15,16,17,18,19,22,24,25
+    plain !=   01,02,03,04,05,06,20,23 — datalines \r only, 0 non-datalines lines
+    panics     07,21 coalesce; 08 today; 14 orderby(...) not a list  (pre-existing)
+  node4 differs on all 25 team_finance files and pretty differs on all 25 in
+  `#` source-comment lines ONLY (0 code lines): CRLF drift, pre-existing —
+  the pre-M3a binary already reported trace(...,367,376) where the Python
+  tokeniser reports 358,367 on 13_risk_flags.sas. Not in this milestone's five
+  defects and not fixable in its write scope.
+  defect-2/3 acceptance files 18_dashboard_mart and 25_final_pack: plain ==
+  byte for byte, pretty == on every code line, all four sources named each.
+
+interp: `lineageq_sas interp` on the fixture, before (worktree at 7dd8924) vs
+after — 11 CSVs, `diff -r` identical.
+
+STORE (lineageq_store convert … corpus/team_finance backend/lineageq.duckdb)
+  25 files, 25 ok, 0 failed, 26 blocks, 126 node4, 72 edges
+  edges by kind: ds 41, ctl 31        (ctl was 0 before defect 4)
+  fixtures store (corpus/fixtures): 1 file, 23 blocks, 80 node4, 16 edges
+  edges by kind: ds 12, ctl 4         (the pass mark's 12 dataset flows, unchanged)
+  human-edit: 1 row
+  LINEAGEQ warn blocks: 6 -> 4; no case_expr warn remains. The 4 left are
+  coalesce (07, 21), today (08), orderby-not-a-list (14).
+
+DIFF_ROUTE (all ten landed questions; :8110 team_finance, :8112 fixtures Rust,
+:8342 this repo's Bench, :8000 oracle_a)
+  ankitha  files 1/1 · search 1/1 · neighborhood 25/25 · blocklinks 1/1 · edges 1/1
+           all clean, 0 diffs
+  exp42    source 1/1 · file 1/1 · blocks 1/1 · tablegraph 1/1 — all clean, 0 diffs
+           story 0 calls (no oracle takes a table name; finding H3)
+  ledger   4 rows retired (C7, deleted not re-accepted); 0 rows added
+           tablegraph is clean WITHOUT the four deleted rows
+
+TESTS
+  cargo test --workspace --release   61 passed, 0 failed
+  tools pytest                       13 passed
+  raw/bench_stack pipeline pytest     100 passed, 61 failed — IDENTICAL before and
+    after M3a (measured on 7dd8924 too); those 61 are the sqoop/pig/oozie lanes
+    whose corpora Task 5 deleted, not this milestone.
