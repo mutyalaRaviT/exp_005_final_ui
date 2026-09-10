@@ -623,6 +623,48 @@ pub fn tablegraph(conn: &Connection, fileid: &str) -> Res<Vec<(String, String, S
         .collect::<Result<Vec<_>, _>>()?)
 }
 
+/// One block that makes a table: which file it is in, which block, and where in that file's
+/// run order it sits.
+#[derive(Debug, Serialize)]
+pub struct Maker {
+    pub fileid: String,
+    pub block_id: String,
+    pub n: i32,
+}
+
+/// `story(table)` — every block anywhere in the store that writes `table`, in run order.
+///
+/// **Why this exists (Task 10, 2026-09-10).** `tablegraph()` answers "what does this *file*
+/// do"; `story()` answers the question a person actually asks about a table they do not
+/// trust — *who made this, in what order?* — and that question is not scoped to one file, so
+/// it cannot be answered off `tablegraph`'s per-file read.
+///
+/// **Run order, not insertion order.** `ORDER BY fileid, n` — `blocks.n` is the block's
+/// 0-based position in its file, which is the order the SAS program executes. The `edges`
+/// table has no ordering of its own (a `SELECT` off it comes back in whatever order DuckDB
+/// scanned), so the order has to be joined back from `blocks` or it is not an order at all.
+/// Task 10's own test asserts exactly that, and `tools/diff_route.py` deliberately keeps
+/// `makers` out of its order-blind field list for the same reason.
+///
+/// A table nobody writes — a source read from datalines, a typo — has no makers. That is an
+/// empty list, not an error: "nothing made this" is a real answer.
+///
+/// **Inputs → outputs.** `edges` joined to `blocks` + a table name → its makers, in run
+/// order.
+pub fn story(conn: &Connection, table: &str) -> Res<Vec<Maker>> {
+    let mut st = conn.prepare(
+        "SELECT DISTINCT e.fileid, e.block_id, b.n
+         FROM edges e JOIN blocks b ON b.fileid = e.fileid AND b.block_id = e.block_id
+         WHERE e.dst_table = ?
+         ORDER BY e.fileid, b.n",
+    )?;
+    Ok(st
+        .query_map(params![table], |r| {
+            Ok(Maker { fileid: r.get(0)?, block_id: r.get(1)?, n: r.get(2)? })
+        })?
+        .collect::<Result<Vec<_>, _>>()?)
+}
+
 /// `search(q)` — tables and files matching.
 pub fn search(conn: &Connection, q: &str) -> Res<Vec<(String, String)>> {
     let like = format!("%{}%", q);

@@ -25,8 +25,8 @@ does it silently. See `tools/diff_route.py`'s module doc comment and Task 4's re
 | source | yes | yes (0 diffs, Bench `/api/file?path=` — M2/G2) | — |
 | file | yes | yes (64 accepted, 6 root causes — Task 9 note) | 64 |
 | blocks | yes | yes (81 accepted, 6 root causes — Task 9 note) | 81 |
-| tablegraph | no | — | — |
-| story | no | — | — |
+| tablegraph | yes | yes (4 accepted, 1 root cause — Task 10 note) | 4 |
+| story | yes | no oracle — the Bench has no story surface (Task 10 note) | — |
 | run | no | — | — |
 
 `landed`: `no` until the route reads from the store instead of forwarding to a Python oracle
@@ -349,12 +349,59 @@ divergences`: a count with a link into the table below, or `—` if none.
 | blocks | test_vishnu_testdata_fixed.sas | [22].n | C1 block index base — this store's `n` is the 0-based `blocks.n` that `blocks(from,to)` windows on; the Bench prints `int(block_id.split('_')[1])`, i.e. 1-based. The block ids themselves are identical (`b_001`..`b_023`), so this is one number written two ways. Emitting the Bench's would make `file()` and `blocks()` disagree about which block a window contains. |
 | blocks | test_vishnu_testdata_fixed.sas | [22].name | C3 name of a block that makes no table — this store leaves `blocks.name` empty when the block writes nothing (LIBNAME, every PROC PRINT); the Bench falls back to the head functor, so it reads `name: 'proc_print'`. Every block that does write a table agrees exactly (21/23 names identical). |
 | blocks | test_vishnu_testdata_fixed.sas | [22].py | C6 packaging of the generated PySpark — the Bench's `py` is one section sliced out of its whole-file pretty program (`_py_sections`); this store's `py` is the block's own standalone runnable program (preamble, the generated statement, epilogue), which is the form Task 12's `run()` executes. Traced by hand over all 23 blocks: for the 11 blocks where the Bench emits any code at all, its exact text is a verbatim substring of this store's `py_pretty` (the one exception, b_012, is the Bench's last section running to EOF and swallowing 11 PROC PRINT comment blocks; its first line matches verbatim). For the other 12 the Bench emits `''` because its section finder finds no section, while this store does generate the LIBNAME and PROC PRINT code. |
+| tablegraph | test_vishnu_testdata_fixed.sas | edges[missing:94d69ee3d20b] | C7 the `ctl` label has no Rust counterpart yet — `rust_rules_converter`'s lineage pass emits `ds` facts only, so this store's `edges.kind` is `ds` for every row of this file. Traced by hand: each of these four is the **same** `(src, dst, block_id)` triple as a `ds` edge this store already carries (`sales.sales_data->sales.q1_sales` b_005, `sales.avg_sales->sales.above_avg_sales` b_010, `sales.sales_data->sales.above_avg_sales` b_010, `sales.sales_data->sales.monthly_sales` b_011), so no table pair is missing from the graph — only the second, control-flavoured label on a pair that is already drawn. The graph is 12 edges, which is the owner's own pass mark. Emitting `ctl` facts is an engine change in `rust_rules_converter`, which M2 must not touch (lane rule, plan Part B) and M3 owns. |
+| tablegraph | test_vishnu_testdata_fixed.sas | edges[missing:b462e700a9e3] | C7 the `ctl` label has no Rust counterpart yet — `rust_rules_converter`'s lineage pass emits `ds` facts only, so this store's `edges.kind` is `ds` for every row of this file. Traced by hand: each of these four is the **same** `(src, dst, block_id)` triple as a `ds` edge this store already carries (`sales.sales_data->sales.q1_sales` b_005, `sales.avg_sales->sales.above_avg_sales` b_010, `sales.sales_data->sales.above_avg_sales` b_010, `sales.sales_data->sales.monthly_sales` b_011), so no table pair is missing from the graph — only the second, control-flavoured label on a pair that is already drawn. The graph is 12 edges, which is the owner's own pass mark. Emitting `ctl` facts is an engine change in `rust_rules_converter`, which M2 must not touch (lane rule, plan Part B) and M3 owns. |
+| tablegraph | test_vishnu_testdata_fixed.sas | edges[missing:fbfdd765a752] | C7 the `ctl` label has no Rust counterpart yet — `rust_rules_converter`'s lineage pass emits `ds` facts only, so this store's `edges.kind` is `ds` for every row of this file. Traced by hand: each of these four is the **same** `(src, dst, block_id)` triple as a `ds` edge this store already carries (`sales.sales_data->sales.q1_sales` b_005, `sales.avg_sales->sales.above_avg_sales` b_010, `sales.sales_data->sales.above_avg_sales` b_010, `sales.sales_data->sales.monthly_sales` b_011), so no table pair is missing from the graph — only the second, control-flavoured label on a pair that is already drawn. The graph is 12 edges, which is the owner's own pass mark. Emitting `ctl` facts is an engine change in `rust_rules_converter`, which M2 must not touch (lane rule, plan Part B) and M3 owns. |
+| tablegraph | test_vishnu_testdata_fixed.sas | edges[missing:e51d43efdd4e] | C7 the `ctl` label has no Rust counterpart yet — `rust_rules_converter`'s lineage pass emits `ds` facts only, so this store's `edges.kind` is `ds` for every row of this file. Traced by hand: each of these four is the **same** `(src, dst, block_id)` triple as a `ds` edge this store already carries (`sales.sales_data->sales.q1_sales` b_005, `sales.avg_sales->sales.above_avg_sales` b_010, `sales.sales_data->sales.above_avg_sales` b_010, `sales.sales_data->sales.monthly_sales` b_011), so no table pair is missing from the graph — only the second, control-flavoured label on a pair that is already drawn. The graph is 12 edges, which is the owner's own pass mark. Emitting `ctl` facts is an engine change in `rust_rules_converter`, which M2 must not touch (lane rule, plan Part B) and M3 owns. |
 
 164 rows: `blocklinks` 80, `edges` 84 — all of them Task 7's, all of them traced to the two
 root causes in the Task 7 note below. `neighborhood` carried 288 rows here (Task 6, three `rust_rules_converter` fold gaps —
 qualified star, `CROSS JOIN`, `UNION ALL` under-reporting) until Task 5d fixed all three; see the
 "Task 5d note" below. `files`/`search` have run clean by construction since Task 5 (0 diffs
 found) and never needed a row.
+
+## Task 10 note: `tablegraph()`'s 4 divergences are the `ctl` label alone, and `story()` has
+## no oracle anywhere to check against
+
+Run (2026-09-10): `python tools/diff_route.py tablegraph --rust-base http://127.0.0.1:8112
+--oracle-b http://127.0.0.1:8342` — 4 diffs, one cause, then clean.
+
+**The pass mark is met on the nose.** The owner's Bench screenshot of
+`test_vishnu_testdata_fixed.sas` says **12 edges**, `sales.sales_data` at the source and
+`sales.final_summary` at the end, and `sales.q1_avg_sales` made by `b_007`. This store answers
+12 edges, and all twelve match the Bench's `ds_lineage` facts exactly — same `src`, same `dst`,
+same `block_id`, including `b_007`.
+
+**Cause C7, the only one.** The Bench carries a second fact list, `ctl_lineage` (the
+control/filter dependency), with 4 triples for this file; `rust_rules_converter`'s lineage pass
+emits `ds` facts only, so `edges.kind` is `ds` for every row here. Each of the four was traced
+by hand and is the *same* `(src, dst, block_id)` triple as a `ds` edge this store already
+carries:
+
+| the `ctl` edge the Bench also emits | already present here as |
+|---|---|
+| `sales.sales_data -> sales.q1_sales`, `b_005` | `ds` |
+| `sales.avg_sales -> sales.above_avg_sales`, `b_010` | `ds` |
+| `sales.sales_data -> sales.above_avg_sales`, `b_010` | `ds` |
+| `sales.sales_data -> sales.monthly_sales`, `b_011` | `ds` |
+
+So no table pair is missing from the graph and none is invented — what is missing is a second,
+control-flavoured label on a pair that is already drawn. Emitting `ctl` facts is a change in
+`rust_rules_converter`, which M2 must not touch (the lane rule in the milestone plan, Part B)
+and M3 owns. Whoever lands it should delete these four rows, not re-accept them.
+
+`tables[].kind` is projected off both sides, as it has been since Task 4's tool: the Bench's
+lineage facts carry no per-table classification at all, so there is nothing to check this
+store's `source`/`derived` against.
+
+**`story()` stays `no_oracle`, and this is the revisit finding G2 asked for.** The old note
+guessed the blocker was "which table's story for a given file", solvable with a `--table` flag
+or a fixture map. It is not: the Bench has **no story surface at all** — no route of its takes
+a table name — so even with a fixture map there would be nothing on the oracle side to diff.
+`story()` therefore lands on its own pass mark instead: `tests/tablegraph.rs` asserts that
+`sales.final_summary`'s makers come back ordered by `blocks.n` (run order, not the order
+`edges` happens to scan), that a maker names its file and block (`b_012`), and that a table
+nobody makes — `sales.sales_data`, built from datalines — is an empty list and not an error.
 
 ## Task 9 note: `file()`'s 64 and `blocks()`'s 81 divergences are six packaging differences,
 ## and `source()` matched the Bench byte for byte
