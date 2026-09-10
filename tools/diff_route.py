@@ -34,8 +34,10 @@ unexplained difference exists; 2 for a usage error or an oracle/the Rust API bei
 (never a bare traceback — see `_fail()`).
 
 **Corpora** (`docs/plan/plan/bronze/bronze_phase2_route_ledger.md`, Task 4 brief):
-  - `ankitha`: the 25 files under `raw/lineage_server/inputs/ankitha_1/`, fileid
-    `ankitha_1/<name>.sas` — checked against oracle_a, `:8000` (`app.py`, UI1's backend).
+  - `ankitha`: the 25 files under `corpus/team_finance/sas/raw/`, fileid
+    `sas/raw/<name>.sas` (M0.3, 2026-09-10 — Task 5 moved them there from
+    `raw/lineage_server/inputs/ankitha_1/` and rebuilt the oracle store on the new fileids)
+    — checked against oracle_a, `:8000` (`app.py`, UI1's backend).
   - `exp42`: the SAS files under `corpus/fixtures/` (M0.1, 2026-09-10 — Task 5 deleted the
     old `raw/bench_stack/corpus/` and `raw/bench_stack/testdata/` folders; the exp_42 receipt
     file `test_vishnu_testdata_fixed.sas` lives in `corpus/fixtures/` now), fileid = bare
@@ -290,8 +292,17 @@ def post(url: str, body: dict) -> Any:
 
 # --------------------------------------------------------------------------- corpora
 def ankitha_files() -> list[str]:
-    root = REPO_ROOT / "raw" / "lineage_server" / "inputs" / "ankitha_1"
-    return [f"ankitha_1/{p.name}" for p in sorted(root.glob("*.sas"))]
+    """The 25 team_finance SAS files, as the fileids both arms use.
+
+    M0.3 (2026-09-10): this used to glob `raw/lineage_server/inputs/ankitha_1/` and return
+    `ankitha_1/<name>.sas`. Task 5 deleted that folder and rebuilt the oracle store on
+    `corpus/team_finance/sas/raw` with `sas/raw/<name>.sas` fileids, so the glob returned []
+    and every per-file question (`neighborhood`) reported "clean — 0 files checked": a
+    silent pass, which is worse than a failure. Measured against :8000 /api/files on
+    2026-09-10: ids are `sas/raw/<name>.sas`.
+    """
+    root = REPO_ROOT / "corpus" / "team_finance" / "sas" / "raw"
+    return [f"sas/raw/{p.name}" for p in sorted(root.glob("*.sas"))]
 
 
 # The Bench oracle resolves an `/api/open`/`/api/file` `path` against `raw/bench_stack/`;

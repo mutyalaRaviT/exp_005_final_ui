@@ -26,6 +26,7 @@ Later dimensions, opened when their first page exists: `backend`, `frontend`, `r
   different backends until today; see `corpus/README.md` and the plan/spec at
   `docs/superpowers/plans/2026-09-09-team-finance-corpus.md` /
   `docs/superpowers/specs/2026-09-09-team-finance-corpus-design.md`.
+- 2026-09-10 — M0 re-baseline: briefs 7–14 corrected, corpus/fixtures/ registered. Plan: docs/superpowers/plans/2026-09-10-milestone-plan.md.
 
 ## Story
 
