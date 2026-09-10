@@ -13,6 +13,7 @@
 //! The engine is called in-process through the `rules_converter` library, so nothing is
 //! written to disk and re-parsed on the way.
 
+pub mod datamatch;
 pub mod lineage_blocks;
 pub mod schema;
 

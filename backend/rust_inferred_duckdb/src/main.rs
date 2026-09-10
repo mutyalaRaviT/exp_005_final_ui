@@ -22,7 +22,30 @@ fn main() {
     if let Err(e) = run(&a) { eprintln!("error: {}", e); std::process::exit(1); }
 }
 
-const USAGE: &str = "lineageq_store convert <spec.json> <folder> <db> | file <db> <fileid> | blocks <db> <fileid> <from> <to> | search <db> <q> | counts <db> | human-edit <db> <json-file>";
+/// A CSV file as rows of cells, header row included. RFC4180 quoting is handled even
+/// though nothing in the block corpus uses it: a comparison that silently mis-splits one
+/// quoted cell would report `differs` on data that matches, and the person reading the
+/// verdict would have no way to tell.
+fn read_csv(p: &Path) -> store::Res<Vec<Vec<String>>> {
+    let text = std::fs::read_to_string(p)?;
+    let mut rows = Vec::new();
+    let (mut row, mut cell, mut in_q) = (Vec::new(), String::new(), false);
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '"' if in_q && chars.peek() == Some(&'"') => { cell.push('"'); chars.next(); }
+            '"' => in_q = !in_q,
+            ',' if !in_q => { row.push(std::mem::take(&mut cell)); }
+            '\r' if !in_q => {}
+            '\n' if !in_q => { row.push(std::mem::take(&mut cell)); rows.push(std::mem::take(&mut row)); }
+            _ => cell.push(c),
+        }
+    }
+    if !cell.is_empty() || !row.is_empty() { row.push(cell); rows.push(row); }
+    Ok(rows)
+}
+
+const USAGE: &str = "lineageq_store convert <spec.json> <folder> <db> | file <db> <fileid> | blocks <db> <fileid> <from> <to> | search <db> <q> | counts <db> | human-edit <db> <json-file> | datamatch <left.csv> <right.csv>";
 
 fn run(a: &[String]) -> store::Res<()> {
     match a[1].as_str() {
@@ -69,6 +92,21 @@ fn run(a: &[String]) -> store::Res<()> {
             let n = store::load_human_edits(&conn, Path::new(&a[3]))?;
             eprintln!("human-edit: {} row(s) written from {}", n, a[3]);
             println!("{}", serde_json::to_string(&serde_json::json!({ "written": n }))?);
+        }
+        // Task 11 step 5: the cross-check's Rust half. `tools/xcheck_datamatch.py` feeds
+        // this and `pipeline/datamatch.py` the same two CSVs and requires identical
+        // answers — a Rust-only verdict nobody can check against the Python reference is
+        // exactly the silent failure `datamatch.rs` exists to prevent.
+        //   lineageq_store datamatch <left.csv> <right.csv>   ->  {"verdict","n_mismatch"}
+        // Header line dropped on both sides, as run_block does.
+        "datamatch" => {
+            if a.len() < 4 { eprintln!("{}", USAGE); std::process::exit(2); }
+            let l = read_csv(Path::new(&a[2]))?;
+            let r = read_csv(Path::new(&a[3]))?;
+            let (v, n, samples) = store::datamatch::compare_rows(
+                l.get(1..).unwrap_or(&[]), r.get(1..).unwrap_or(&[]), 5);
+            println!("{}", serde_json::to_string(&serde_json::json!({
+                "verdict": v.as_str(), "n_mismatch": n, "samples": samples }))?);
         }
         "counts" => {
             let conn = store::open(Path::new(&a[2]))?;
