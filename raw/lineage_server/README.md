@@ -24,7 +24,7 @@ Everything below from `~/Desktop/sas2py_projects/file_dependencies_regex/` on 20
 |---|---|---|---|
 | `server/` | `server/` | 224K | `__pycache__`, `.pytest_cache` |
 | `exp_2/` | `exp_2/` | 2.3M | `__pycache__`, `exp_2/output/` |
-| `output/explorer.duckdb` (+ `.wal`) | `output/` | 3.6M | the HTML report dumps, `estate_history/` |
+| `output/explorer.duckdb` | `output/` | 3.6M | the HTML report dumps, `estate_history/`, the `.wal` |
 | `inputs/` | `inputs/` (ankitha_1, 25 SAS files) | 108K | — |
 
 `exp_2/sas_lineage/` is the package `server/app.py` imports as `sas_lineage.store` and
@@ -64,5 +64,8 @@ that UI1 does not call. The Rust API in phase 2 only needs the six above.
   quoted in `raw/node4_viz/src/useLineageGraph.ts:15`.
 - **ASSUMED** — that the checked-in `explorer.duckdb` is current enough to reproduce the
   owner's reference screenshot. Not yet verified by running it.
-- **OPEN** — whether the `.wal` file is needed alongside the `.duckdb`, or whether it
-  should be checkpointed into the main file before it is relied on.
+- **PROVEN ∎** — the `.wal` is not needed alongside the `.duckdb`. Opened a copy of
+  `explorer.duckdb` on its own, read-only, with the `.wal` withheld (2026-09-10): all 11
+  tables present and populated — 25 files, 26 blocks, 42 lineage rows, 375 events — and no
+  `.wal` was regenerated. It is now untracked (`*.duckdb.wal` in `.gitignore`); DuckDB
+  recreates it locally whenever the server writes, and it no longer churns every diff.

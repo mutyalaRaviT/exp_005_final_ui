@@ -19,3 +19,7 @@ backend/*.duckdb
 
 # agent debug artifacts (console logs, page dumps, screenshots), not source
 .playwright-mcp/
+
+# DuckDB write-ahead log: regenerated whenever the server runs; the .duckdb
+# beside it opens clean on its own (verified 2026-09-10), so only the db is tracked
+*.duckdb.wal
