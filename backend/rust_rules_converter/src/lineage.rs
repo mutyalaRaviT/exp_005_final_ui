@@ -2,7 +2,7 @@
 //! pyspark_lineage.pl (exp_42, 2026-09-07). Same four facts, same sorted text
 //! output, so `diff` proves the two engines agree. Every function names the
 //! Prolog clause it copies.
-use crate::term::Term;
+use crate::term::{lit_num, Term};
 use std::collections::{BTreeSet, HashMap};
 
 fn lower(s: &str) -> String { s.to_lowercase() }
@@ -99,7 +99,7 @@ pub mod sas {
                 }
                 // DATA out; IF _N_ = 1 THEN SET look; SET main
                 if let (Some(its), Some(set)) = (find(body, "if_then_set", 3), find(body, "set", 1)) {
-                    if its.args()[1] == Term::compound("lit", vec![Term::Int(1)]) {
+                    if lit_num(&its.args()[1]) == Some(1.0) {
                         let (ki, kl) = (ds_key(&set.args()[0]), ds_key(&its.args()[2]));
                         f.reads(&k, &ki); f.reads(&k, &kl); f.copy_cols(&k, &ki); f.copy_cols(&k, &kl);
                         let mut cols = f.schema_or_empty(&ki); cols.extend(f.schema_or_empty(&kl));
@@ -131,8 +131,21 @@ pub mod sas {
                 for t in &ts[1..] {
                     if t.functor() == ("create_table_as", 2) {
                         let k = ds_key(&t.args()[0]);
-                        let core = &t.args()[1].args()[0].list()[0];
-                        select_lineage(f, &k, core);
+                        // task 5d (root cause U): `cores` is every select_core in a
+                        // `select_core (UNION ALL select_core)*` chain — was read as
+                        // `.list()[0]`, the FIRST branch only, silently dropping every
+                        // other branch's reads (18_dashboard_mart.sas,
+                        // 25_final_pack.sas: 4 branches, 1 recorded). Every branch is
+                        // walked for its reads/controls/col-lineage; only the FIRST
+                        // branch's projection list decides `k`'s own output schema —
+                        // real SQL UNION ALL takes its output column names from the
+                        // first SELECT, later branches must line up positionally, not
+                        // rename anything (mirrors codegen/sas_lineage.pl's identical
+                        // fix, same task).
+                        let cores = t.args()[1].args()[0].list();
+                        for (i, core) in cores.iter().enumerate() {
+                            select_lineage(f, &k, core, i == 0);
+                        }
                     }
                 }
             }
@@ -148,19 +161,51 @@ pub mod sas {
         }
     }
 
-    /// select_lineage/2
-    fn select_lineage(f: &mut Facts, k: &str, core: &Term) {
+    /// alias of one from_source — table(Ds,AliasOpt) or subquery(Core,AliasOpt),
+    /// both alias in arg position 1. Used only to resolve a qualified star
+    /// (`a.*`) to the ds_key it names (task 5d).
+    fn from_alias(from: &Term) -> Option<String> {
+        match from.functor() {
+            ("table", 2) | ("subquery", 2) => {
+                let al = &from.args()[1];
+                if al.functor() == ("some", 1) { Some(lower(al.args()[0].atom_text())) } else { None }
+            }
+            _ => None,
+        }
+    }
+
+    /// select_lineage/3 (was /2 through task 5c)
+    // task 5c: `joins` is a Prolog LIST (zero or more join_clause terms,
+    // source order) — was `join: some(J)|none`, at most one, before that
+    // task. task 5d: two more widenings, both required for the join list to
+    // hold a `cross_join(Src)` term (arity 1, no ON) alongside
+    // left_join/inner_join (arity 2):
+    //   1. branch on `j.args().len()` before indexing args()[1] — a bare
+    //      arity check, not a functor-name check, matching the Prolog mirror
+    //      (codegen/sas_lineage.pl's select_lineage/3, same task) and the
+    //      spec comment's own reasoning at join_clause's RULES entry.
+    //   2. `set_schema`: false when this select_core is a later branch of a
+    //      `UNION ALL` chain (root cause U) — only the first branch's
+    //      projection list should decide the statement's own output schema;
+    //      every branch still records its own reads/controls/col-lineage.
+    fn select_lineage(f: &mut Facts, k: &str, core: &Term, set_schema: bool) {
         let a = core.args();
-        let (projs, from, join, wh, group, having) = (a[0].list(), &a[1], &a[2], &a[3], &a[4], &a[5]);
+        let (projs, from, joins, wh, group, having) = (a[0].list(), &a[1], a[2].list(), &a[3], &a[4], &a[5]);
         let ki = from_ds(from); f.reads(k, &ki);
-        if join.functor() == ("some", 1) {
-            let j = &join.args()[0];
+        let mut alias_map: HashMap<String, String> = HashMap::new();
+        if let Some(al) = from_alias(from) { alias_map.insert(al, ki.clone()); }
+        for j in joins {
             let kj = from_ds(&j.args()[0]); f.reads(k, &kj);
-            let cs = expr_cols(&j.args()[1]); f.controls(k, &ki, &cs); f.controls(k, &kj, &cs);
+            if let Some(al) = from_alias(&j.args()[0]) { alias_map.insert(al, kj.clone()); }
+            if j.args().len() > 1 {
+                let cs = expr_cols(&j.args()[1]); f.controls(k, &ki, &cs); f.controls(k, &kj, &cs);
+            }
+            // else: cross_join(Src) — no ON clause, so no controlling columns
+            // on either side; the read (above) is the whole contribution.
         }
         let mut cols = Vec::new();
-        for p in projs { cols.extend(proj_lineage(f, k, &ki, &p.args()[0], &p.args()[1])); }
-        f.set_schema(k, cols);
+        for p in projs { cols.extend(proj_lineage(f, k, &ki, &alias_map, &p.args()[0], &p.args()[1])); }
+        if set_schema { f.set_schema(k, cols); }
         if wh.functor() == ("some", 1) { cond_lineage(f, k, &ki, &wh.args()[0]); }
         if group.functor() == ("some", 1) {
             for g in group.args()[0].list() { let cs = expr_cols(g); f.controls(k, &ki, &cs); }
@@ -168,11 +213,25 @@ pub mod sas {
         if having.functor() == ("some", 1) { cond_lineage(f, k, &ki, &having.args()[0]); }
     }
 
-    /// proj_lineage/5
-    fn proj_lineage(f: &mut Facts, k: &str, ki: &str, e: &Term, alias: &Term) -> Vec<String> {
+    /// proj_lineage/6 (was /5 through task 5c)
+    // task 5d: `star(Alias)` — a qualified star `a.*` — copies the columns of
+    // WHATEVER source `a` names (the FROM table or any JOIN source's own
+    // alias), not always the base FROM (`ki`); `alias_map` (built by the
+    // caller, above) is exactly that lookup. Falls back to `ki` if the alias
+    // is somehow unresolved (defensive; every alias `select_lineage` sees was
+    // just read off `from`/`joins` itself, so this should not happen in
+    // practice) — the same "degrade, don't panic" choice the bare star/0 arm
+    // already makes by construction (it always trusts `ki`).
+    fn proj_lineage(f: &mut Facts, k: &str, ki: &str, alias_map: &HashMap<String, String>, e: &Term, alias: &Term) -> Vec<String> {
         if e.functor() == ("star", 0) && alias.functor() == ("none", 0) {
             f.copy_cols(k, ki);
             return f.schema_or_empty(ki);
+        }
+        if e.functor() == ("star", 1) && alias.functor() == ("none", 0) {
+            let qal = lower(e.args()[0].atom_text());
+            let src = alias_map.get(&qal).cloned().unwrap_or_else(|| ki.to_string());
+            f.copy_cols(k, &src);
+            return f.schema_or_empty(&src);
         }
         let col = if alias.functor() == ("some", 1) { lower(alias.args()[0].atom_text()) }
                   else if e.functor() == ("col", 1) { lower(e.args()[0].atom_text()) }
@@ -201,7 +260,10 @@ pub mod sas {
         match e.functor() {
             ("col", 1) => vec![lower(e.args()[0].atom_text())],
             ("col", 2) => vec![lower(e.args()[1].atom_text())],
-            ("lit", _) | ("star", 0) | ("subquery_expr", 1) => vec![],
+            // task 5d: star(Alias) (arity 1, a qualified star) contributes no
+            // column of its own either — proj_lineage (not expr_cols) is what
+            // resolves it, same as the bare star/0 case already handled here.
+            ("lit", _) | ("star", _) | ("subquery_expr", 1) => vec![],
             _ => match e {
                 Term::Compound(_, args) => dedup(args.iter().flat_map(expr_cols).collect()),
                 Term::List(items) => dedup(items.iter().flat_map(expr_cols).collect()),

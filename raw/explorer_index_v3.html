@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lineage Explorer — v3 (themes)</title>
+<script src="https://unpkg.com/@antv/g6@5/dist/g6.min.js"></script>
+<script src="../lineage_data.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+  :root { --font-sans:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,sans-serif; --font-mono:'JetBrains Mono',ui-monospace,monospace; }
+  /* palettes (app=body · canvas=graph · sidebar=nav · panel=surface · tert=head · inner=blocks) */
+  html[data-theme="dark"] {
+    --bg:#14140f; --canvas:#14140f; --sidebar:#1a1a14; --panel:#20201a; --tert:#26261f; --inner:#1b1b15;
+    --line:#34342b; --hair:#2a2a22; --ink:#ececdf; --muted:#9a9a8a; --dim:#6f6f61; --heavy:#ececdf;
+    --accent:#e2683a; --accent-2:#e2683a; --accent-10:#3a261c; --accent-16:#3a2a1f; --edge:#4a4a3e;
+    --green:#6fbf6f; --code-bg:#1b1b15;
+  }
+  html[data-theme="paper"] {
+    --bg:#f4f2ec; --canvas:#f1efe8; --sidebar:#f8f6f0; --panel:#fffefb; --tert:#f7f5ef; --inner:#faf9f4;
+    --line:#e4e1d7; --hair:#ece9e0; --ink:#2c2a24; --muted:#7a766c; --dim:#a9a497; --heavy:#2c2a24;
+    --accent:#d8693a; --accent-2:#d8693a; --accent-10:#f7ece4; --accent-16:#fae7dc; --edge:#d8d3c6;
+    --green:#3f8a5a; --code-bg:#faf9f4;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 13px/1.4 var(--font-sans); display: flex; flex-direction: column; height: 100vh; }
+  header.top { padding: 9px 14px; border-bottom: 2px solid var(--line); background: var(--panel); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  header.top h1 { font-size: 13px; margin: 0 8px 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; }
+  input.search { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; font: 11px var(--font-mono); width: 168px; }
+  input.search:focus { outline: none; border-color: var(--accent); }
+  .grp { display: inline-flex; align-items: center; gap: 6px; }
+  .grp .cap { font: 9px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+  .seg button { border: 0; background: var(--panel); color: var(--muted); padding: 5px 9px; font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .8px; cursor: pointer; }
+  .seg button.on { background: var(--tert); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+  .seg button:not(.on):hover { background: var(--tert); color: var(--ink); }
+  .spacer { margin-left: auto; }
+  button.btn { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .8px; cursor: pointer; }
+  button.btn:hover { border-color: var(--accent); color: var(--accent); }
+  .files { position: relative; }
+  .body { flex: 1; display: flex; min-height: 0; }
+  .nav { width: 248px; flex: 0 0 248px; border-right: 1px solid var(--line); overflow: auto; padding: 0 6px 8px; background: var(--sidebar); }
+  .navtools { display: flex; flex-direction: column; gap: 6px; padding: 8px 2px; position: sticky; top: 0; background: var(--panel); z-index: 2; border-bottom: 1px solid var(--line); }
+  .navtools .ttypes { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .navtools .ttypes .cap { font: 8px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-right: 2px; }
+  .navtools .tbtns { display: flex; gap: 6px; }
+  .navtools .tbtns .btn { flex: 1; font-size: 10px; padding: 5px; }
+  .chip { font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .6px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 3px; cursor: pointer; color: var(--dim); background: transparent; }
+  .chip.on { background: var(--tert); border-color: var(--line); color: var(--ink); }
+  .chip.on::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-right: 5px; vertical-align: middle; }
+  .trow.match { background: var(--accent-10); box-shadow: inset 2px 0 0 var(--accent); }
+  .trow.match > .lbl { color: var(--ink); }
+  .trow { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 3px; font: 12px var(--font-mono); color: var(--ink); white-space: nowrap; }
+  .trow:hover { background: var(--tert); }
+  .trow.lvl1 { padding-left: 16px; } .trow.lvl2 { padding-left: 30px; } .trow.lvl3 { padding-left: 44px; }
+  .trow .cbx { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; border: 1px solid var(--line); border-radius: 2px; background: transparent; cursor: pointer; position: relative; flex: 0 0 auto; margin: 0 2px 0 6px; opacity: .5; transition: opacity .12s, border-color .12s, background .12s; }
+  .trow:hover .cbx { opacity: 1; }
+  .trow .cbx:hover { border-color: var(--accent); }
+  .trow .cbx:checked { background: var(--tert); border-color: var(--dim); opacity: .8; }
+  .trow:hover .cbx:checked { opacity: 1; }
+  .trow .cbx:checked::after { content: "✓"; position: absolute; inset: 0; font-size: 9px; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+  .trow .cbx:indeterminate { border-color: var(--dim); background: var(--tert); opacity: 1; }
+  .trow .cbx:indeterminate::after { content: ""; position: absolute; left: 3px; right: 3px; top: 5.5px; height: 2px; border-radius: 1px; background: var(--muted); }
+  .trow .car { width: 12px; cursor: pointer; color: var(--muted); text-align: center; flex: 0 0 auto; user-select: none; }
+  .trow .lbl { cursor: pointer; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .trow .lbl.fileL { font: 12px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--ink); }
+  .trow .lbl.blockL { font: 9px var(--font-sans); font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+  .trow .lbl.tableL { font: 12px var(--font-mono); font-weight: 600; color: var(--ink); }
+  .trow .lbl i { color: var(--dim); font-style: normal; font-size: 9px; margin-left: 6px; font-family: var(--font-mono); }
+  /* selected tree row = same look as the graph's selected row: full-row tint + 3px left bar */
+  .trow:has(.lbl.sel) { background: var(--accent-16); box-shadow: inset 3px 0 0 var(--accent); }
+  .trow .lbl.sel { color: var(--ink); font-weight: 600; }
+  .trow .lbl.sel i { color: var(--dim); }
+  .kids.collapsed { display: none; }
+  .hide { display: none !important; }
+  /* keyboard cursor + ace-jump hints */
+  .trow.cursor { box-shadow: inset 0 0 0 1px var(--accent); }
+  .ajhint { position: fixed; z-index: 300; background: var(--accent); color: #fff; font: 10px/1 var(--font-mono); font-weight: 700; letter-spacing: .5px; padding: 2px 4px; border-radius: 3px; pointer-events: none; box-shadow: 0 1px 5px rgba(0,0,0,.6); }
+  kbd { font: 9px var(--font-mono); background: var(--tert); border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; color: var(--muted); }
+  /* source dot: marks a box that an edge leaves from, on its right edge */
+  .col-row, .tbl-hd, .blk-hd { position: relative; }
+  .src-dot::after { content: ""; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--accent)); box-shadow: 0 0 0 2px var(--panel); pointer-events: none; }
+  .col-row.src-dot .ct, .tbl-hd.src-dot > span:last-child { margin-right: 12px; }
+  .canvasWrap { flex: 1; position: relative; min-width: 0; display: flex; flex-direction: column; }
+  #container { position: relative; flex: 1; min-height: 0; }
+  .detail { position: absolute; left: 12px; top: 12px; z-index: 30; display: flex; align-items: center; gap: 7px; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; }
+  .detail .cap { font: 9px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .statusbar { position: absolute; left: 12px; bottom: 12px; z-index: 30; color: var(--muted); font: 10px var(--font-mono); background: var(--panel); padding: 6px 10px; border: 1px solid var(--line); border-left: 3px solid var(--accent); }
+  .prog { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; box-shadow: none; font: 12px var(--font-sans); user-select: none; }
+  .prog-hd { display: flex; align-items: center; gap: 8px; padding: 0 12px; font: 12px var(--font-mono); font-weight: 600; color: var(--ink); letter-spacing: .3px; background: var(--tert); }
+  .prog-hd .kind { margin-left: auto; font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .12em; padding: 2px 6px; border-radius: 2px; border: 1px solid currentColor; background: var(--accent-10); }
+  .prog-body { display: flex; flex-direction: column; }
+  .blk { border: 1px solid var(--line); border-radius: 3px; overflow: hidden; background: var(--inner); }
+  .blk.sel-b { box-shadow: 0 0 0 2px var(--accent) inset; } .blk.off { opacity: .42; }
+  .blk-hd { display: flex; align-items: center; gap: 6px; padding: 0 9px; font: 9px var(--font-sans); font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; background: var(--tert); cursor: pointer; }
+  .blk-body { display: flex; flex-direction: column; }
+  .blk-hd .blkfocus { background: rgba(255,255,255,.08); color: var(--muted); border: 0; border-radius: 3px; font-size: 11px; line-height: 1; padding: 2px 5px; cursor: pointer; }
+  .blk-hd .blkfocus:hover { background: var(--accent); color: #fff; }
+  .tbl { border: 1px solid var(--line); border-radius: 3px; overflow: hidden; background: var(--panel); }
+  .tbl.sel-t { box-shadow: 0 0 0 2px var(--accent) inset; } .tbl.off { opacity: .42; }
+  .tbl-hd { display: flex; align-items: center; gap: 7px; padding: 0 10px; font: 11px var(--font-mono); font-weight: 600; color: var(--ink); background: var(--tert); border-left: 3px solid var(--accent); cursor: pointer; }
+  .tbl-hd .tdot { width: 6px; height: 6px; border-radius: 3px; }
+  .col-row { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-top: 1px solid var(--line); font: 11px var(--font-mono); color: var(--ink); cursor: pointer; transition: background .12s, opacity .12s; }
+  .col-row .cn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col-row .ct { margin-left: auto; color: var(--dim); font: 9px var(--font-mono); }
+  .col-row:hover { background: var(--tert); }
+  .col-row.sel-c { background: var(--accent-16); color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); } .col-row.off { opacity: .4; }
+  .stub { border-radius: 3px; padding: 9px 11px; font: 11px var(--font-sans); cursor: pointer; user-select: none; text-align: center; }
+  .stub.src { background: var(--panel); border: 2px solid var(--green); } .stub.tgt { background: var(--panel); border: 2px solid var(--accent); }
+  .stub:hover { filter: brightness(1.3); }
+  .stub .big { font: 16px var(--font-mono); font-weight: 500; color: #fff; } .stub .lab { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+  .tip { position: fixed; z-index: 200; pointer-events: none; background: var(--bg); border: 1px solid var(--accent); border-radius: 4px; padding: 7px 9px; font: 11px var(--font-sans); color: var(--ink); max-width: 320px; box-shadow: none; display: none; line-height: 1.45; }
+  .tip .k { color: var(--accent); font-weight: 500; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+  .tip .tx { color: var(--accent); font-family: var(--font-mono); }
+  .tip .mut { color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+  .inspect { z-index: 40; height: 244px; flex: 0 0 244px; background: var(--bg); border-top: 2px solid var(--accent); display: none; flex-direction: column; box-shadow: none; }
+  .inspect.open { display: flex; }
+  .inspect .ihd { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .inspect .ihd .kind { font: 9px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); background: transparent; border: 1px solid var(--accent); padding: 2px 7px; border-radius: 3px; }
+  .inspect .ihd .nm { font: 13px var(--font-mono); font-weight: 500; } .inspect .ihd .loc { color: var(--muted); font: 11px var(--font-mono); }
+  .inspect .ihd .x { margin-left: auto; cursor: pointer; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 3px 9px; font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .8px; }
+  .inspect .ihd .x:hover { border-color: var(--accent); color: var(--accent); }
+  .inspect .ibody { flex: 1; display: flex; min-height: 0; }
+  .inspect .col1 { flex: 1; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
+  .inspect .col2 { width: 44%; display: flex; flex-direction: column; min-width: 0; }
+  .inspect .sec { font: 9px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); padding: 6px 12px 2px; }
+  .inspect pre { margin: 0; padding: 2px 12px 10px; overflow: auto; flex: 1; font: 11.5px/1.6 var(--font-mono); color: var(--ink); white-space: pre; }
+  .inspect .elist { overflow: auto; flex: 1; padding: 0 12px 10px; }
+  .inspect .erow { padding: 4px 0; border-bottom: 1px solid var(--line); font: 11px var(--font-mono); display: flex; gap: 6px; align-items: baseline; }
+  .inspect .erow .ar { color: var(--muted); } .inspect .erow .ftx { color: var(--accent); font-family: var(--font-mono); font-size: 10px; margin-left: auto; }
+
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Lineage Explorer</h1>
+  <input class="search" id="search" list="recent" placeholder="search…" autocomplete="off" />
+  <datalist id="recent"></datalist>
+  <div class="grp"><span class="cap">Show</span>
+    <div class="seg" id="scope"><button data-v="all" class="on">All</button><button data-v="linked">Linked</button></div></div>
+  <div class="grp"><span class="cap">Depth</span>
+    <div class="seg" id="depth"><button data-v="all" class="on">All</button><button data-v="1">±1</button><button data-v="2">±2</button><button data-v="3">±3</button></div></div>
+  <div class="spacer"></div>
+  <div class="grp"><span class="cap">Theme</span>
+    <div class="seg" id="themeSw"><button data-th="dark">Dark</button><button data-th="paper" class="on">Paper</button></div></div>
+  <button class="btn" id="fitBtn">Fit</button>
+  <button class="btn" id="resetBtn">Reset</button>
+</header>
+<div class="body">
+  <div class="nav" id="nav"></div>
+  <div class="canvasWrap">
+    <div id="container"></div>
+    <div class="detail"><span class="cap">Detail</span>
+      <div class="seg" id="detail"><button data-v="block">Block</button><button data-v="table">Table</button><button data-v="column" class="on">Column</button></div></div>
+    <div class="statusbar" id="status"></div>
+    <div class="inspect" id="inspect">
+      <div class="ihd"><span class="kind" id="iKind"></span><span class="nm" id="iNm"></span><span class="loc" id="iLoc"></span><span class="x" id="iClose">close ✕</span></div>
+      <div class="ibody">
+        <div class="col1"><div class="sec">Code</div><pre id="iCode"></pre></div>
+        <div class="col2"><div class="sec" id="iEdgesSec">Edges</div><div class="elist" id="iEdges"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const LX = window.LX;
+// TE scaffold muted stage tints (override the saturated defaults)
+LX.KINDS.extract.color = "#5a8def"; LX.KINDS.transform.color = "#6fbf6f"; LX.KINDS.load.color = "#ea580c";
+LX.T_ACCENT.length = 0; LX.T_ACCENT.push("#5a8def", "#a47de8", "#4cb8b0", "#d4a64a", "#e26060", "#6fbf6f");
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const PROG_HD = 32, PROG_PAD = 10, BLK_GAP = 12, BLK_HD = 22, BLK_PAD = 8, TBL_GAP = 8, TBL_HD = 24, ROW_H = 27, W = 250;
+function shade(hex, amt) { const n = parseInt(hex.slice(1), 16); const r = Math.max(0, Math.min(255, (n >> 16) + amt)), g = Math.max(0, Math.min(255, ((n >> 8) & 255) + amt)), b = Math.max(0, Math.min(255, (n & 255) + amt)); return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1); }
+
+// ---------- granularity-neutral ids & graphs ----------
+const progOf = (id) => id.split(".")[0];
+function liftId(full, gran) { const m = LX.parse(full); if (gran === "column") return full; if (gran === "table") return `${m.prog}.${m.block}.${m.table}`; return `${m.prog}.${m.block}`; }
+function allNodes(gran) {
+  const s = new Set();
+  LX.allColumns.forEach((m) => s.add(liftId(m.full, gran)));
+  return [...s];
+}
+function granEdges(gran) {
+  const m = {};
+  LX.EDGES.forEach((e) => { const a = liftId(e.from, gran), b = liftId(e.to, gran); if (a === b) return; const k = a + ">" + b; (m[k] = m[k] || { from: a, to: b, n: 0 }).n++; });
+  return Object.values(m);
+}
+function bfsDepth(start, adj, maxN) {
+  const dist = { [start]: 0 }, q = [start];
+  while (q.length) { const id = q.shift(); (adj[id] || []).forEach((n) => { if (dist[n] === undefined) { dist[n] = dist[id] + 1; q.push(n); } }); }
+  const kept = new Set(), overflow = new Set(), frontier = new Set();
+  Object.keys(dist).forEach((id) => { if (id === start) return; const d = dist[id]; if (maxN == null || d <= maxN) kept.add(id); else overflow.add(id); });
+  if (maxN != null) kept.forEach((id) => { if (dist[id] === maxN && (adj[id] || []).some((n) => overflow.has(n))) frontier.add(id); });
+  if (maxN != null && !frontier.size && overflow.size) frontier.add(start);
+  return { kept, overflow, frontier };
+}
+
+// ---------- state ----------
+// selection = { kind:'file'|'block'|'table'|'column', id }. id is a prefix of column full-ids.
+// checked = the set of visible column full-ids (left checkbox tree, at any level, drives this).
+const state = { selection: null, detail: "column", scope: "all", depth: "all", checked: new Set(LX.allColumns.map((m) => m.full)), searchTypes: new Set(["file", "block", "table", "column"]) };
+
+// flat index of every node at every level (for multi-level search)
+const NODES_INDEX = [];
+LX.PROGRAMS.forEach((p) => { NODES_INDEX.push({ kind: "file", id: p.id, name: p.name }); p.blocks.forEach((b) => { const bid = `${p.id}.${b.id}`; NODES_INDEX.push({ kind: "block", id: bid, name: b.name }); b.tables.forEach((t) => { const tid = `${bid}.${t.id}`; NODES_INDEX.push({ kind: "table", id: tid, name: t.name }); t.columns.forEach((c) => NODES_INDEX.push({ kind: "column", id: `${tid}.${c.key}`, name: c.key })); }); }); });
+
+// seed columns under a selection (file → all cols in file, table → all cols in table, …)
+function selectionSeeds(sel) {
+  if (!sel) return null;
+  const pre = sel.id;
+  return LX.allColumns.filter((m) => m.full === pre || m.full.startsWith(pre + ".")).map((m) => m.full);
+}
+// multi-source BFS over the COLUMN graph; depth bounds reach, overflow = beyond N
+function multiBfs(seeds, adj, maxN) {
+  const dist = {}, q = []; seeds.forEach((s) => { dist[s] = 0; q.push(s); });
+  while (q.length) { const id = q.shift(); (adj[id] || []).forEach((n) => { if (dist[n] === undefined) { dist[n] = dist[id] + 1; q.push(n); } }); }
+  const seedSet = new Set(seeds), kept = new Set(), overflow = new Set(), frontier = new Set();
+  Object.keys(dist).forEach((id) => { if (seedSet.has(id)) return; const d = dist[id]; if (maxN == null || d <= maxN) kept.add(id); else overflow.add(id); });
+  if (maxN != null) kept.forEach((id) => { if (dist[id] === maxN && (adj[id] || []).some((n) => overflow.has(n))) frontier.add(id); });
+  return { kept, overflow, frontier };
+}
+
+// ---------- derive (pure) ----------
+// Selection seeds from ANY level (left tree). Lineage computed at column level, then lifted to the
+// current Detail grain. Show=All dims the off-path; Show=Linked hides it + folds overflow into stubs.
+function derive() {
+  const gran = state.detail;
+  const universe = new Set([...state.checked].map((c) => liftId(c, gran)));
+  const edges = granEdges(gran).filter((e) => universe.has(e.from) && universe.has(e.to));
+  let seeds = selectionSeeds(state.selection);
+  if (seeds) seeds = seeds.filter((c) => state.checked.has(c));
+  if (seeds && !seeds.length) { state.selection = null; seeds = null; }
+  if (!seeds) return { gran, universe, visible: universe, dim: new Set(), edges, sel: null, seedGran: new Set(), stubs: null };
+  const maxN = state.depth === "all" ? null : +state.depth;
+  const up = multiBfs(seeds, LX.inn, maxN), down = multiBfs(seeds, LX.out, maxN);
+  const lift = (s) => { const o = new Set(); s.forEach((c) => { const g = liftId(c, gran); if (universe.has(g)) o.add(g); }); return o; };
+  const keptGran = lift(new Set([...seeds, ...up.kept, ...down.kept]));
+  const seedGran = lift(new Set(seeds));
+  const ovUp = lift(up.overflow), ovDown = lift(down.overflow); keptGran.forEach((x) => { ovUp.delete(x); ovDown.delete(x); });
+  const frUp = lift(up.frontier), frDown = lift(down.frontier);
+  if (state.scope === "linked") {
+    const stubs = (ovUp.size || ovDown.size) ? { srcCount: ovUp.size, tgtCount: ovDown.size, srcFrontier: [...frUp], tgtFrontier: [...frDown] } : null;
+    const keptEdges = edges.filter((e) => keptGran.has(e.from) && keptGran.has(e.to));
+    return { gran, universe, visible: keptGran, dim: new Set(), edges: keptEdges, sel: state.selection.id, seedGran, kept: keptGran, stubs };
+  }
+  const dim = new Set([...universe].filter((x) => !keptGran.has(x)));
+  return { gran, universe, visible: universe, dim, edges, sel: state.selection.id, seedGran, kept: keptGran, stubs: null };
+}
+
+// ---------- render program box (returns html, height, ports) ----------
+function renderProgram(p, view) {
+  const { gran, visible, dim, seedGran } = view;
+  const c = LX.KINDS[p.kind].color; let acc = 0;
+  const ports = []; let html = "", bodyH = 0; const blocksHtml = [];
+  // determine visible blocks/tables/cols
+  p.blocks.forEach((b) => {
+    const blkId = `${p.id}.${b.id}`;
+    const tablesHtml = []; let blkInner = 0; let blkHasVisible = false;
+    b.tables.forEach((t) => {
+      const tblId = `${p.id}.${b.id}.${t.id}`; const a = LX.T_ACCENT[acc++ % LX.T_ACCENT.length];
+      if (gran === "column") {
+        const rowsHtml = []; let nRows = 0;
+        t.columns.forEach((col) => {
+          const cid = `${p.id}.${b.id}.${t.id}.${col.key}`;
+          if (!visible.has(cid)) return;
+          const off = dim.has(cid) ? " off" : ""; const selc = seedGran.has(cid) ? " sel-c" : "";
+          rowsHtml.push(`<div class="col-row${off}${selc}" data-sel="${cid}" data-kind="column" style="height:${ROW_H}px"><span class="cn">${col.key}${col.pk ? ' <span style="color:#f6bd16;font-size:8.5px">PK</span>' : ""}</span><span class="ct">${col.type}</span></div>`);
+          nRows++;
+        });
+        if (!nRows) return;
+        blkHasVisible = true;
+        const th = TBL_HD + nRows * ROW_H;
+        tablesHtml.push({ html: `<div class="tbl" style="height:${th}px"><div class="tbl-hd" data-sel="${tblId}" data-kind="table" style="height:${TBL_HD}px;border-left-color:${a}"><span class="tdot" style="background:${a}"></span><span>${t.name}</span></div>${rowsHtml.join("")}</div>`, h: th, t, rowsCount: nRows });
+      } else if (gran === "table") {
+        if (!visible.has(tblId)) return; blkHasVisible = true;
+        const off = dim.has(tblId) ? " off" : ""; const selt = seedGran.has(tblId) ? " sel-t" : "";
+        tablesHtml.push({ html: `<div class="tbl${off}${selt}" style="height:${TBL_HD}px"><div class="tbl-hd" data-sel="${tblId}" data-kind="table" style="height:${TBL_HD}px;border-left-color:${a}"><span class="tdot" style="background:${a}"></span><span>${t.name}</span></div></div>`, h: TBL_HD, tblId });
+      }
+    });
+    if (gran === "block") {
+      if (!visible.has(blkId)) return; blkHasVisible = true;
+      const off = dim.has(blkId) ? " off" : ""; const selb = seedGran.has(blkId) ? " sel-b" : "";
+      blocksHtml.push({ html: `<div class="blk${off}${selb}" style="height:${BLK_HD}px"><div class="blk-hd" data-sel="${blkId}" data-kind="block" style="height:${BLK_HD}px"><button class="blkfocus" data-block="${blkId}" title="Focus this block">⤢</button><span>◆ ${b.name}</span></div></div>`, h: BLK_HD, blkId });
+      return;
+    }
+    if (!blkHasVisible) return;
+    const inner = tablesHtml.reduce((s, x) => s + x.h, 0) + (tablesHtml.length - 1) * TBL_GAP;
+    const bh = BLK_HD + BLK_PAD + inner + BLK_PAD;
+    blocksHtml.push({ html: `<div class="blk" style="height:${bh}px"><div class="blk-hd" data-sel="${blkId}" data-kind="block" style="height:${BLK_HD}px"><button class="blkfocus" data-block="${blkId}" title="Focus this block">⤢</button><span>◆ ${b.name}</span></div><div class="blk-body" style="padding:${BLK_PAD}px;gap:${TBL_GAP}px">${tablesHtml.map((x) => x.html).join("")}</div></div>`, h: bh, b, tables: tablesHtml });
+  });
+  if (!blocksHtml.length) return null;
+  const inner = blocksHtml.reduce((s, x) => s + x.h, 0) + (blocksHtml.length - 1) * BLK_GAP;
+  const H = PROG_HD + PROG_PAD + inner + PROG_PAD;
+  html = `<div class="prog" style="width:${W}px;height:${H}px"><div class="prog-hd" style="height:${PROG_HD}px;border-bottom:2px solid ${c}"><span>${p.name}</span><span class="kind" style="color:${c}">${LX.KINDS[p.kind].label}</span></div><div class="prog-body" style="padding:${PROG_PAD}px;gap:${BLK_GAP}px">${blocksHtml.map((x) => x.html).join("")}</div></div>`;
+
+  // ---- ports: anchor to the actual inner box edge (not the outer program edge) ----
+  const xBlkL = PROG_PAD / W, xBlkR = (W - PROG_PAD) / W;
+  const xTblL = (PROG_PAD + 1 + BLK_PAD) / W, xTblR = (W - PROG_PAD - 1 - BLK_PAD) / W;
+  const xColL = (PROG_PAD + 2 + BLK_PAD) / W, xColR = (W - PROG_PAD - 2 - BLK_PAD) / W;
+  let y = PROG_HD + PROG_PAD;
+  blocksHtml.forEach((blk) => {
+    if (gran === "block") { const ymid = (y + BLK_HD / 2) / H; ports.push({ key: `B:${blk.blkId.split(".")[1]}:l`, placement: [xBlkL, ymid] }, { key: `B:${blk.blkId.split(".")[1]}:r`, placement: [xBlkR, ymid] }); y += BLK_HD + BLK_GAP; return; }
+    let ty = y + BLK_HD + BLK_PAD;
+    blk.tables.forEach((tb) => {
+      if (gran === "table") { const ymid = (ty + TBL_HD / 2) / H; const parts = tb.tblId.split("."); ports.push({ key: `T:${parts[1]}.${parts[2]}:l`, placement: [xTblL, ymid] }, { key: `T:${parts[1]}.${parts[2]}:r`, placement: [xTblR, ymid] }); ty += TBL_HD + TBL_GAP; return; }
+      const rowsTop = ty + TBL_HD;
+      tb.t.columns.filter((col) => visible.has(`${p.id}.${blk.b.id}.${tb.t.id}.${col.key}`)).forEach((col, i) => {
+        const yr = (rowsTop + i * ROW_H + ROW_H / 2) / H;
+        ports.push({ key: `${blk.b.id}.${tb.t.id}.${col.key}:l`, placement: [xColL, yr] }, { key: `${blk.b.id}.${tb.t.id}.${col.key}:r`, placement: [xColR, yr] });
+      });
+      ty += tb.h + TBL_GAP;
+    });
+    y += blk.h + BLK_GAP;
+  });
+  return { id: p.id, html, height: H, ports };
+}
+
+// ---------- port key for an edge endpoint ----------
+function portKey(id, gran, side) {
+  const parts = id.split(".");
+  if (gran === "column") return `${parts[1]}.${parts[2]}.${parts[3]}:${side}`;
+  if (gran === "table") return `T:${parts[1]}.${parts[2]}:${side}`;
+  return `B:${parts[1]}:${side}`;
+}
+
+// ---------- positions ----------
+const layer = LX.programLayers();
+
+let graph = null, lastView = null;
+function render(fit) {
+  const view = derive(); lastView = view;
+  const gran = view.gran;
+  // which programs render
+  const progNodes = [];
+  LX.PROGRAMS.forEach((p) => { const r = renderProgram(p, view); if (r) progNodes.push({ p, r }); });
+  // layout programs by layer
+  const visProgs = progNodes.map((x) => x.p.id);
+  const byLayer = {}; visProgs.forEach((id) => (byLayer[layer[id]] = byLayer[layer[id]] || []).push(id));
+  const pos = {}; const H_GAP = 150;
+  const layers = Object.keys(byLayer).map(Number).sort((a, b) => a - b);
+  layers.forEach((L, li) => { let yy = 0; byLayer[L].forEach((id) => { pos[id] = { x: li * (W + H_GAP), y: yy }; const r = progNodes.find((x) => x.p.id === id).r; yy += r.height + 50; }); });
+  const nodes = progNodes.map(({ p, r }) => ({ id: p.id, style: { x: pos[p.id].x, y: pos[p.id].y, size: [W, r.height], width: W, height: r.height, innerHTML: r.html, ports: r.ports, portR: 0 } }));
+
+  // edges (theme-aware: accent for the path, muted neutral otherwise)
+  const ACC = cssVar("--accent") || "#ea580c", NEU = cssVar("--edge") || "#d6d6d0", FAINT = (cssVar("--line") || "#26262c") + "88", PANEL = cssVar("--tert") || "#1d1d22", INK = cssVar("--muted") || "#b8b8c0";
+  const edges = view.edges.map((e) => {
+    const hi = state.scope === "all" && view.kept ? (view.kept.has(e.from) && view.kept.has(e.to)) : false;
+    const dimmed = view.dim.has(e.from) || view.dim.has(e.to);
+    return { id: e.from + "=>" + e.to, source: progOf(e.from), target: progOf(e.to),
+      style: { sourcePort: portKey(e.from, gran, "r"), targetPort: portKey(e.to, gran, "l"),
+        stroke: hi ? ACC : (dimmed ? FAINT : NEU), lineWidth: hi ? 2 : 1.2,
+        endArrow: true, endArrowType: "vee", endArrowSize: 7, endArrowFill: hi ? ACC : NEU,
+        labelText: gran !== "column" && e.n > 1 ? `${e.n}` : "", labelFill: INK, labelFontSize: 9, labelBackground: true, labelBackgroundFill: PANEL } };
+  });
+
+  // stubs
+  if (view.stubs) {
+    const minX = Math.min(...Object.values(pos).map((q) => q.x));
+    const maxX = Math.max(...Object.values(pos).map((q) => q.x));
+    const midY = (Math.min(...Object.values(pos).map((q) => q.y)) + Math.max(...Object.values(pos).map((q) => q.y))) / 2;
+    if (view.stubs.srcCount) {
+      nodes.push({ id: "STUB_SRC", style: { x: minX - 230, y: midY, size: [150, 60], width: 150, height: 60, innerHTML: `<div class="stub src"><div class="big">+${view.stubs.srcCount}</div><div class="lab">▸ Sources</div></div>`, ports: [{ key: "r", placement: [1, 0.5] }], portR: 0 } });
+      view.stubs.srcFrontier.forEach((f) => edges.push({ id: "s_src_" + f, source: "STUB_SRC", target: progOf(f), style: { sourcePort: "r", targetPort: portKey(f, gran, "l"), stroke: "#6fbf6f", lineDash: [4, 4], lineWidth: 1.4, endArrow: true, endArrowType: "vee", endArrowSize: 7 } }));
+    }
+    if (view.stubs.tgtCount) {
+      nodes.push({ id: "STUB_TGT", style: { x: maxX + W + 90, y: midY, size: [150, 60], width: 150, height: 60, innerHTML: `<div class="stub tgt"><div class="big">+${view.stubs.tgtCount}</div><div class="lab">Targets ▸</div></div>`, ports: [{ key: "l", placement: [0, 0.5] }], portR: 0 } });
+      view.stubs.tgtFrontier.forEach((f) => edges.push({ id: "s_tgt_" + f, source: progOf(f), target: "STUB_TGT", style: { sourcePort: portKey(f, gran, "r"), targetPort: "l", stroke: "#ea580c", lineDash: [4, 4], lineWidth: 1.4, endArrow: true, endArrowType: "vee", endArrowSize: 7 } }));
+    }
+  }
+
+  const data = { nodes, edges };
+  if (!graph) { graph = new G6.Graph({ container: "container", autoResize: true, background: cssVar("--canvas") || "#14140f", data, node: { type: "html" }, edge: { type: "cubic-horizontal" }, behaviors: ["zoom-canvas", "drag-canvas", "drag-element"], animation: false }); window.__graph = graph; graph.render().then(() => graph.fitView()); bindGraphEvents(); }
+  else { graph.setData(data); graph.draw().then(() => { if (fit) graph.fitView(); }); }
+  updateStatus(view);
+  if (typeof markNavSelected === "function") markNavSelected();
+  requestAnimationFrame(() => requestAnimationFrame(() => updateSourceDots(view)));
+}
+
+// put a dot on the right edge of every box that an edge leaves from (DOM = always on top)
+function updateSourceDots(view) {
+  document.querySelectorAll("#container .src-dot").forEach((el) => { el.classList.remove("src-dot"); el.style.removeProperty("--dot"); });
+  const srcIds = new Set((view.edges || []).map((e) => e.from));
+  srcIds.forEach((id) => {
+    const el = document.querySelector(`#container [data-sel="${CSS.escape(id)}"]`);
+    if (el) { el.classList.add("src-dot"); el.style.setProperty("--dot", view.kept && view.kept.has(id) ? "var(--accent)" : "var(--dim)"); }
+  });
+}
+
+function updateStatus(view) {
+  if (!view.sel) { document.getElementById("status").textContent = "Click any column to trace where it comes from and goes to  ·  or pick one from the tree at left"; return; }
+  const parts = [`${view.gran}: ${view.sel.split(".").pop()}`, `show=${state.scope}`, `depth=${state.depth}`, `shown=${state.checked.size}/${LX.allColumns.length} cols`];
+  if (view.stubs) parts.push(`+${view.stubs.srcCount} hidden sources · +${view.stubs.tgtCount} hidden targets (click a stub to expand)`);
+  document.getElementById("status").textContent = parts.join("  ·  ");
+}
+
+// ---------- selection ----------
+function select(kind, id) { state.selection = (state.selection && state.selection.id === id) ? null : { kind, id }; render(false); }
+const containerEl = document.getElementById("container");
+containerEl.addEventListener("click", (e) => {
+  const fb = e.target.closest(".blkfocus");
+  if (fb) { e.stopPropagation(); const bid = fb.dataset.block; state.detail = "block"; setDetailButtons("block"); state.selection = { kind: "block", id: bid }; render(false); openNode("block", bid); return; }
+  const el = e.target.closest("[data-sel]"); if (!el) return; e.stopPropagation(); select(el.dataset.kind, el.dataset.sel); openNode(el.dataset.kind, el.dataset.sel);
+});
+containerEl.addEventListener("mouseover", (e) => { const el = e.target.closest("[data-sel]"); if (el) scheduleTip(el.dataset.sel, tipForNode(el.dataset.kind, el.dataset.sel)); });
+containerEl.addEventListener("mouseout", (e) => { const el = e.target.closest("[data-sel]"); if (!el) return; const to = e.relatedTarget; if (to && to.closest && to.closest("[data-sel]") === el) return; cancelTip(); });
+
+// graph (canvas) events: stub expand + edge hover/click
+function bindGraphEvents() {
+  graph.on("node:click", (evt) => {
+    const id = evt.target.id;
+    if (id === "STUB_SRC" || id === "STUB_TGT") { state.depth = "all"; document.querySelectorAll("#depth button").forEach((x) => x.classList.toggle("on", x.dataset.v === "all")); render(false); }
+  });
+  graph.on("edge:click", (evt) => { const id = evt.target.id; if (id && !id.startsWith("s_")) openEdge(id); });
+  graph.on("edge:pointerenter", (evt) => { const id = evt.target.id; if (id && !id.startsWith("s_")) scheduleTip("edge:" + id, tipForEdge(id)); });
+  graph.on("edge:pointerleave", cancelTip);
+}
+
+// ---------- tooltip ----------
+const tipEl = document.getElementById("tip"); let mx = 0, my = 0;
+document.addEventListener("mousemove", (e) => { mx = e.clientX; my = e.clientY; if (tipEl.style.display === "block") posTip(); });
+function posTip() { tipEl.style.left = Math.min(mx + 14, window.innerWidth - tipEl.offsetWidth - 12) + "px"; tipEl.style.top = Math.min(my + 16, window.innerHeight - tipEl.offsetHeight - 12) + "px"; }
+function showTip(html) { if (!html) return; tipEl.innerHTML = html; tipEl.style.display = "block"; posTip(); }
+function hideTip() { tipEl.style.display = "none"; }
+// standard hover-intent delay (~500ms) before showing; instant hide; Esc dismisses (WCAG 1.4.13)
+const TIP_DELAY = 500; let tipTimer = null, tipPendingId = null;
+function scheduleTip(id, html) { if (id === tipPendingId) return; tipPendingId = id; clearTimeout(tipTimer); tipTimer = setTimeout(() => showTip(html), TIP_DELAY); }
+function cancelTip() { clearTimeout(tipTimer); tipTimer = null; tipPendingId = null; hideTip(); }
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") cancelTip(); });
+
+// ---------- identity + code synthesis ----------
+function blockObj(bid) { const [p, b] = bid.split("."); return LX.progById[p].blocks.find((x) => x.id === b); }
+function tableObj(tid) { const [p, b, t] = tid.split("."); return LX.progById[p].blocks.find((x) => x.id === b).tables.find((x) => x.id === t); }
+function shortRef(full) { const m = LX.colMeta[full]; return `${m.table}.${m.col}`; }
+function tipForNode(kind, id) {
+  if (kind === "column") { const m = LX.colMeta[id]; const ins = (LX.inn[id] || []).length, outs = (LX.out[id] || []).length; return `<div class="k">Column</div><b>${m.col}</b> <span class="mut">${m.type}${m.pk ? " · PK" : ""}</span><br><span class="mut">${m.tableName} · ${m.blockName} · ${m.progName}</span><br><span class="mut">${ins} in · ${outs} out</span>`; }
+  if (kind === "table") { const t = tableObj(id); const [pp, bb] = id.split("."); return `<div class="k">Table</div><b>${t.name}</b><br><span class="mut">${blockObj(`${pp}.${bb}`).name} · ${LX.progById[pp].name} · ${t.columns.length} cols</span>`; }
+  if (kind === "block") { const b = blockObj(id); const pp = id.split(".")[0]; const nc = b.tables.reduce((s, t) => s + t.columns.length, 0); return `<div class="k">Block (.sql)</div><b>${b.name}</b><br><span class="mut">${LX.progById[pp].name} · ${b.tables.length} tables · ${nc} cols</span>`; }
+  if (kind === "file") { const p = LX.progById[id]; return `<div class="k">File (.sas)</div><b>${p.name}</b><br><span class="mut">${LX.KINDS[p.kind].label} · ${p.blocks.length} blocks</span>`; }
+}
+function underlyingOfEdge(id) { const [f, t] = id.split("=>"); const gran = state.detail; return LX.EDGES.filter((e) => liftId(e.from, gran) === f && liftId(e.to, gran) === t); }
+function tipForEdge(id) {
+  const u = underlyingOfEdge(id); if (!u.length) return null; const kindLabel = state.detail + " edge";
+  if (u.length === 1) return `<div class="k">${kindLabel}</div>${shortRef(u[0].from)} <span class="mut">→</span> ${shortRef(u[0].to)}<br><span class="tx">ƒ ${u[0].transform}</span>`;
+  return `<div class="k">${kindLabel}</div><b>${u.length} column links</b><br><span class="mut">${u.slice(0, 3).map((e) => shortRef(e.from) + " → " + shortRef(e.to)).join("<br>")}${u.length > 3 ? "<br>…" : ""}</span>`;
+}
+function codeForColumn(full) {
+  const ins = LX.EDGES.filter((e) => e.to === full); const m = LX.colMeta[full];
+  if (!ins.length) return `${m.col}  -- source (${m.type})`;
+  const srcs = ins.map((e) => shortRef(e.from)); const tx = [...new Set(ins.map((e) => e.transform))].filter((t) => t !== "passthrough");
+  return tx.length ? `${m.col} = ${tx.join(" + ")}(${srcs.join(", ")})` : `${m.col} = ${srcs.join(", ")}`;
+}
+function codeForTable(tid) {
+  const t = tableObj(tid); const lines = t.columns.map((c) => "  " + codeForColumn(`${tid}.${c.key}`)).join(",\n");
+  const froms = [...new Set(LX.EDGES.filter((e) => e.to.startsWith(tid + ".")).map((e) => LX.colMeta[e.from].table))];
+  return `CREATE TABLE ${t.name} AS\nSELECT\n${lines}\n${froms.length ? "FROM " + froms.join(", ") : "-- (source table)"};`;
+}
+function codeForBlock(bid) { const b = blockObj(bid); return `/* ${b.name} */\n\n` + b.tables.map((t) => codeForTable(`${bid}.${t.id}`)).join("\n\n"); }
+
+// ---------- inspector (bottom panel) ----------
+const insp = document.getElementById("inspect");
+ function fitAfterPanel() { requestAnimationFrame(() => requestAnimationFrame(() => { if (graph) graph.fitView(); })); }
+document.getElementById("iClose").onclick = () => { insp.classList.remove("open"); fitAfterPanel(); };
+function edgeRows(list) { return list.length ? list.map((e) => `<div class="erow"><span>${shortRef(e.from)}</span><span class="ar">→</span><span>${shortRef(e.to)}</span><span class="ftx">${e.transform !== "passthrough" ? e.transform : ""}</span></div>`).join("") : '<div style="color:#5c6675;padding:6px 0">no edges</div>'; }
+function setInspect(kindLabel, name, loc, code, edgesTitle, edgeList) {
+  document.getElementById("iKind").textContent = kindLabel; document.getElementById("iNm").textContent = name; document.getElementById("iLoc").textContent = loc;
+  document.getElementById("iCode").textContent = code; document.getElementById("iEdgesSec").textContent = edgesTitle; document.getElementById("iEdges").innerHTML = edgeRows(edgeList); const wasOpen = insp.classList.contains("open"); insp.classList.add("open"); if (!wasOpen) fitAfterPanel();
+}
+function openNode(kind, id) {
+  if (kind === "column") { const m = LX.colMeta[id]; const list = LX.EDGES.filter((e) => e.from === id || e.to === id); setInspect("column", m.col, `${m.tableName} · ${m.progName} · ${m.type}`, codeForColumn(id), `Column edges (${list.length})`, list); }
+  else if (kind === "table") { const t = tableObj(id); const list = LX.EDGES.filter((e) => e.from.startsWith(id + ".") || e.to.startsWith(id + ".")); setInspect("table", t.name, id.split(".").slice(0, 2).join(" · "), codeForTable(id), `Table edges (${list.length} col links)`, list); }
+  else if (kind === "block") { const b = blockObj(id); const list = LX.EDGES.filter((e) => e.from.startsWith(id + ".") || e.to.startsWith(id + ".")); setInspect("block (.sql)", b.name, id.split(".")[0], codeForBlock(id), `Block edges (${list.length} col links)`, list); }
+  else if (kind === "file") { const p = LX.progById[id]; const list = LX.EDGES.filter((e) => e.from.startsWith(id + ".") || e.to.startsWith(id + ".")); setInspect("file (.sas)", p.name, LX.KINDS[p.kind].label, p.blocks.map((b) => codeForBlock(`${id}.${b.id}`)).join("\n\n"), `File edges (${list.length} col links)`, list); }
+}
+function openEdge(id) {
+  const u = underlyingOfEdge(id); if (!u.length) return; const f = id.split("=>")[0], t = id.split("=>")[1];
+  setInspect(state.detail + " edge", `${f.split(".").pop()} → ${t.split(".").pop()}`, `${u.length} column link(s)`, u.map((e) => codeForColumn(e.to)).join("\n"), `Edges of this type (${u.length})`, u);
+}
+
+// ---------- controls ----------
+function segHandler(id, key, after) {
+  document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => {
+    document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b));
+    state[key] = b.dataset.v; if (after) after(); render(false);
+  }));
+}
+segHandler("scope", "scope");
+segHandler("depth", "depth");
+// Detail change keeps the current selection — seeds are derived from the id prefix, so a file /
+// block / table / column selection focuses correctly at ANY grain (no lift, no crash).
+segHandler("detail", "detail");
+
+// ---------- left checkbox-tree selector (file ⊃ block ⊃ table ⊃ column) ----------
+function setDetailButtons(v) { document.querySelectorAll("#detail button").forEach((x) => x.classList.toggle("on", x.dataset.v === v)); }
+function leavesUnder(id) { return LX.allColumns.filter((m) => m.full === id || m.full.startsWith(id + ".")).map((m) => m.full); }
+function updateCheckboxVisuals() {
+  document.querySelectorAll("#nav .cbx").forEach((cb) => { const cols = leavesUnder(cb.dataset.id); const on = cols.filter((c) => state.checked.has(c)).length; cb.checked = cols.length > 0 && on === cols.length; cb.indeterminate = on > 0 && on < cols.length; });
+}
+function markNavSelected() {
+  document.querySelectorAll("#nav .lbl.sel").forEach((el) => el.classList.remove("sel"));
+  if (state.selection) { const el = document.querySelector(`#nav .lbl[data-kind="${state.selection.kind}"][data-id="${CSS.escape(state.selection.id)}"]`); if (el) el.classList.add("sel"); }
+}
+function selectNav(kind, id) { if (kind !== "file") { state.detail = kind; setDetailButtons(kind); } state.selection = (state.selection && state.selection.id === id) ? null : { kind, id }; render(false); openNode(kind, id); }
+
+function buildNav() {
+  const chips = [["file", "Files"], ["block", "Blocks"], ["table", "Tables"], ["column", "Cols"]].map(([k, l]) => `<button class="chip${state.searchTypes.has(k) ? " on" : ""}" data-k="${k}">${l}</button>`).join("");
+  let h = `<div class="navtools"><div class="ttypes"><span class="cap">filter</span>${chips}</div><div class="tbtns"><button class="btn" id="navSelAll">Select all</button><button class="btn" id="navDeselAll">Deselect all</button></div></div><div id="tree">`;
+  LX.PROGRAMS.forEach((p) => {
+    h += `<div class="trow" data-id="${p.id}"><span class="car" data-tid="k-${p.id}">▾</span><span class="lbl fileL" data-kind="file" data-id="${p.id}">${p.name}</span><input type="checkbox" class="cbx" data-id="${p.id}"></div><div class="kids" id="k-${p.id}">`;
+    p.blocks.forEach((b) => {
+      const bid = `${p.id}.${b.id}`;
+      h += `<div class="trow lvl1" data-id="${bid}"><span class="car" data-tid="k-${bid}">▾</span><span class="lbl blockL" data-kind="block" data-id="${bid}">${b.name}</span><input type="checkbox" class="cbx" data-id="${bid}"></div><div class="kids" id="k-${bid}">`;
+      b.tables.forEach((t) => {
+        const tid = `${bid}.${t.id}`;
+        h += `<div class="trow lvl2" data-id="${tid}"><span class="car" data-tid="k-${tid}">▾</span><span class="lbl tableL" data-kind="table" data-id="${tid}">${t.name}</span><input type="checkbox" class="cbx" data-id="${tid}"></div><div class="kids" id="k-${tid}">`;
+        t.columns.forEach((c) => { const full = `${tid}.${c.key}`; h += `<div class="trow lvl3 colrow" data-id="${full}" data-name="${c.key}"><span class="car"></span><span class="lbl" data-kind="column" data-id="${full}">${c.key}<i>${c.type}</i></span><input type="checkbox" class="cbx" data-id="${full}"></div>`; });
+        h += `</div>`;
+      });
+      h += `</div>`;
+    });
+    h += `</div>`;
+  });
+  document.getElementById("nav").innerHTML = h + "</div>";
+  updateCheckboxVisuals(); markNavSelected();
+  document.getElementById("navSelAll").onclick = navSelectAll;
+  document.getElementById("navDeselAll").onclick = navDeselectAll;
+  document.querySelectorAll("#nav .chip").forEach((ch) => (ch.onclick = () => { const k = ch.dataset.k; state.searchTypes.has(k) ? state.searchTypes.delete(k) : state.searchTypes.add(k); ch.classList.toggle("on"); applyFilter(); }));
+  applyFilter();
+}
+
+// multi-level search: a node matches if its kind is enabled AND its name contains the query.
+// Rows show if they are a match, an ancestor of a match, or a descendant of a match.
+function applyFilter() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const rows = document.querySelectorAll("#nav .trow");
+  rows.forEach((r) => r.classList.remove("match"));
+  if (!q) { rows.forEach((r) => r.classList.remove("hide")); return; }
+  const matched = NODES_INDEX.filter((n) => state.searchTypes.has(n.kind) && n.name.toLowerCase().includes(q)).map((n) => n.id);
+  const mset = new Set(matched);
+  rows.forEach((r) => {
+    const id = r.dataset.id;
+    const vis = matched.some((m) => id === m || id.startsWith(m + ".") || m.startsWith(id + "."));
+    r.classList.toggle("hide", !vis);
+    if (mset.has(id)) r.classList.add("match");
+  });
+}
+
+function filteredCols() { return [...document.querySelectorAll("#nav .colrow:not(.hide)")].map((r) => r.querySelector(".cbx").dataset.id); }
+function navSelectAll() {
+  const cols = filteredCols(); if (!cols.length) { alert("No columns match the current filter."); return; }
+  const add = cols.filter((c) => !state.checked.has(c)).length;
+  if (confirm(`Select all ${cols.length} shown column(s)?\n${add} will be newly selected.`)) { cols.forEach((c) => state.checked.add(c)); updateCheckboxVisuals(); render(false); }
+}
+function navDeselectAll() {
+  const cols = filteredCols(); if (!cols.length) { alert("No columns match the current filter."); return; }
+  const rem = cols.filter((c) => state.checked.has(c)).length;
+  if (confirm(`Deselect all ${cols.length} shown column(s)?\n${rem} will be hidden from the graph.`)) { cols.forEach((c) => state.checked.delete(c)); updateCheckboxVisuals(); render(false); }
+}
+
+// delegated tree events (bound once; #nav persists across rebuilds)
+const navEl = document.getElementById("nav");
+navEl.addEventListener("change", (e) => { if (e.target.classList.contains("cbx")) { leavesUnder(e.target.dataset.id).forEach((c) => e.target.checked ? state.checked.add(c) : state.checked.delete(c)); updateCheckboxVisuals(); render(false); } });
+navEl.addEventListener("click", (e) => {
+  const car = e.target.closest(".car");
+  if (car && car.dataset.tid) { const k = document.getElementById(car.dataset.tid); if (k) { k.classList.toggle("collapsed"); car.textContent = k.classList.contains("collapsed") ? "▸" : "▾"; } return; }
+  const lbl = e.target.closest(".lbl"); if (lbl) selectNav(lbl.dataset.kind, lbl.dataset.id);
+});
+
+// search filters the column leaves; Enter focuses the first match
+document.getElementById("search").addEventListener("input", applyFilter);
+document.getElementById("search").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const q = e.target.value.trim();
+  const first = document.querySelector("#nav .colrow:not(.hide) .lbl");
+  if (first) selectNav("column", first.dataset.id);
+  if (q) addRecent(q);
+  e.target.value = ""; applyFilter();
+});
+function addRecent(term) { const dl = document.getElementById("recent"); if ([...dl.options].some((o) => o.value.toLowerCase() === term.toLowerCase())) return; const o = document.createElement("option"); o.value = term; dl.insertBefore(o, dl.firstChild); while (dl.options.length > 12) dl.removeChild(dl.lastChild); }
+
+// theme switch: set data-theme, then rebuild graph so canvas bg + edge colors re-read CSS vars
+document.getElementById("themeSw").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-th]"); if (!b) return;
+  document.documentElement.dataset.theme = b.dataset.th;
+  document.querySelectorAll("#themeSw button").forEach((x) => x.classList.toggle("on", x === b));
+  if (graph) { graph.destroy(); graph = null; }
+  render(true);
+});
+document.getElementById("fitBtn").onclick = () => graph.fitView();
+document.getElementById("resetBtn").onclick = () => { state.selection = null; state.scope = "all"; state.depth = "all"; state.detail = "column"; state.checked = new Set(LX.allColumns.map((m) => m.full)); state.searchTypes = new Set(["file", "block", "table", "column"]); document.querySelectorAll("#scope button").forEach((x) => x.classList.toggle("on", x.dataset.v === "all")); document.querySelectorAll("#depth button").forEach((x) => x.classList.toggle("on", x.dataset.v === "all")); setDetailButtons("column"); document.getElementById("search").value = ""; buildNav(); render(true); };
+
+// ---------- keyboard navigation ----------
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+document.getElementById("search").placeholder = `search…  ${isMac ? "⌘" : "ctrl+"}K`;
+const inInput = () => /^(input|textarea)$/i.test(document.activeElement.tagName);
+const visRows = () => [...document.querySelectorAll("#nav .trow")].filter((r) => r.offsetParent !== null);
+let cursor = -1;
+function moveCursor(d) {
+  const rows = visRows(); if (!rows.length) return;
+  document.querySelectorAll(".trow.cursor").forEach((r) => r.classList.remove("cursor"));
+  cursor = cursor < 0 ? (d > 0 ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, cursor + d));
+  const r = rows[cursor]; r.classList.add("cursor"); r.scrollIntoView({ block: "nearest" });
+}
+function cursorRow() { const rows = visRows(); return cursor >= 0 && cursor < rows.length ? rows[cursor] : null; }
+function toggleCaret(open) { const r = cursorRow(); if (!r) return; const c = r.querySelector(".car[data-tid]"); if (!c) return; const k = document.getElementById(c.dataset.tid); if (k && k.classList.contains("collapsed") === open) c.click(); }
+
+// ace-jump (Vimium-style): label every visible target, type the label to jump
+let aceActive = false, aceTargets = [], aceTyped = "";
+function aceLabels(n) { const cs = "asdfghjklqwertyuiopzxcvbnm".split(""); if (n <= cs.length) return cs.slice(0, n); const out = []; for (const a of cs) for (const b of cs) { out.push(a + b); if (out.length >= n) return out; } return out; }
+function startAce() {
+  cancelAce();
+  const els = [...document.querySelectorAll("#nav .trow .lbl[data-kind]"), ...document.querySelectorAll("#container [data-sel]")]
+    .filter((el) => { const r = el.getBoundingClientRect(); return el.offsetParent !== null && r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; });
+  if (!els.length) return;
+  const labels = aceLabels(els.length);
+  aceTargets = els.map((el, i) => { const r = el.getBoundingClientRect(); const b = document.createElement("div"); b.className = "ajhint"; b.textContent = labels[i]; b.style.left = (r.left + 2) + "px"; b.style.top = (r.top + 2) + "px"; document.body.appendChild(b); return { el, label: labels[i], badge: b }; });
+  aceActive = true; aceTyped = "";
+}
+function cancelAce() { aceActive = false; aceTyped = ""; aceTargets.forEach((t) => t.badge.remove()); aceTargets = []; }
+function handleAceKey(e) {
+  e.preventDefault(); e.stopPropagation();
+  const k = e.key;
+  if (k === "Escape") return cancelAce();
+  if (k === "Backspace") aceTyped = aceTyped.slice(0, -1);
+  else if (/^[a-zA-Z]$/.test(k)) aceTyped += k.toLowerCase();
+  else return;
+  const match = aceTargets.filter((t) => t.label.startsWith(aceTyped));
+  if (!match.length) return cancelAce();
+  if (match.length === 1 && match[0].label === aceTyped) { const el = match[0].el; cancelAce(); el.dispatchEvent(new MouseEvent("click", { bubbles: true })); return; }
+  aceTargets.forEach((t) => (t.badge.style.opacity = t.label.startsWith(aceTyped) ? "1" : "0.15"));
+}
+
+document.addEventListener("keydown", (e) => {
+  const k = e.key;
+  if ((e.metaKey || e.ctrlKey) && (k === "k" || k === "K")) { e.preventDefault(); const s = document.getElementById("search"); s.focus(); s.select(); return; }
+  if (aceActive) return handleAceKey(e);
+  if (k === "Escape") { cancelAce(); cancelTip(); document.querySelectorAll(".trow.cursor").forEach((r) => r.classList.remove("cursor")); cursor = -1; if (inInput()) document.activeElement.blur(); return; }
+  if (inInput()) { if (k === "ArrowDown") { e.preventDefault(); document.activeElement.blur(); moveCursor(1); } return; }
+  if (k === "ArrowDown") { e.preventDefault(); moveCursor(1); }
+  else if (k === "ArrowUp") { e.preventDefault(); moveCursor(-1); }
+  else if (k === "ArrowRight") { e.preventDefault(); toggleCaret(true); }
+  else if (k === "ArrowLeft") { e.preventDefault(); toggleCaret(false); }
+  else if (k === "Enter") { const r = cursorRow(); if (r) { e.preventDefault(); r.querySelector(".lbl").click(); } }
+  else if (k === "f" || k === "F") { e.preventDefault(); startAce(); }
+}, true);
+
+// init
+buildNav(); render(true);
+</script>
+</body>
+</html>

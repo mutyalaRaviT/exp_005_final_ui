@@ -48,6 +48,17 @@ fn some_arg(t: &Term) -> Option<&Term> {
     match t.functor() { ("some", 1) => Some(&t.args()[0]), _ => None }
 }
 
+/// task 5d: the alias of one from_source (table(Ds,AliasOpt) or
+/// subquery(Core,AliasOpt), both alias in arg position 1) — used to resolve a
+/// qualified star (`a.*`), same helper as lineage.rs's/interp.rs's own
+/// from_alias.
+fn from_source_alias(from: &Term) -> Option<String> {
+    match from.functor() {
+        ("table", 2) | ("subquery", 2) => some_arg(&from.args()[1]).map(|a| a.atom_text().to_lowercase()),
+        _ => None,
+    }
+}
+
 impl Emitter {
     pub fn new() -> Self { Emitter { schema: HashMap::new(), scalar_n: 0 } }
 
@@ -131,7 +142,7 @@ impl Emitter {
                     ]);
                     return Some(lines);
                 }
-                if let (Some(its), Some(set)) = (body.iter().find(|t| t.functor() == ("if_then_set", 3) && t.args()[1] == Term::Compound("lit".into(), vec![Term::Int(1)])).copied(), Self::find(body, "set", 1)) {
+                if let (Some(its), Some(set)) = (body.iter().find(|t| t.functor() == ("if_then_set", 3) && crate::term::lit_num(&t.args()[1]) == Some(1.0)).copied(), Self::find(body, "set", 1)) {
                     let (ki, kl) = (ds_key(&set.args()[0]), ds_key(&its.args()[2]));
                     let mut cols: Vec<String> = Vec::new();
                     for dk in [&ki, &kl] { if let Some(cs) = self.schema.get(dk) { for c in cs { if !cols.contains(c) { cols.push(c.clone()); } } } }
@@ -185,12 +196,28 @@ impl Emitter {
     }
 
     // ------------------------------------------------------------ PROC SQL
+    // M3a defect 2 (2026-09-10): UNION ALL. `select_stmt(Cores, Order, Limit)` has
+    // held a LIST of select_cores since task 5b; this took `cores[0]` and emitted the
+    // first branch only, so 18_dashboard_mart.sas and 25_final_pack.sas silently lost
+    // three of their four source tables. (Prolog's own sql_lines/3 matched `[Core]`
+    // and so emitted nothing at all for those statements — both are fixed, Prolog
+    // first, in the previous commit.)
+    //
+    // `.union` and not `.unionByName`: SQL UNION ALL is POSITIONAL — column by
+    // column, which is exactly `DataFrame.union`. Only the first branch of
+    // 18_dashboard_mart names its columns, so by-name matching would raise rather
+    // than stack rows. The FIRST branch sets the output schema, the rule
+    // lineage.rs's select_lineage already follows (task 5d's set_schema flag).
     fn sql_lines(&mut self, out: &Term, sel: &Term) -> Vec<String> {
         let k = ds_key(out);
         let cores = sel.args()[0].list();
         let core = &cores[0];
         let mut pre = Vec::new();
-        let chain = self.core_chain(core, &mut pre);
+        let mut chain = self.core_chain(core, &mut pre);
+        for c in &cores[1..] {
+            let t = self.core_chain(c, &mut pre);
+            chain = format!("{}.union({})", chain, t);
+        }
         let ord = match some_arg(&sel.args()[1]) {
             Some(keys) => {
                 let ps: Vec<String> = keys.list().iter().map(|kk| { let mut p = Vec::new(); self.px(kk, &mut p) }).collect();
@@ -204,14 +231,24 @@ impl Emitter {
         pre
     }
 
+    // task 5c: `joins` is a Prolog LIST now (was `join: some(J)|none`) — one
+    // `.join(...)` per item, source order; still hardcoded "inner" (this
+    // pre-existing simplification — never reading left_join vs inner_join's
+    // own functor for the join TYPE — is unchanged by this task). task 5d:
+    // a join whose own arity is 1 (cross_join(Src): no ON) renders
+    // `.crossJoin(src)` instead — arity decides this, not the functor name.
     fn core_chain(&mut self, core: &Term, pre: &mut Vec<String>) -> String {
         let a = core.args();
-        let (cols, from, join, where_, group, having) = (&a[0], &a[1], &a[2], &a[3], &a[4], &a[5]);
+        let (cols, from, joins, where_, group, having) = (&a[0], &a[1], a[2].list(), &a[3], &a[4], &a[5]);
         let mut s = self.from_txt(from, pre);
-        if let Some(j) = some_arg(join) {
+        for j in joins {
             let src = self.from_txt(&j.args()[0], pre);
-            let on = self.px(&j.args()[1], pre);
-            s.push_str(&format!(".join({}, {}, \"inner\")", src, on));
+            if j.args().len() > 1 {
+                let on = self.px(&j.args()[1], pre);
+                s.push_str(&format!(".join({}, {}, \"inner\")", src, on));
+            } else {
+                s.push_str(&format!(".crossJoin({})", src));
+            }
         }
         if let Some(c) = some_arg(where_) { let x = self.px(c, pre); s.push_str(&format!(".filter({})", x)); }
         s.push_str(&self.select_txt(cols.list(), group, pre));
@@ -242,6 +279,12 @@ impl Emitter {
     fn proj_txt(&mut self, p: &Term, pre: &mut Vec<String>) -> String {
         let (e, alias) = (&p.args()[0], &p.args()[1]);
         if e.functor() == ("star", 0) && alias.functor() == ("none", 0) { return "F.col(\"*\")".into(); }
+        // task 5d: a qualified star (`a.*`) — Spark's own `"alias.*"` column
+        // string expands to every column of that aliased source, so this is
+        // the direct analogue of the bare-star arm just above.
+        if e.functor() == ("star", 1) && alias.functor() == ("none", 0) {
+            return format!("F.col(\"{}.*\")", lower(e.args()[0].atom_text()));
+        }
         let x = self.px(e, pre);
         match some_arg(alias) { Some(a) => format!("{}.alias(\"{}\")", x, lower(a.atom_text())), None => x }
     }
@@ -249,8 +292,12 @@ impl Emitter {
     fn select_txt(&mut self, cols: &[Term], group: &Term, pre: &mut Vec<String>) -> String {
         match some_arg(group) {
             None => {
-                if cols.len() == 1 && cols[0].args()[0].functor() == ("star", 0) && cols[0].args()[1].functor() == ("none", 0) {
-                    return ".select(\"*\")".into();
+                if cols.len() == 1 && cols[0].args()[1].functor() == ("none", 0) {
+                    match cols[0].args()[0].functor() {
+                        ("star", 0) => return ".select(\"*\")".into(),
+                        ("star", 1) => return format!(".select(\"{}.*\")", lower(cols[0].args()[0].args()[0].atom_text())),
+                        _ => {}
+                    }
                 }
                 let any_agg = cols.iter().any(|p| is_agg(&p.args()[0]));
                 let ts: Vec<String> = cols.iter().map(|p| self.proj_txt(p, pre)).collect();
@@ -284,10 +331,33 @@ impl Emitter {
                     }
                     out.push("_auto".into());
                 }
+                // task 5d: a qualified star (`a.*`) — same lookup as the bare
+                // star above, but resolved against whichever of FROM/JOINs
+                // carries alias `a`, not always FROM itself.
+                ("star", 1) => {
+                    let al = lower(e.args()[0].atom_text());
+                    if let Some(cols) = self.alias_schema(core, &al) { out.extend(cols); continue; }
+                    out.push("_auto".into());
+                }
                 _ => out.push("_auto".into()),
             }
         }
         out
+    }
+
+    /// task 5d: the schema of whichever from_source (FROM itself, or one of
+    /// its JOINs) carries alias `al` — None if unresolved or not a plain
+    /// table (a subquery's own columns are not tracked in self.schema here).
+    fn alias_schema(&self, core: &Term, al: &str) -> Option<Vec<String>> {
+        let from = &core.args()[1];
+        if from_source_alias(from) == Some(al.to_string()) { return self.table_schema(from); }
+        for j in core.args()[2].list() {
+            if from_source_alias(&j.args()[0]) == Some(al.to_string()) { return self.table_schema(&j.args()[0]); }
+        }
+        None
+    }
+    fn table_schema(&self, from: &Term) -> Option<Vec<String>> {
+        if from.functor() == ("table", 2) { self.schema.get(&ds_key(&from.args()[0])).cloned() } else { None }
     }
 
     // ----------------------------------------------------------- expressions
@@ -297,8 +367,27 @@ impl Emitter {
         match (f, ar) {
             ("col", 1) => format!("F.col(\"{}\")", lower(a[0].atom_text())),
             ("col", 2) => format!("F.col(\"{}.{}\")", lower(a[0].atom_text()), lower(a[1].atom_text())),
-            ("lit", 1) => if a[0].is_number() { format!("F.lit({})", a[0]) } else { format!("F.lit({})", py_str(a[0].atom_text())) },
+            ("lit", 1) | ("lit", 2) => if a[0].is_number() { format!("F.lit({})", a[0]) } else { format!("F.lit({})", py_str(a[0].atom_text())) },
+            // M3a defect 3 (2026-09-10): CASE WHEN ... END and the lone `.` (missing).
+            // case_expr([when(Cond,Then)...], none|some(Else)) has folded since task 5b
+            // and `missing` since task 5d, with no rule in either emitter: this arm
+            // panicked ("no PySpark rule for expression functor case_expr"), which is
+            // exactly the `LINEAGEQ warn` + empty program `lineageq_store convert`
+            // stored for 17_compliance_check.sas and 25_final_pack.sas.
+            // No `.otherwise(...)` when the source has no ELSE — Spark's own default is
+            // null, so writing one would invent a value the SAS never named.
+            ("case_expr", 2) => {
+                let mut s = String::new();
+                for w in a[0].list() {
+                    let c = self.px(&w.args()[0], pre);
+                    let v = self.px(&w.args()[1], pre);
+                    s = if s.is_empty() { format!("F.when({}, {})", c, v) } else { format!("{}.when({}, {})", s, c, v) };
+                }
+                match some_arg(&a[1]) { Some(e) => { let et = self.px(e, pre); format!("{}.otherwise({})", s, et) } None => s }
+            }
+            ("missing", 0) => "F.lit(None)".into(),
             ("star", 0) => "F.col(\"*\")".into(),
+            ("star", 1) => format!("F.col(\"{}.*\")", lower(a[0].atom_text())),
             ("paren", 1) => format!("({})", self.px(&a[0], pre)),
             ("neg", 1) => format!("(-{})", self.px(&a[0], pre)),
             ("not", 1) => format!("(~{})", self.px(&a[0], pre)),
@@ -313,6 +402,14 @@ impl Emitter {
                 self.scalar_n += 1;
                 pre.push(format!("_scalar{} = scalar({})", self.scalar_n, chain));
                 format!("F.lit(_scalar{})", self.scalar_n)
+            }
+            // task 5c: COUNT(DISTINCT x) -> F.countDistinct(x) — ahead of the
+            // generic ("call", 2) arm below, so `distinct(...)` never has to
+            // stand on its own as a general expression (it has no meaning
+            // outside this one wrapper). Mirrors codegen/sas_pyspark.pl's px/4.
+            ("call", 2) if lower(a[0].atom_text()) == "count" && a[1].list().len() == 1 && a[1].list()[0].functor() == ("distinct", 1) => {
+                let inner = &a[1].list()[0].args()[0];
+                format!("F.countDistinct({})", self.px(inner, pre))
             }
             ("call", 2) => {
                 let py = sas_fn(&lower(a[0].atom_text()));

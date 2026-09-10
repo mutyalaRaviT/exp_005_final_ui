@@ -1,5 +1,13 @@
 % codegen/sas_pyspark_pretty.pl — SAS node/4 -> PySpark a person would write.
 %
+% Fix round 1 (2026-09-09): every proj(...) pattern in this file was arity-2
+% (proj(Expr,AliasOpt)) while pipeline/specs/sas.py's PROJ has built arity-3
+% (proj(Expr,AliasOpt,LengthOpt)) since task 5b's LENGTH support — this file was
+% never touched or tested in 5b, so every proj/2 clause here silently matched
+% nothing. run_all.sh step 4's Prolog-vs-Rust byte-diff caught it: this file was
+% dropping the entire body of every CREATE TABLE AS SELECT. Fixed by widening
+% every proj/2 to proj/3 (the third arg unused here, matched with `_`).
+%
 % Why: codegen/sas_pyspark.pl is the plain printer (easy to prove). This one
 % prints the SAME node/4 for a reader: named DataFrames, the SAS statements of
 % each step as a comment above the code (sliced from the source by the trace's
@@ -32,7 +40,42 @@ main :- format(user_error, "usage: swipl -q -s codegen/sas_pyspark_pretty.pl -g 
 load_source :-
     once(node(_, _, _, trace(File, _, _, _, _))),
     ( exists_file(File) -> read_file_to_string(File, T, []) ; T = "" ),
-    assertz(src_text(T)).
+    assertz(src_text(T)),
+    build_byte_map(T).
+
+% ---------------------------------------------------------- byte offsets
+% M3a defect 5 (2026-09-10): node/4 trace offsets B0/B1 are BYTE offsets into
+% the source file, but an SWI string is indexed by CODE POINTS, so sub_string/5
+% below sliced the wrong span on any file holding a non-ASCII character. One
+% em-dash in corpus/perf/big_100|big_1000|big_2000.sas was enough to make every
+% source comment after it drift by 2 characters, and pretty PySpark differ from
+% the Rust mirror (which indexes bytes) on all three.
+%
+% Rather than re-reading the file as octets and decoding each slice back, the
+% correction is precomputed once: a UTF-8 code point of N bytes costs N-1 extra
+% bytes, so for a byte offset B the code-point offset is B minus the extras of
+% every character that ENDS at or before B. mb_marks/1 holds one BytePos-CumExtra
+% pair per multi-byte character only — one entry for the whole of big_2000.sas —
+% so byte_cp/2 is O(number of non-ASCII characters), not O(file size).
+build_byte_map(T) :- string_codes(T, Cs), off_marks(Cs, 0, 0, Ms), assertz(mb_marks(Ms)).
+
+off_marks([], _, _, []).
+off_marks([C|Cs], B, E, Ms) :-
+    utf8_len(C, N), B1 is B + N,
+    (   N =:= 1
+    ->  E1 = E, Ms = Ms1
+    ;   E1 is E + N - 1, Ms = [B1-E1|Ms1] ),
+    off_marks(Cs, B1, E1, Ms1).
+
+utf8_len(C, 1) :- C < 0x80, !.
+utf8_len(C, 2) :- C < 0x800, !.
+utf8_len(C, 3) :- C < 0x10000, !.
+utf8_len(_, 4).
+
+byte_cp(B, CP) :- mb_marks(Ms), !, cum_extra(Ms, B, 0, E), CP is B - E.
+byte_cp(B, B).
+cum_extra([], _, E, E).
+cum_extra([BP-E1|R], B, E0, E) :- ( BP =< B -> cum_extra(R, B, E1, E) ; E = E0 ).
 
 % ---------------------------------------------------------------- blocks
 blocks(Bs) :- findall(B, node(B, _, _, _), Bs0), list_to_set(Bs0, Bs).
@@ -86,8 +129,10 @@ source_comment(datalines(Body), _, _, [C]) :- !,
     split_string(Body, "\n", " \t\r", Ls0), exclude(==(""), Ls0, Ls), length(Ls, N),
     format(atom(C), "#   datalines;  ... ~w rows ...", [N]).
 source_comment(_, B0, B1, Cs) :-
-    src_text(T), string_length(T, Len), B1 =< Len, !,
-    L is B1 - B0, sub_string(T, B0, L, _, Slice),
+    % M3a defect 5: B0/B1 are BYTES; sub_string/5 counts CODE POINTS.
+    byte_cp(B0, C0), byte_cp(B1, C1),
+    src_text(T), string_length(T, Len), C1 =< Len, !,
+    L is C1 - C0, sub_string(T, C0, L, _, Slice),
     split_string(Slice, "\n", " \t\r", Ls0), exclude(==(""), Ls0, Ls1),
     reflow(Ls1, Ls),
     findall(C, ( member(S, Ls), format(atom(C), "#   ~w", [S]) ), Cs).
@@ -134,7 +179,7 @@ step_lines([data(Out)|Body], Lines) :-
 
 % IF _N_ = 1 THEN SET lookup; SET main
 step_lines([data(Out)|Body], [L1|FmtLines]) :-
-    memberchk(if_then_set(_, lit(1), Look), Body), memberchk(set(In), Body), !,
+    memberchk(if_then_set(_, lit(1, _), Look), Body), memberchk(set(In), Body), !,
     ds_key(Out, K), ds_key(In, KI), ds_key(Look, KL), pyvar(Out, V), pyvar(In, VI), pyvar(Look, VL),
     format(atom(L1), "~w = attach_first_row(~w, ~w)", [V, VI, VL]),
     format_lines(Body, FmtLines),
@@ -189,22 +234,60 @@ chain_lines(V, Src, Steps, Lines) :-
 indent_step(S, Lines) :- split_string(S, "\n", "", Parts), findall(L, ( member(P, Parts), format(atom(L), "    ~w", [P]) ), Lines).
 
 % -------------------------------------------------------------- PROC SQL
-sql_lines(Out, select_stmt([Core], OrderOpt, _), Lines) :-
+% M3a defect 2 (2026-09-10): UNION ALL. `select_stmt(Cores, Order, Limit)` has
+% held a LIST of select_cores since task 5b, but this rule only ever matched a
+% one-element list, so a UNION ALL statement matched NO clause at all and the
+% whole PROC SQL step vanished from the generated program (18_dashboard_mart,
+% 25_final_pack: 4 branches, 0 lines emitted). Every branch is rendered now and
+% they are combined with `.union(...)`, left-associated.
+%
+% `.union` and not `.unionByName`: SQL UNION ALL is POSITIONAL — it matches
+% branches column by column, not by name — and that is exactly `DataFrame.union`.
+% `unionByName` would also be wrong in practice here: only the first branch of
+% 18_dashboard_mart names its columns (`'BRANCH' as metric_type, ...`), the other
+% three are bare projections whose Spark column names are `LARGETXN`, `l.acct_id`
+% and so on, so matching by name would raise instead of stacking the rows.
+%
+% The first branch sets the output schema, which is the rule sas_lineage.pl's
+% select_lineage/3 already follows (task 5d, the SetSchema flag).
+sql_lines(Out, select_stmt([Core|Cores], OrderOpt, _), Lines) :-
     ds_key(Out, K), pyvar(Out, V),
-    core_parts(Core, Src, Steps0, [], Pre),
+    core_parts(Core, Src, Steps1, [], Pre1),
+    union_steps(Cores, US, Pre1, Pre),
+    append(Steps1, US, Steps0),
     ( OrderOpt = some(Keys) -> maplist(key_txt0, Keys, KTs), atomic_list_concat(KTs, ", ", KT), format(atom(OS), ".orderBy(~w)", [KT]), append(Steps0, [OS], Steps) ; Steps = Steps0 ),
     chain_lines(V, Src, Steps, CL),
     core_out_cols(Core, Cols), set_schema(K, Cols),
     append(Pre, CL, Lines).
 
+% union_steps(+Cores, -Steps, +Pre0, -Pre): one ".union(<branch>)" step per
+% extra UNION ALL branch, each branch flattened to a single expression the
+% same way from_txt/4's subquery arm already flattens a nested core.
+union_steps([], [], P, P).
+union_steps([C|Cs], [S|Ss], P0, P) :-
+    core_parts(C, Src, Steps, P0, P1),
+    atomic_list_concat(Steps, ST),
+    format(atom(S), ".union(~w~w)", [Src, ST]),
+    union_steps(Cs, Ss, P1, P).
+
 % core_parts(+Core, -SourceTxt, -Steps, +Pre0, -Pre)
-core_parts(select_core(Cols, From, JoinOpt, WhereOpt, GroupOpt, HavingOpt), Src, Steps, P0, P) :-
+% task 5c: Joins is a LIST now (was `JoinOpt = none | some(join(JS,On))`);
+% S1 gets one ".join(...)" step per list item, source order — maplist_pre
+% (defined below) already threads Pre through a list this same way.
+core_parts(select_core(Cols, From, Joins, WhereOpt, GroupOpt, HavingOpt), Src, Steps, P0, P) :-
     from_txt(From, Src, P0, P1),
-    ( JoinOpt = some(join(JS, On)) -> from_txt(JS, JT, P1, P2), pe(On, top, OT, P2, P3), format(atom(JStep), ".join(~w, ~w, \"inner\")", [JT, OT]), S1 = [JStep] ; S1 = [], P3 = P1 ),
+    maplist_pre(join_step, Joins, S1, P1, P3),
     ( WhereOpt = some(W) -> pe(W, top, WT, P3, P4), format(atom(WStep), ".filter(~w)", [WT]), S2 = [WStep] ; S2 = [], P4 = P3 ),
     select_steps(Cols, GroupOpt, S3, P4, P5),
     ( HavingOpt = some(H) -> pe(H, top, HT, P5, P), format(atom(HStep), ".filter(~w)", [HT]), S4 = [HStep] ; S4 = [], P = P5 ),
     append([S1, S2, S3, S4], Steps).
+
+% task 5d: a join whose own arity is 1 (cross_join(Src): no ON) renders
+% ".crossJoin(src)" instead — arity decides this, not the functor name.
+join_step(J, JStep, P0, P) :-
+    functor(J, _, Arity), J =.. [_, JS|Rest], from_txt(JS, JT, P0, P1),
+    ( Arity =:= 2 -> [On] = Rest, pe(On, top, OT, P1, P), format(atom(JStep), ".join(~w, ~w, \"inner\")", [JT, OT])
+    ; P = P1, format(atom(JStep), ".crossJoin(~w)", [JT]) ).
 
 from_txt(table(D, none), T, P, P) :- pyvar(D, T).
 from_txt(table(D, some(A)), T, P, P) :- pyvar(D, V), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [V, LA]).
@@ -213,11 +296,19 @@ from_txt(subquery(Core, AliasOpt), T, P0, P) :-
     ( AliasOpt = some(A) -> lower(A, LA), format(atom(T), "(~w~w).alias(\"~w\")", [S, ST, LA]) ; format(atom(T), "(~w~w)", [S, ST]) ).
 
 % SELECT list -> [] | [.select(...)] | [.agg(...)] | [.groupBy(...), .agg(...)]
-select_steps([proj(star, none)], none, [], P, P) :- !.
+% task 5d: NOT widened to a qualified star (`a.*`) — unlike the bare star/0
+% fast path (implicit "pass every column through" is sound when there is no
+% join, or the whole joined row equals the whole source anyway), skipping
+% .select() entirely for a lone `a.*` would pass through every JOINed
+% column, not just `a`'s — wrong the moment a join is present. No file in
+% this corpus hits this (a lone single-item `a.*` projection list), so left
+% as the general sel_item/pe path below, which renders it correctly via
+% "alias.*" regardless.
+select_steps([proj(star, none, _)], none, [], P, P) :- !.
 select_steps(Cols, none, [Step], P0, P) :-
-    (   member(proj(E, _), Cols), is_agg(E)
+    (   member(proj(E, _, _), Cols), is_agg(E)
     ->  maplist_pre(agg_item, Cols, Items, P0, P), call_lines("agg", Items, Step)
-    ;   ( forall(member(proj(E, A), Cols), (E = col(_), A == none)) -> maplist_pre(sel_item, Cols, Items, P0, P), atomic_list_concat(Items, ", ", IT), format(atom(Step), ".select(~w)", [IT])
+    ;   ( forall(member(proj(E, A, _), Cols), (E = col(_), A == none)) -> maplist_pre(sel_item, Cols, Items, P0, P), atomic_list_concat(Items, ", ", IT), format(atom(Step), ".select(~w)", [IT])
         ; maplist_pre(sel_item, Cols, Items, P0, P), call_lines("select", Items, Step) )
     ).
 select_steps(Cols, some(Keys), [GStep, AStep], P0, P) :-
@@ -231,17 +322,19 @@ call_lines(Name, Items, Step) :-
     findall(L, ( member(I, Items), format(atom(L), "    ~w,", [I]) ), Ls), atomic_list_concat(Ls, "\n", Body),
     format(atom(Step), ".~w(\n~w\n)", [Name, Body]).
 
-agg_proj(proj(E, _)) :- is_agg(E).
-key_txt(Key, Cols, T) :- member(proj(E, some(A)), Cols), same_expr(E, Key), !, pe(Key, sub, KP, [], _), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [KP, LA]).
+agg_proj(proj(E, _, _)) :- is_agg(E).
+key_txt(Key, Cols, T) :- member(proj(E, some(A), _), Cols), same_expr(E, Key), !, pe(Key, sub, KP, [], _), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [KP, LA]).
 key_txt(Key, _, T) :- key_txt0(Key, T).
 key_txt0(col(N), T) :- !, lower(N, L), format(atom(T), "\"~w\"", [L]).
 key_txt0(E, T) :- pe(E, sub, T, [], _).
 same_expr(A, B) :- lower_term(A, LA), lower_term(B, LB), LA == LB.
 
-sel_item(proj(col(N), none), T, P, P) :- !, lower(N, L), format(atom(T), "\"~w\"", [L]).
-sel_item(proj(star, none), "\"*\"", P, P) :- !.
-sel_item(proj(E, none), T, P0, P) :- pe(E, sub, T, P0, P).
-sel_item(proj(E, some(A)), T, P0, P) :- pe(E, sub, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
+sel_item(proj(col(N), none, _), T, P, P) :- !, lower(N, L), format(atom(T), "\"~w\"", [L]).
+sel_item(proj(star, none, _), "\"*\"", P, P) :- !.
+% task 5d: a qualified star (`a.*`), same idea as the bare star arm above.
+sel_item(proj(star(A0), none, _), T, P, P) :- !, lower(A0, A), format(atom(T), "\"~w.*\"", [A]).
+sel_item(proj(E, none, _), T, P0, P) :- pe(E, sub, T, P0, P).
+sel_item(proj(E, some(A), _), T, P0, P) :- pe(E, sub, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
 agg_item(P, T, P0, P1) :- sel_item(P, T, P0, P1).
 
 maplist_pre(_, [], [], P, P).
@@ -249,33 +342,82 @@ maplist_pre(G, [X|Xs], [Y|Ys], P0, P) :- call(G, X, Y, P0, P1), maplist_pre(G, X
 
 is_agg(call(N, _)) :- lower(N, L), memberchk(L, [sum, avg, mean, max, min, count, std, var, nmiss]).
 
-core_out_cols(select_core(Cols, From, _, _, _, _), Out) :-
-    findall(C, ( member(proj(E, A), Cols), proj_col(E, A, From, C) ), Cs), flatten(Cs, Out).
-proj_col(_, some(A), _, L) :- !, lower(A, L).
-proj_col(col(N), none, _, L) :- !, lower(N, L).
-proj_col(star, none, table(D, _), Cols) :- ds_key(D, K), schema(K, Cols), !.
-proj_col(_, none, _, '_auto').
+% task 5d: proj_col now also sees Joins, so a qualified star (`a.*`) can
+% resolve against a JOIN source's own alias, not only FROM's.
+core_out_cols(select_core(Cols, From, Joins, _, _, _), Out) :-
+    findall(C, ( member(proj(E, A, _), Cols), proj_col(E, A, From, Joins, C) ), Cs), flatten(Cs, Out).
+proj_col(_, some(A), _, _, L) :- !, lower(A, L).
+proj_col(col(N), none, _, _, L) :- !, lower(N, L).
+proj_col(star, none, table(D, _), _, Cols) :- ds_key(D, K), schema(K, Cols), !.
+proj_col(star(A0), none, From, Joins, Cols) :- !,
+    lower(A0, A), ( alias_schema(From, Joins, A, S) -> Cols = S ; Cols = ['_auto'] ).
+proj_col(_, none, _, _, '_auto').
+
+% task 5d: the schema of whichever from_source (FROM itself, or one of its
+% JOINs) carries alias Al — used by proj_col's star(Alias) clause above; same
+% helper shape as sas_pyspark.pl's own alias_schema.
+alias_schema(From, _Joins, Al, Cols) :- from_source_alias(From, Al), !, table_schema(From, Cols).
+alias_schema(_From, Joins, Al, Cols) :- member(J, Joins), arg(1, J, Src), from_source_alias(Src, Al), !, table_schema(Src, Cols).
+from_source_alias(table(_, some(A0)), Al) :- !, lower(A0, Al).
+from_source_alias(subquery(_, some(A0)), Al) :- !, lower(A0, Al).
+table_schema(table(D, _), Cols) :- !, ds_key(D, K), schema(K, Cols).
+table_schema(_, []).
 
 % ------------------------------------------------------------ expressions
 % pe(+Term, +Ctx, -Py, +Pre0, -Pre)   Ctx: top (a whole condition) | sub (an operand) | arg (a function argument)
 pe(col(N), arg, T, P, P) :- !, lower(N, L), format(atom(T), "\"~w\"", [L]).
 pe(col(N), _, T, P, P) :- lower(N, L), format(atom(T), "F.col(\"~w\")", [L]).
 pe(col(A, N), _, T, P, P) :- lower(A, LA), lower(N, L), format(atom(T), "F.col(\"~w.~w\")", [LA, L]).
+% M3a defect 1: a NUMBER leaf now folds to lit(Value, Lexeme) (specs/sas.py
+% keep_lexeme=True). Only the printer reads the lexeme; every consumer below
+% reads Value and ignores it, so lit/2 is handled by one clause that defers to
+% the existing lit/1 clause rather than by duplicating any rule.
+pe(lit(V, _), Ctx, T, P0, P) :- !, pe(lit(V), Ctx, T, P0, P).
 pe(lit(V), top, T, P, P) :- !, py_lit(V, X), format(atom(T), "F.lit(~w)", [X]).
 pe(lit(V), _, T, P, P) :- py_lit(V, T).
+% M3a defect 3 (2026-09-10): CASE WHEN ... END and the lone `.` (missing).
+% CASE_FORM has folded to case_expr([when(Cond,Then)...], none|some(Else)) since
+% task 5b and MISSING_FORM to `missing` since task 5d, but neither had a rule in
+% either PySpark emitter: 13_risk_flags.sas's risk_band and 25_final_pack.sas's
+% third UNION ALL branch fell through to no clause at all here (and made the Rust
+% mirror panic, which is how `lineageq_store convert` reported them as a warn and
+% stored an EMPTY program for the block).
+%
+% CASE maps to the PySpark chain F.when(c1, v1).when(c2, v2).otherwise(vN), with
+% no `.otherwise(...)` when the source has no ELSE — that is Spark's own default
+% (null), so writing one would invent a value the SAS did not name.
+% A lone `.` is SAS's numeric missing value, i.e. NULL: F.lit(None).
+pe(case_expr(Whens, ElseOpt), _, T, P0, P) :- !,
+    when_chain(Whens, WT, P0, P1),
+    (   ElseOpt = some(E)
+    ->  pe(E, sub, ET, P1, P), format(atom(T), "~w.otherwise(~w)", [WT, ET])
+    ;   P = P1, T = WT ).
+pe(missing, _, "F.lit(None)", P, P) :- !.
 pe(star, _, "\"*\"", P, P).
+pe(star(A0), _, T, P, P) :- lower(A0, A), format(atom(T), "\"~w.*\"", [A]).
 pe(paren(E), _, T, P0, P) :- pe(E, sub, X, P0, P), format(atom(T), "(~w)", [X]).
 pe(neg(E), _, T, P0, P) :- wrap(E, X, P0, P), format(atom(T), "-~w", [X]).
 pe(not(E), _, T, P0, P) :- wrap(E, X, P0, P), format(atom(T), "~~~w", [X]).
 pe(cat(A, B), _, T, P0, P) :- pe(A, arg, X, P0, P1), pe(B, arg, Y, P1, P), format(atom(T), "F.concat(~w, ~w)", [X, Y]).
-pe(in(A, Items), _, T, P0, P) :- wrap(A, X, P0, P), maplist([lit(V), S]>>py_lit(V, S), Items, Ls), atomic_list_concat(Ls, ", ", LT), format(atom(T), "~w.isin([~w])", [X, LT]).
+pe(in(A, Items), _, T, P0, P) :- wrap(A, X, P0, P), maplist([I, S]>>(lit_value(I, V), py_lit(V, S)), Items, Ls), atomic_list_concat(Ls, ", ", LT), format(atom(T), "~w.isin([~w])", [X, LT]).
+% task 5c: the "simple" fast-path guard used to compare the JOIN position to
+% the atom `none`; it is a LIST now, so "no join" is `[]`, not `none` — the
+% other three tail positions (WHERE/GROUP BY/HAVING) are unaffected and stay
+% `none`. Getting this wrong would not crash: it would just silently miss the
+% fast path for every 0-join scalar subquery and fall through to the general
+% core_parts branch below, a formatting drift the byte-diff regression check
+% (run_all.sh step 4) would have caught.
 pe(subquery_expr(Core), _, Name, P0, P) :-
     scalar_var(Core, Name0), unique_scalar(Name0, Name),
-    (   Core = select_core([proj(E, _)], table(D, none), none, none, none, none), ( E = col(C) ; E = call(_, _), fail )
+    (   Core = select_core([proj(E, _, _)], table(D, none), [], none, none, none), ( E = col(C) ; E = call(_, _), fail )
     ->  pyvar(D, DV), lower(C, LC), format(atom(Line), "~w = scalar(~w, \"~w\")", [Name, DV, LC]), P1 = P0
     ;   core_parts(Core, S, Steps, P0, P1), atomic_list_concat(Steps, ST), format(atom(Line), "~w = scalar(~w~w)", [Name, S, ST])
     ),
     append(P1, [Line], P).
+% task 5c: COUNT(DISTINCT x) -> F.countDistinct(x) — ahead of the generic
+% call/2 clause, same reasoning as sas_pyspark.pl's own px/4.
+pe(call(Name, [distinct(Arg)]), _, T, P0, P) :-
+    lower(Name, count), !, pe(Arg, arg, X, P0, P), format(atom(T), "F.countDistinct(~w)", [X]).
 pe(call(Name, Args), _, T, P0, P) :-
     lower(Name, L), once(sas_fn(L, Py)),
     maplist_pre([A, X, Q0, Q]>>pe(A, arg, X, Q0, Q), Args, Xs, P0, P), atomic_list_concat(Xs, ", ", XT),
@@ -292,16 +434,24 @@ binop(mul, "*"). binop(div, "/"). binop(add, "+"). binop(sub, "-").
 binop(eq, "=="). binop(ne, "!="). binop(lt, "<"). binop(le, "<="). binop(gt, ">"). binop(ge, ">=").
 binop(and, "&"). binop(or, "|").
 
-scalar_var(select_core([proj(_, some(A))|_], _, _, _, _, _), N) :- !, lower(A, L), format(atom(N), "~w_value", [L]).
-scalar_var(select_core([proj(col(C), none)|_], _, _, _, _, _), N) :- !, lower(C, L), format(atom(N), "~w_value", [L]).
+scalar_var(select_core([proj(_, some(A), _)|_], _, _, _, _, _), N) :- !, lower(A, L), format(atom(N), "~w_value", [L]).
+scalar_var(select_core([proj(col(C), none, _)|_], _, _, _, _, _), N) :- !, lower(C, L), format(atom(N), "~w_value", [L]).
 scalar_var(_, subquery_value).
-unique_scalar(N0, N) :- ( scalar_name(N0) -> between(2, 99, I), format(atom(N), "~w_~w", [N0, I]), \+ scalar_name(N), ! ; N = N0 ), assertz(scalar_name(N)).
+% M3a defect 5, second cause on the perf files: the suffix search stopped at 99,
+% so the 100th scalar subquery sharing a name found no free suffix, unique_scalar/2
+% FAILED, and the whole block printed nothing — big_1000.sas lost 4 blocks and
+% big_2000.sas more, against a Rust mirror that has no such cap. `inf` removes the
+% cap; the search is still first-free-suffix, so every name below 100 is unchanged.
+unique_scalar(N0, N) :- ( scalar_name(N0) -> between(2, inf, I), format(atom(N), "~w_~w", [N0, I]), \+ scalar_name(N), ! ; N = N0 ), assertz(scalar_name(N)).
 
 sas_fn(month, month).  sas_fn(year, year).  sas_fn(day, dayofmonth).
 sas_fn(sum, sum).  sas_fn(avg, avg).  sas_fn(mean, avg).  sas_fn(max, max).  sas_fn(min, min).  sas_fn(count, count).
 sas_fn(upcase, upper).  sas_fn(lowcase, lower).  sas_fn(abs, abs).  sas_fn(round, round).  sas_fn(substr, substring).
 sas_fn(F, _) :- \+ clause(sas_fn(F, _), true), format(user_error, "LINEAGEQ: no PySpark mapping for SAS function ~w~n", [F]), fail.
 
+% M3a defect 1: an IN list item is lit/1 (string) or lit/2 (number).
+lit_value(lit(V), V).
+lit_value(lit(V, _), V).
 py_lit(V, T) :- number(V), !, format(atom(T), "~w", [V]).
 py_lit(V, T) :- py_str(V, T).
 
@@ -332,3 +482,15 @@ py_esc([C|Cs], [C|Es]) :- py_esc(Cs, Es).
 % a path: raw string when that is safe (no quote, no trailing backslash), else escaped
 py_path(A, S) :- \+ sub_atom(A, _, _, _, '"'), \+ sub_atom(A, _, 1, 0, '\\'), !, format(atom(S), "r\"~w\"", [A]).
 py_path(A, S) :- py_str(A, S).
+
+% M3a defect 3: the CASE chain helpers, kept below every pe clause so
+% pe's own clauses stay contiguous (SWI warns otherwise).
+when_chain([when(C, V)|Ws], T, P0, P) :-
+    pe(C, top, CT, P0, P1), pe(V, sub, VT, P1, P2),
+    format(atom(T0), "F.when(~w, ~w)", [CT, VT]),
+    when_rest(Ws, T0, T, P2, P).
+when_rest([], T, T, P, P).
+when_rest([when(C, V)|Ws], Acc, T, P0, P) :-
+    pe(C, top, CT, P0, P1), pe(V, sub, VT, P1, P2),
+    format(atom(Acc1), "~w.when(~w, ~w)", [Acc, CT, VT]),
+    when_rest(Ws, Acc1, T, P2, P).

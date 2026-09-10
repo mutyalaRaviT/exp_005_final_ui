@@ -41,7 +41,12 @@ pub enum Form {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct ExprLeaf { pub name: String, pub term: String, pub double_delim: bool, pub backslash_escape: bool }
+/// `keep_lexeme` (M3a defect 1): this leaf's term carries the original token text as a
+/// SECOND argument — lit(Value, Text) instead of lit(Value). It decides the ARITY of the
+/// term the parser builds, so it has to be read here or node/4 stops being byte-identical
+/// with Prolog's. `#[serde(default)]` keeps every older spec JSON (and every language that
+/// has not opted in) reading as `false`.
+pub struct ExprLeaf { pub name: String, pub term: String, pub double_delim: bool, #[serde(default)] pub keep_lexeme: bool, pub backslash_escape: bool }
 
 #[derive(Deserialize, Debug)]
 pub struct Stmt { pub name: String, pub assign: bool, pub parts: Vec<Piece> }

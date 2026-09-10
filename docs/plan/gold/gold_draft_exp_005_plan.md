@@ -19,13 +19,22 @@ the folder shape, six phases with pass marks.
 
 ## 1. What we are building, in one paragraph
 
-One desktop app with two windows over one store. The **across-files window** shows a folder of SAS
-programs as files, blocks and tables, seeded from a URL and grown by hops. The **in-file window**
-shows one program as SAS ⇄ PySpark cells with its table graph and a bottom strip for output, log and
-data match. A **Rust backend** converts each file once with the rules packs, writes the result into
-**DuckDB**, and answers small questions from it in milliseconds. A **Prolog proof** of every
-conversion runs in the background and turns a receipt green. **TypeScript** draws only what is on
-screen. The wiki is grown from doc comments, commit messages and git notes.
+One desktop app with **three** windows over one store, two of which ship. The **across-files
+window** (UI1) shows a folder of SAS programs as files, blocks and tables, seeded from a URL and
+grown by hops. The **in-file window** (UI2) shows one program as SAS ⇄ PySpark cells with its table
+graph and a bottom strip for output, log and data match. The **verification workbench** (UI3) is
+the owner's alone: it sweeps a corpus through the four-leg loop and, on failure, shows the block,
+the row diff and the rule that fired on one screen. It is a third window in the same app, behind a
+**build flag that excludes it from the release binary** — the shipped `.app` does not contain its
+code. A **Rust backend** converts each file once with the rules packs, writes the result into
+**DuckDB**, and answers small questions from it in milliseconds. **TypeScript** draws only what is
+on screen. The wiki is grown from doc comments, commit messages and git notes.
+
+> **Corrections C1–C7 applied 2026-09-10 (Task 14, M4b)** from
+> `docs/plan/gold/gold_three_uis_and_verification_loop.md` §7 — the owner's gold page, which wins
+> on conflict. This plan was written on 2026-09-08, before the owner's three-UI brief, and said
+> "two windows" and "a Prolog proof in the background". Where a paragraph below was rewritten, the
+> correction that forced it is named inline.
 
 ## 2. Why now: the two facts that force the shape
 
@@ -44,7 +53,9 @@ So: convert with Rust once, store, ask small, prove later, draw windowed.
 exp_005_final_ui_v3/
   backend/                       Rust workspace (one Cargo.toml, one crate per folder)
     rust_rules_converter/        exp_42 rust_engine: tokenise, fold, print, node/4, PySpark, lineage
-    prolog_rules_converter/      runs swipl on the same node/4 for the proof; async; never blocks an open
+    prolog_rules_converter/      runs swipl on the same node/4 as the *independent second engine*:
+                                 it computes output_left for UI3's loop (C2). Not a background
+                                 proof service, and never on a UI1 or UI2 path.
     rust_inferred_duckdb/        the store (files, blocks, node4, edges, pyspark, receipts) + queries
     testdata_rules/engine/       Z3 test data from node/4 branches (exp_42 testdata + exp_009)
     api/                         HTTP for dev, Tauri commands for the app; one handler set, two doors
@@ -116,7 +127,7 @@ The `files`, `edges`, `events` shapes come from the `:8000` store; `blocks`, `no
 Every answer is small. Nothing returns a whole program. The URL carries `file`, `block`, `table`,
 `up`, `down`, `view`, so a link reopens the same screen.
 
-## 7. What the two UIs keep and what they drop
+## 7. What the UIs keep and what they drop (C1, C6)
 
 **Across files (`ui_across_file_ui`)** keeps everything the screenshot shows: explorer with All
 Files and Current, the canvas with files expanding into blocks and tables, ELK routing, Pin,
@@ -126,27 +137,37 @@ Rust one. Its layout profiles stay (Simple / Medium / Best).
 
 **In file (`ui_file_ide`)** keeps the Bench: two buffers (text ⇄ viewer, `i` / `j` / `g` toggles,
 one alone takes the width), the table lineage graph with story on click, the fixed bottom strip
-(Block / Output / Terminal / Log / DataMatch), the receipt bar, the command palette, Jupyter
-attach, per-file buffers with changed / saved. It takes the exp_004 feel (one header recipe, two
-type sizes, flat gutter bands, focus ring, filled status bar). It changes three things:
-cells are **windowed** (about 40 in the DOM), a key press **updates classes** instead of
-rebuilding, and the graph shows **layers collapsed** above about 150 tables with the clicked
-neighbourhood open.
+(Block / Output / Terminal / Log / DataMatch), the command palette, per-file buffers with changed /
+saved. It takes the exp_004 feel (one header recipe, two type sizes, flat gutter bands, focus ring,
+filled status bar). It changes three things: cells are **windowed** (about 40 in the DOM), a key
+press **updates classes** instead of rebuilding, and the graph shows **layers collapsed** above
+about 150 tables with the clicked neighbourhood open.
 
-Both windows share `frontend/shared`: the colour tokens (unchanged from the Bench), the URL state,
-and the typed client.
+**What UI2 drops (C6).** The `prolog == rust` pill, the Rust ⇄ Prolog engine toggle and the
+receipt bar that compared them. Neither shipping window names the reference engine (gold §5), so
+the extracted page pins its engine to `rust` and the word does not appear in it — `grep -ci prolog
+frontend/ui_file_ide/bench.html` returns 0. The `folded` and `round trip` pills stay: they are
+Rust's own counts about the file in front of you, not a claim about a second engine. Jupyter
+attach is also gone for now — not by C6 but by Decision D17, which drops the four attach routes
+(`sessions`, `session`, `exec`, `term`) until M5.
+
+**The workbench (UI3, does not ship).** The corpus sweep, the four legs, and the failure screen
+that shows block + row diff + rule id together. Behind a build flag; see phase 4 below.
+
+All three windows share `frontend/shared`: the colour tokens (unchanged from the Bench), the URL
+state, and the typed client.
 
 ## 8. Phases, each with its pass mark
 
 | # | phase | what is done | pass mark (the receipt) |
 |---|---|---|---|
-| 0 | skeleton + wiki | folders, READMEs, this vault, `wiki_from_git.py` first run | every folder has a README; `wiki_from_git.py` writes one bronze page from one commit |
+| 0 | skeleton + wiki | folders, READMEs, this vault, `wiki_from_git.py` first run, **and the source trees copied into `raw/` untouched, with provenance** (C5) | every folder has a README; `wiki_from_git.py` writes one bronze page from one commit; every `raw/` subtree names where it came from (`raw/README.md`) |
 | 1 | store + converter | copy `rust_engine` → `rust_rules_converter`; add `rust_inferred_duckdb`; `convert(folder)` writes all tables | `big_1000.sas`: convert + store < 3 s; `file()` < 20 ms; `blocks(0,40)` < 20 ms |
 | 2 | API + across-files | copy `node4_viz` → `ui_across_file_ui`; point it at the Rust API | the deep link `?file=ankitha_1/11_branch_rollup.sas&up=1&down=1` draws the same 6 files and 7 edges as `:5174` today |
 | 3 | in-file window | port the Bench to TypeScript with windowed cells and class-only focus | `big_1000.sas` open to first cell < 1 s; ↓ key < 16 ms; DOM < 25 k elements; graph collapsed by layer |
-| 4 | proof in background | `prolog_rules_converter` runs swipl per file off the open path; receipts table; bar turns green | the receipt bar shows pending → same for `test_vishnu_testdata.sas`; a forced diff shows differs with the first line |
-| 5 | run + data match + test data | `run()` through Spark / Rust / Prolog; DataMatch strip; `testdata_rules/engine` from exp_42 `gen_testdata.py` + Z3 | the 11 blocks of exp_42's receipt run and match, as `bench_receipt.py` does today |
-| 6 | Tauri build | `build_bin/tauri_builder`; backend embedded; two windows | one `.app` opens both windows offline on the ankitha corpus |
+| 4 | the second engine, inside UI3 (C2) | Prolog computes `output_left` from node/4 as the independent reference; the L2 vs L3 comparison runs over a **corpus**, in UI3, never on a user path. There is no background proof service and no receipt bar. | a corpus sweep reports pass/fail per file with `engine: prolog` on the left; a planted defect flips one to fail |
+| 5 | run + data match + test data (C3) | `run()` through Spark / Rust / Prolog; Z3 test data from `testdata_rules/engine`. This machinery is **UI3's core**, not a strip inside UI2 — `bench_receipt.py` and `datamatch.ts` seed UI3. | the 11 blocks of exp_42's receipt run and match, as `bench_receipt.py` does today |
+| 6 | Tauri build (C4) | `build_bin/tauri_builder`; backend embedded; the **two shipping** windows. The build flag that keeps UI3 out of the release bundle is part of this phase. | one `.app` opens both windows offline on the corpus, **and grepping the release bundle finds no UI3 code** |
 
 Phases 1 and 2 can run in parallel with 3; 4 to 6 follow. Each phase is a bounded task with its own
 design in chat and its own commits; each commit gets a git note with the receipt numbers.
@@ -162,7 +183,11 @@ design in chat and its own commits; each commit gets a git note with the receipt
 
 ## 10. Copies, not rewrites
 
-The full list with paths and sizes is in [[raw_sources_to_copy]]. In short: the Rust engine
+The full list with paths and sizes is in [[raw_sources_to_copy]]. **C7:** that page says the
+`ankitha_1` corpus comes from `exp_003_lineageq_slides`; it is in
+`lineageQ_aug_experiments/exp_014b_vertical_slice_sas_lineage/corpus/ankitha_1/`. The correction is
+recorded in `raw/README.md` ("Two corrections to the plan"); the raw page itself is outside M4b's
+write scope, so it still carries the wrong path. In short: the Rust engine
 (2,800 lines), the pyDSL specs and generated grammars, the codegen `.pl` files and the two
 runtime preambles, `node4_viz/src` (whole), the Bench page as the reference for the port, the
 exp_004 mockup CSS as the token source, `gen_testdata.py` and `branches.json`, and the store and

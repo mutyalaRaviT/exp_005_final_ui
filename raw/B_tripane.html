@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Code View — Tri-pane</title>
+<script src="https://unpkg.com/@antv/g6@5/dist/g6.min.js"></script>
+<script src="../lineage_model/model.js"></script>
+<style>
+
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+  :root { --font-sans:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,sans-serif; --font-mono:'JetBrains Mono',ui-monospace,monospace; }
+  /* palettes (app=body · canvas=graph · sidebar=nav · panel=surface · tert=head · inner=blocks) */
+  html[data-theme="dark"] {
+    --bg:#14140f; --canvas:#14140f; --sidebar:#1a1a14; --panel:#20201a; --tert:#26261f; --inner:#1b1b15;
+    --line:#34342b; --hair:#2a2a22; --ink:#ececdf; --muted:#9a9a8a; --dim:#6f6f61; --heavy:#ececdf;
+    --accent:#e2683a; --accent-2:#e2683a; --accent-10:#3a261c; --accent-16:#3a2a1f; --edge:#4a4a3e;
+    --green:#6fbf6f; --code-bg:#1b1b15;
+  }
+  html[data-theme="paper"] {
+    --bg:#f4f2ec; --canvas:#f1efe8; --sidebar:#f8f6f0; --panel:#fffefb; --tert:#f7f5ef; --inner:#faf9f4;
+    --line:#e4e1d7; --hair:#ece9e0; --ink:#2c2a24; --muted:#7a766c; --dim:#a9a497; --heavy:#2c2a24;
+    --accent:#d8693a; --accent-2:#d8693a; --accent-10:#f7ece4; --accent-16:#fae7dc; --edge:#d8d3c6;
+    --green:#3f8a5a; --code-bg:#faf9f4;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 13px/1.4 var(--font-sans); display: flex; flex-direction: column; height: 100vh; }
+  .prog-hd { overflow: hidden; } .prog-hd > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  /* SQL panel (right) — DrRacket-style column↔SQL linking */
+  .sqlpanel { width: 380px; flex: 0 0 380px; border-left: 1px solid var(--line); background: var(--code-bg); display: none; flex-direction: column; min-height: 0; }
+  .sqlpanel.open { display: flex; }
+  .sqlpanel .sqlhd { padding: 9px 12px; border-bottom: 1px solid var(--line); font: 9px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  .sqlpanel .sqlhd .x { margin-left: auto; cursor: pointer; }
+  .sqlpanel pre { margin: 0; padding: 12px 14px; overflow: auto; flex: 1; min-height: 0; font: 12px/1.75 var(--font-mono); white-space: pre-wrap; }
+  #sqlsplit { flex: 1; min-height: 0; overflow: auto; }
+  .sqlsec { border-bottom: 1px solid var(--line); }
+  .sqlsec.secon { background: var(--accent-10); box-shadow: inset 3px 0 0 var(--accent); }
+  .sqlsec pre { flex: 0 0 auto; }
+  .sqlpanel .sqlkw, .sqlpanel pre { color: var(--ink); }
+  .sqlcol { color: var(--ink); cursor: pointer; text-decoration: underline dotted var(--dim); text-underline-offset: 3px; border-radius: 3px; padding: 0 1px; }
+  .sqlcol:hover { color: var(--accent); text-decoration-color: var(--accent); }
+  .sqlcol.on { background: var(--accent-16); box-shadow: inset 0 -2px 0 var(--accent); text-decoration: none; }
+  .sqlcsec { font: 9px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); padding: 10px 14px 2px; }
+  header.top { padding: 9px 14px; border-bottom: 2px solid var(--line); background: var(--panel); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  header.top h1 { font-size: 13px; margin: 0 8px 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; }
+  input.search { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; font: 11px var(--font-mono); width: 168px; }
+  input.search:focus { outline: none; border-color: var(--accent); }
+  .grp { display: inline-flex; align-items: center; gap: 6px; }
+  .grp .cap { font: 9px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+  .seg button { border: 0; background: var(--panel); color: var(--muted); padding: 5px 9px; font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .8px; cursor: pointer; }
+  .seg button.on { background: var(--tert); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+  .seg button:not(.on):hover { background: var(--tert); color: var(--ink); }
+  .spacer { margin-left: auto; }
+  button.btn { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .8px; cursor: pointer; }
+  button.btn:hover { border-color: var(--accent); color: var(--accent); }
+  button.btn.on { background: var(--tert); color: var(--accent); border-color: var(--accent); }
+  .files { position: relative; }
+  .body { flex: 1; display: flex; min-height: 0; }
+  .nav { width: 248px; flex: 0 0 248px; border-right: 1px solid var(--line); overflow: auto; padding: 0 6px 8px; background: var(--sidebar); }
+  .navtools { display: flex; flex-direction: column; gap: 6px; padding: 8px 2px; position: sticky; top: 0; background: var(--panel); z-index: 2; border-bottom: 1px solid var(--line); }
+  .navtools .ttypes { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .navtools .ttypes .cap { font: 8px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-right: 2px; }
+  .navtools .tbtns { display: flex; gap: 6px; }
+  .navtools .tbtns .btn { flex: 1; font-size: 10px; padding: 5px; }
+  .chip { font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .6px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 3px; cursor: pointer; color: var(--dim); background: transparent; }
+  .chip.on { background: var(--tert); border-color: var(--line); color: var(--ink); }
+  .chip.on::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); margin-right: 5px; vertical-align: middle; }
+  .trow.match { background: var(--accent-10); box-shadow: inset 2px 0 0 var(--accent); }
+  .trow.match > .lbl { color: var(--ink); }
+  .trow { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 3px; font: 12px var(--font-mono); color: var(--ink); white-space: nowrap; }
+  .trow:hover { background: var(--tert); }
+  .trow.lvl1 { padding-left: 16px; } .trow.lvl2 { padding-left: 30px; } .trow.lvl3 { padding-left: 44px; }
+  .trow .cbx { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; border: 1px solid var(--line); border-radius: 2px; background: transparent; cursor: pointer; position: relative; flex: 0 0 auto; margin: 0 2px 0 6px; opacity: .5; transition: opacity .12s, border-color .12s, background .12s; }
+  .trow:hover .cbx { opacity: 1; }
+  .trow .cbx:hover { border-color: var(--accent); }
+  .trow .cbx:checked { background: var(--tert); border-color: var(--dim); opacity: .8; }
+  .trow:hover .cbx:checked { opacity: 1; }
+  .trow .cbx:checked::after { content: "✓"; position: absolute; inset: 0; font-size: 9px; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+  .trow .cbx:indeterminate { border-color: var(--dim); background: var(--tert); opacity: 1; }
+  .trow .cbx:indeterminate::after { content: ""; position: absolute; left: 3px; right: 3px; top: 5.5px; height: 2px; border-radius: 1px; background: var(--muted); }
+  .trow .car { width: 12px; cursor: pointer; color: var(--muted); text-align: center; flex: 0 0 auto; user-select: none; }
+  .trow .lbl { cursor: pointer; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .trow .lbl.fileL { font: 12px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--ink); }
+  .trow .lbl.blockL { font: 9px var(--font-sans); font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+  .trow .lbl.tableL { font: 12px var(--font-mono); font-weight: 600; color: var(--ink); }
+  .trow .lbl i { color: var(--dim); font-style: normal; font-size: 9px; margin-left: 6px; font-family: var(--font-mono); }
+  /* selected tree row = same look as the graph's selected row: full-row tint + 3px left bar */
+  .trow:has(.lbl.sel) { background: var(--accent-16); box-shadow: inset 3px 0 0 var(--accent); }
+  .trow .lbl.sel { color: var(--ink); font-weight: 600; }
+  .trow .lbl.sel i { color: var(--dim); }
+  .kids.collapsed { display: none; }
+  .hide { display: none !important; }
+  /* keyboard cursor + ace-jump hints */
+  .trow.cursor { box-shadow: inset 0 0 0 1px var(--accent); }
+  .ajhint { position: fixed; z-index: 300; background: var(--accent); color: #fff; font: 10px/1 var(--font-mono); font-weight: 700; letter-spacing: .5px; padding: 2px 4px; border-radius: 3px; pointer-events: none; box-shadow: 0 1px 5px rgba(0,0,0,.6); }
+  kbd { font: 9px var(--font-mono); background: var(--tert); border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; color: var(--muted); }
+  /* source dot: marks a box that an edge leaves from, on its right edge */
+  .col-row, .tbl-hd, .blk-hd { position: relative; }
+  .src-dot::after { content: ""; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--accent)); box-shadow: 0 0 0 2px var(--panel); pointer-events: none; }
+  .col-row.src-dot .ct, .tbl-hd.src-dot > span:last-child { margin-right: 12px; }
+  .canvasWrap { flex: 1; position: relative; min-width: 0; display: flex; flex-direction: column; }
+  #container { position: relative; flex: 1; min-height: 0; }
+  .detail { position: absolute; left: 12px; top: 12px; z-index: 30; display: flex; align-items: center; gap: 7px; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; }
+  .detail .cap { font: 9px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .statusbar { position: absolute; left: 12px; bottom: 12px; z-index: 30; color: var(--muted); font: 10px var(--font-mono); background: var(--panel); padding: 6px 10px; border: 1px solid var(--line); border-left: 3px solid var(--accent); }
+  .prog { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; box-shadow: none; font: 12px var(--font-sans); user-select: none; }
+  .prog-hd { display: flex; align-items: center; gap: 8px; padding: 0 12px; font: 12px var(--font-mono); font-weight: 600; color: var(--ink); letter-spacing: .3px; background: var(--tert); }
+  .prog-hd .kind { margin-left: auto; font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .12em; padding: 2px 6px; border-radius: 2px; border: 1px solid currentColor; background: var(--accent-10); }
+  .prog-body { display: flex; flex-direction: column; }
+  .blk { border: 1px solid var(--line); border-radius: 3px; overflow: hidden; background: var(--inner); }
+  .blk.sel-b { box-shadow: 0 0 0 2px var(--accent) inset; } .blk.off { opacity: .42; }
+  .blk-hd { display: flex; align-items: center; gap: 6px; padding: 0 9px; font: 9px var(--font-sans); font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; background: var(--tert); cursor: pointer; }
+  .blk-body { display: flex; flex-direction: column; }
+  .blk-hd .blkfocus { background: rgba(255,255,255,.08); color: var(--muted); border: 0; border-radius: 3px; font-size: 11px; line-height: 1; padding: 2px 5px; cursor: pointer; }
+  .blk-hd .blkfocus:hover { background: var(--accent); color: #fff; }
+  .tbl { border: 1px solid var(--line); border-radius: 3px; overflow: hidden; background: var(--panel); }
+  .tbl.sel-t { box-shadow: 0 0 0 2px var(--accent) inset; } .tbl.off { opacity: .42; }
+  .tbl-hd { display: flex; align-items: center; gap: 7px; padding: 0 10px; font: 11px var(--font-mono); font-weight: 600; color: var(--ink); background: var(--tert); border-left: 3px solid var(--accent); cursor: pointer; }
+  .tbl-hd .tdot { width: 6px; height: 6px; border-radius: 3px; }
+  .col-row { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-top: 1px solid var(--line); font: 11px var(--font-mono); color: var(--ink); cursor: pointer; transition: background .12s, opacity .12s; }
+  .col-row .cn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .col-row .ct { margin-left: auto; color: var(--dim); font: 9px var(--font-mono); }
+  .col-row:hover { background: var(--tert); }
+  .col-row.sel-c { background: var(--accent-16); color: var(--ink); box-shadow: inset 3px 0 0 var(--accent); } .col-row.off { opacity: .4; }
+  .stub { border-radius: 3px; padding: 9px 11px; font: 11px var(--font-sans); cursor: pointer; user-select: none; text-align: center; }
+  .stub.src { background: var(--panel); border: 2px solid var(--green); } .stub.tgt { background: var(--panel); border: 2px solid var(--accent); }
+  .stub:hover { filter: brightness(1.3); }
+  .stub .big { font: 16px var(--font-mono); font-weight: 500; color: #fff; } .stub .lab { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+  .tip { position: fixed; z-index: 200; pointer-events: none; background: var(--bg); border: 1px solid var(--accent); border-radius: 4px; padding: 7px 9px; font: 11px var(--font-sans); color: var(--ink); max-width: 320px; box-shadow: none; display: none; line-height: 1.45; }
+  .tip .k { color: var(--accent); font-weight: 500; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+  .tip .tx { color: var(--accent); font-family: var(--font-mono); }
+  .tip .mut { color: var(--muted); font-family: var(--font-mono); font-size: 10px; }
+  .inspect { z-index: 40; height: 244px; flex: 0 0 244px; background: var(--bg); border-top: 2px solid var(--accent); display: none; flex-direction: column; box-shadow: none; }
+  .inspect.open { display: flex; }
+  .inspect .ihd { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .inspect .ihd .kind { font: 9px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); background: transparent; border: 1px solid var(--accent); padding: 2px 7px; border-radius: 3px; }
+  .inspect .ihd .nm { font: 13px var(--font-mono); font-weight: 500; } .inspect .ihd .loc { color: var(--muted); font: 11px var(--font-mono); }
+  .inspect .ihd .x { margin-left: auto; cursor: pointer; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 3px 9px; font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .8px; }
+  .inspect .ihd .x:hover { border-color: var(--accent); color: var(--accent); }
+  .inspect .ibody { flex: 1; display: flex; min-height: 0; }
+  .inspect .col1 { flex: 1; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
+  .inspect .col2 { width: 44%; display: flex; flex-direction: column; min-width: 0; }
+  .inspect .sec { font: 9px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); padding: 6px 12px 2px; }
+  .inspect pre { margin: 0; padding: 2px 12px 10px; overflow: auto; flex: 1; font: 11.5px/1.6 var(--font-mono); color: var(--ink); white-space: pre; }
+  .inspect .elist { overflow: auto; flex: 1; padding: 0 12px 10px; }
+  .inspect .erow { padding: 4px 0; border-bottom: 1px solid var(--line); font: 11px var(--font-mono); display: flex; gap: 6px; align-items: baseline; }
+  .inspect .erow .ar { color: var(--muted); } .inspect .erow .ftx { color: var(--accent); font-family: var(--font-mono); font-size: 10px; margin-left: auto; }
+
+  /* ===== ADDED for Code View (tri-pane) — uses existing theme vars only ===== */
+  /* left pane stacks: file explorer (top) + code-blocks spine (fills) */
+  .leftcol { width: 248px; flex: 0 0 248px; border-right: 1px solid var(--line); background: var(--sidebar); display: flex; flex-direction: column; min-height: 0; }
+  .leftcol .nav { width: auto; flex: 0 0 auto; max-height: 38%; border-right: 0; }
+  .leftcol .blockspane { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+  .blockspane .bphd { padding: 8px 8px 6px; position: sticky; top: 0; background: var(--panel); z-index: 2; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 6px; }
+  .blockspane .bphd .cap { font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .blockspane .bphd .cnt { margin-left: auto; font: 9px var(--font-mono); color: var(--dim); }
+  #blocks { flex: 1; min-height: 0; overflow: auto; padding: 6px; }
+  /* a block row reuses .trow / .lbl look; show a type tint dot + a mono label */
+  #blocks .trow { gap: 7px; padding: 5px 6px; }
+  #blocks .trow .bdot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--btype, var(--dim)); box-shadow: 0 0 0 2px var(--panel); }
+  #blocks .trow .lbl { display: flex; flex-direction: column; gap: 1px; }
+  #blocks .trow .lbl .bt { font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  #blocks .trow .lbl .bl { font: 11px var(--font-mono); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* selected block row = the v3 sel-c look (full-row tint + 3px left bar) */
+  #blocks .trow.sel-c { background: var(--accent-16); box-shadow: inset 3px 0 0 var(--accent); }
+  #blocks .trow.sel-c .bl { font-weight: 600; }
+  #blocks .trow.match { background: var(--accent-10); box-shadow: inset 2px 0 0 var(--accent); }
+
+  /* flow strip — thin full-width horizontal band across the TOP of the center */
+  .flowstrip { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; padding: 7px 10px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; white-space: nowrap; min-height: 0; }
+  .flowstrip .flab { font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-right: 6px; flex: 0 0 auto; }
+  .flowchip { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 4px 9px; border: 1px solid var(--line); border-radius: 3px; background: var(--inner); cursor: pointer; font: 10px var(--font-sans); color: var(--ink); transition: border-color .12s, background .12s, opacity .12s; }
+  .flowchip:hover { border-color: var(--accent); }
+  .flowchip .fcdot { width: 7px; height: 7px; border-radius: 50%; background: var(--btype, var(--dim)); flex: 0 0 auto; }
+  .flowchip .fct { font: 7px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .flowchip .fcl { font: 10px var(--font-mono); color: var(--ink); }
+  .flowchip.active { background: var(--accent-16); border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+  .flowchip.active .fcl { font-weight: 600; }
+  .flowarrow { flex: 0 0 auto; color: var(--dim); font: 12px var(--font-mono); padding: 0 2px; user-select: none; }
+
+
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>CODE VIEW · fct_daily_build</h1>
+  <input class="search" id="search" list="recent" placeholder="search column / block…  ⌘K" autocomplete="off" />
+  <datalist id="recent"></datalist>
+  <div class="grp"><span class="cap">Layer</span>
+    <div class="seg" id="layer"><button data-v="base" class="on">Base SQL</button><button data-v="overlay">+ Transforms</button></div></div>
+  <div class="grp"><span class="cap">Grain</span>
+    <div class="seg" id="grain"><button data-v="table">Table</button><button data-v="column" class="on">Column</button></div></div>
+  <div class="grp"><span class="cap">Depth</span>
+    <div class="seg" id="depth"><button data-v="all" class="on">All</button><button data-v="1">±1</button><button data-v="2">±2</button><button data-v="3">±3</button></div></div>
+  <div class="grp"><span class="cap">show</span>
+    <span id="typeChips"><button class="chip on" data-t="source">sources</button><button class="chip on" data-t="transform">transforms</button><button class="chip on" data-t="target">target</button></span></div>
+  <div class="spacer"></div>
+  <div class="grp"><span class="cap">Theme</span>
+    <div class="seg" id="themeSw"><button data-th="dark">Dark</button><button data-th="paper" class="on">Paper</button></div></div>
+  <button class="btn" id="sqlBtn">SQL</button>
+  <button class="btn" id="fitBtn">Fit</button>
+  <button class="btn" id="resetBtn">Reset</button>
+</header>
+<div class="body" style="flex:1;display:flex;min-height:0;">
+  <div class="leftcol">
+    <div class="nav" id="filenav"></div>
+    <div class="blockspane">
+      <div class="bphd"><span class="cap">code blocks</span><span class="cnt" id="blocksCnt"></span></div>
+      <div id="blocks"></div>
+    </div>
+  </div>
+  <div class="canvasWrap" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+  <div class="flowstrip" id="flowstrip"></div>
+  <div id="container" style="position:relative;flex:1;min-height:0;"></div>
+  <div id="ph" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:var(--muted);font:12px var(--font-mono);z-index:5;pointer-events:none;"></div>
+  <div class="statusbar" id="status"></div>
+  <div class="inspect" id="inspect">
+    <div class="ihd"><span class="kind" id="iKind"></span><span class="nm" id="iNm"></span><span class="loc" id="iLoc"></span><span class="x" id="iClose">close ✕</span></div>
+    <div class="ibody">
+      <div class="col1"><div class="sec" id="iCodeSec">Detail</div><pre id="iCode"></pre></div>
+      <div class="col2"><div class="sec" id="iEdgesSec">Edges</div><div class="elist" id="iEdges"></div></div>
+    </div>
+  </div>
+  </div>
+  <div class="sqlpanel open" id="sqlpanel">
+    <div class="sqlhd"><span id="sqlTitle">SQL</span><span class="x" id="sqlClose">✕</span></div>
+    <pre id="sqlcode"></pre>
+    <div id="sqlsplit"></div>
+  </div>
+</div>
+<svg id="linkLayer" style="position:fixed;inset:0;width:100%;height:100%;z-index:150;pointer-events:none;overflow:visible;"></svg>
+<div class="tip" id="tip"></div>
+
+<script>
+const LM = window.LM;
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const W = 196, HD = 30, ROW = 24;
+const nodeOf = (id) => id.split(".")[0];
+const portCol = (id) => id.split(".").slice(1).join(".");
+
+// node metadata: source tables, transform components, target
+const NODE_META = {
+  raw_txn: { type: "source", color: "#5a8def", label: "raw_txn" },
+  raw_fx: { type: "source", color: "#5a8def", label: "raw_fx" },
+  accounts: { type: "source", color: "#5a8def", label: "accounts" },
+  fct_daily: { type: "target", color: "#e2683a", label: "fct_daily" },
+};
+const CCOLOR = { FILTER: "#e26060", JOIN: "#a47de8", EXPRESSION: "#d4a64a", GROUPBY: "#4cb8b0" };
+LM.COMPONENTS.forEach((c) => (NODE_META[c.id] = { type: c.type.toLowerCase(), color: CCOLOR[c.type] || "#888", label: c.label, comp: c }));
+
+const state = { layer: "base", grain: "column", selection: null, depth: "all", types: new Set(["source", "transform", "target"]) };
+const catOf = (n) => { const m = NODE_META[n]; if (!m) return "transform"; return m.type === "source" ? "source" : m.type === "target" ? "target" : "transform"; };
+const activeEdges = () => state.layer === "base" ? LM.BASE_LINEAGE : LM.OVERLAY;
+
+function deriveView() {
+  const raw = activeEdges();   // always full graph (demo-friendly); selection highlights the path, not collapses
+  const portsByNode = {};
+  const add = (id) => { const n = nodeOf(id), c = portCol(id); (portsByNode[n] = portsByNode[n] || []); if (!portsByNode[n].includes(c)) portsByNode[n].push(c); };
+  raw.forEach(([a, b]) => { add(a); add(b); });
+  let edges;
+  if (state.grain === "column") edges = raw.map(([a, b]) => ({ from: a, to: b }));
+  else { const seen = new Set(); edges = []; raw.forEach(([a, b]) => { const na = nodeOf(a), nb = nodeOf(b); if (na === nb) return; const k = na + ">" + nb; if (!seen.has(k)) { seen.add(k); edges.push({ from: na, to: nb }); } }); }
+  // type-filter chips: show only selected categories (sources / transforms / target)
+  let nodes = Object.keys(portsByNode);
+  if (state.types.size < 3) { const keep = new Set(nodes.filter((n) => state.types.has(catOf(n)))); nodes = [...keep]; edges = edges.filter((e) => keep.has(nodeOf(e.from)) && keep.has(nodeOf(e.to))); }
+  return { raw, portsByNode, nodes, edges };
+}
+
+function nodeHeight(cols) { return state.grain === "table" ? HD + 4 : HD + cols.length * ROW; }
+function nodeHTML(node, cols) {
+  const m = NODE_META[node]; const H = nodeHeight(cols);
+  const hd = `<div class="prog-hd" data-sel="${node}" data-kind="node" style="height:${HD}px;border-bottom:2px solid ${m.color}"><span>${m.label}</span><span class="kind" style="color:${m.color}">${m.type}</span></div>`;
+  if (state.grain === "table") return `<div class="prog" style="width:${W}px;height:${H}px">${hd}</div>`;
+  const rows = cols.map((c) => `<div class="col-row" data-sel="${node}.${c}" data-kind="port" style="height:${ROW}px"><span class="cn">${c}</span><span class="ct"></span></div>`).join("");
+  return `<div class="prog" style="width:${W}px;height:${H}px">${hd}<div class="prog-body" style="padding:0;gap:0">${rows}</div></div>`;
+}
+function portsFor(cols, H) {
+  if (state.grain === "table") return [{ key: "mid:l", placement: [0, 0.5] }, { key: "mid:r", placement: [1, 0.5] }];
+  const out = [];
+  cols.forEach((c, i) => { const yr = (HD + i * ROW + ROW / 2) / H; out.push({ key: `${c}:l`, placement: [0.03, yr] }, { key: `${c}:r`, placement: [0.97, yr] }); });
+  return out;
+}
+const pkey = (id, side) => state.grain === "table" ? `mid:${side}` : `${portCol(id)}:${side}`;
+
+let graph = null;
+function render(fit) {
+  if (typeof clearLinks === "function") clearLinks();
+  const ph = document.getElementById("ph");
+  if (state.file && state.file !== ACTIVE_FILE) {
+    if (graph) { graph.destroy(); graph = null; }
+    ph.style.display = "flex"; ph.textContent = state.file + " — not parsed in this demo (lineage only for transform_accounts.sas)";
+    document.getElementById("status").textContent = "select transform_accounts.sas to see its mapping lineage"; markFileNav(); return;
+  }
+  ph.style.display = "none";
+  const v = deriveView();
+  const nodes = v.nodes.map((n) => { const cols = v.portsByNode[n]; const H = nodeHeight(cols); return { id: n, style: { size: [W, H], width: W, height: H, innerHTML: nodeHTML(n, cols), ports: portsFor(cols, H), portR: 0 } }; });
+  const ACC = cssVar("--accent") || "#d8693a", NEU = cssVar("--hair") || cssVar("--edge") || "#e0ddd4", INK = cssVar("--muted") || "#777", PANEL = cssVar("--tert") || "#eee";
+  const edges = v.edges.map((e) => ({ id: e.from + "=>" + e.to, source: nodeOf(e.from), target: nodeOf(e.to),
+    style: { sourcePort: pkey(e.from, "r"), targetPort: pkey(e.to, "l"), stroke: NEU, lineWidth: 1.2, endArrow: true, endArrowType: "vee", endArrowSize: 7, endArrowFill: NEU } }));
+  const data = { nodes, edges };
+  const layout = { type: "antv-dagre", rankdir: "LR", nodesep: 28, ranksep: 96, align: "UL" };
+  if (graph) { graph.destroy(); graph = null; }   // recreate cleanly each render (avoids setData+relayout race)
+  graph = new G6.Graph({ container: "container", autoResize: true, background: cssVar("--canvas") || "#f1efe8", data, layout, node: { type: "html", state: { inactive: { opacity: 0.25 } } }, edge: { type: "cubic-horizontal", state: { highlight: { stroke: ACC, lineWidth: 2.2, endArrowFill: ACC }, inactive: { strokeOpacity: 0.08, endArrowStrokeOpacity: 0.08 } } }, behaviors: ["zoom-canvas", "drag-canvas", "drag-element"], animation: false });
+  window.__graph = graph;
+  graph.render().then(() => { graph.fitView(); bindEdges(); applyFocus(); requestAnimationFrame(() => requestAnimationFrame(() => sourceDots(v))); });
+  updateStatus(v); markFileNav(); if (typeof buildSearchList === "function") buildSearchList();
+  renderBlocks(); renderFlowStrip();
+}
+
+// ---------- focus (lineage highlight over the active edge graph) ----------
+function lineageOf(full, maxN) { const raw = activeEdges(); const out = {}, inn = {}; raw.forEach(([a, b]) => { (out[a] = out[a] || []).push(b); (inn[b] = inn[b] || []).push(a); }); const walk = (m) => { const dist = { [full]: 0 }, q = [full]; while (q.length) { const n = q.shift(); if (maxN != null && dist[n] >= maxN) continue; (m[n] || []).forEach((x) => { if (dist[x] === undefined) { dist[x] = dist[n] + 1; q.push(x); } }); } return Object.keys(dist); }; return new Set([full, ...walk(inn), ...walk(out)]); }
+function applyFocus() {
+  const sel = state.selection;
+  document.querySelectorAll("#container .col-row").forEach((el) => el.classList.remove("sel-c", "off"));
+  if (!sel || sel.kind !== "port") { if (graph) { const sm = {}; (graph.getNodeData() || []).forEach((n) => (sm[n.id] = [])); (graph.getEdgeData() || []).forEach((e) => (sm[e.id] = [])); graph.setElementState(sm); } return; }
+  const active = lineageOf(sel.id, state.depth === "all" ? null : +state.depth);
+  const activeNodes = new Set([...active].map(nodeOf));
+  const sm = {};
+  (graph.getNodeData() || []).forEach((n) => (sm[n.id] = activeNodes.has(n.id) ? [] : ["inactive"]));
+  (graph.getEdgeData() || []).forEach((e) => { const [a, b] = e.id.split("=>"); const on = (active.has(a) || activeNodes.has(a)) && (active.has(b) || activeNodes.has(b)); sm[e.id] = on ? ["highlight"] : ["inactive"]; });
+  graph.setElementState(sm);
+  document.querySelectorAll("#container .col-row").forEach((el) => { el.classList.add(active.has(el.dataset.sel) ? "sel-c" : "off"); });
+}
+function sourceDots(v) {
+  document.querySelectorAll("#container .src-dot").forEach((el) => { el.classList.remove("src-dot"); el.style.removeProperty("--dot"); });
+  new Set(v.edges.map((e) => e.from)).forEach((id) => { const el = document.querySelector(`#container [data-sel="${CSS.escape(id)}"]`); if (el) { el.classList.add("src-dot"); el.style.setProperty("--dot", "var(--dim)"); } });
+}
+function updateStatus(v) {
+  const layerTxt = state.layer === "base" ? "BASE — original SQL lineage (sacred)" : "+TRANSFORMS — overlay explains how (lineage preserved)";
+  document.getElementById("status").textContent = `${layerTxt}  ·  ${v.nodes.length} nodes · ${v.edges.length} edges · grain=${state.grain}`;
+}
+
+// ---------- inspector ----------
+const insp = document.getElementById("inspect");
+function fitAfterPanel() { requestAnimationFrame(() => requestAnimationFrame(() => { if (graph) graph.fitView(); })); }
+document.getElementById("iClose").onclick = () => { insp.classList.remove("open"); fitAfterPanel(); };
+function edgeRows(list) { return list.length ? list.map(([a, b]) => `<div class="erow"><span>${a}</span><span class="ar">→</span><span>${b}</span></div>`).join("") : '<div style="color:var(--dim);padding:6px 0">no edges</div>'; }
+function setInspect(kind, name, loc, code, etitle, list) { document.getElementById("iKind").textContent = kind; document.getElementById("iNm").textContent = name; document.getElementById("iLoc").textContent = loc; document.getElementById("iCode").textContent = code; document.getElementById("iEdgesSec").textContent = etitle; document.getElementById("iEdges").innerHTML = edgeRows(list); const was = insp.classList.contains("open"); insp.classList.add("open"); if (!was) fitAfterPanel(); }
+function openNode(kind, id) {
+  if (kind === "port") { const raw = activeEdges(); const ins = raw.filter((e) => e[1] === id); const list = raw.filter((e) => e[0] === id || e[1] === id); const code = ins.length ? ins.map((e) => `${portCol(id)} ← ${e[0]}`).join("\n") : `${portCol(id)}  -- source`; setInspect("port", portCol(id), nodeOf(id), code, `Edges (${list.length})`, list); showCompSql(null); }
+  else { const m = NODE_META[id]; const raw = activeEdges(); const list = raw.filter((e) => nodeOf(e[0]) === id || nodeOf(e[1]) === id); const code = m.comp ? `${m.comp.type}\n${m.comp.label}` : `${m.type}\ntable ${id}`; setInspect(m.type, m.label, id, code, `Edges (${list.length})`, list); showCompSql(id); }
+}
+// selecting a component (overlay) highlights + scrolls to its piece in the SQL split
+function showCompSql(id) {
+  document.querySelectorAll("#sqlsplit .sqlsec.secon").forEach((e) => e.classList.remove("secon"));
+  if (!id || state.layer !== "overlay") return;
+  const sec = document.getElementById("ssec-" + id);
+  if (!sec) return;
+  sec.classList.add("secon");
+  if (!document.getElementById("sqlpanel").classList.contains("open")) toggleSql(true);
+  else sec.scrollIntoView({ block: "nearest" });
+}
+
+// ---------- interactions ----------
+function bindEdges() { graph.on("edge:click", (evt) => { const id = evt.target.id; if (id && id.includes("=>")) { const [a, b] = id.split("=>"); setInspect(state.grain + " link", `${a} → ${b}`, "", `${a}  →  ${b}`, "Link", [[a, b]]); } }); }
+const containerEl = document.getElementById("container");
+containerEl.addEventListener("click", (e) => { const el = e.target.closest("[data-sel]"); if (!el) return; e.stopPropagation(); const kind = el.dataset.kind, id = el.dataset.sel; state.selection = (state.selection && state.selection.id === id) ? null : { kind, id }; const hi = state.selection && kind === "port" ? id : null; applyFocus(); openNode(kind, id); highlightSql(hi); if (kind === "node") markBlock(state.selection ? id : null); else markBlock(null); requestAnimationFrame(() => { if (state.selection && kind === "port") drawLinks(id); else if (state.selection && kind === "node") drawCompLink(id); else linkLayer.innerHTML = ""; }); });
+
+// ---------- SQL panel (DrRacket-style link: column ↔ SQL) ----------
+const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+function buildSql() { renderSqlPanel(); }
+// base layer → original SQL; +transforms → the per-component SQL SPLIT (linkable tokens)
+function renderSqlPanel() {
+  const code = document.getElementById("sqlcode"), split = document.getElementById("sqlsplit");
+  document.getElementById("sqlTitle").textContent = (state.layer === "overlay" ? "SQL SPLIT · " : "SQL · ") + LM.BASE_SQL.name;
+  if (state.layer === "overlay") {
+    code.style.display = "none"; split.style.display = "block";
+    split.innerHTML = LM.COMPONENTS.map((c) => { const cols = componentCols(c.id); const sql = LM.COMP_SQL[c.id] || c.label; const body = esc(sql).replace(/\b([a-z_][a-z0-9_]*)\b/gi, (w) => cols.has(w) ? `<span class="sqlcol" data-col="${c.id}.${w}">${w}</span>` : w); return `<div class="sqlsec" id="ssec-${c.id}" data-sec="${c.id}"><div class="sqlcsec" style="cursor:pointer">${c.type.toLowerCase()} · ${esc(c.label)}</div><pre>${body}</pre></div>`; }).join("");
+  } else {
+    split.style.display = "none"; code.style.display = "block";
+    code.innerHTML = LM.BASE_SQL.lines.map((line) => line.map((tok) => typeof tok === "string" ? esc(tok) : `<span class="sqlcol" data-col="${tok.c}">${esc(tok.t)}</span>`).join("")).join("\n");
+  }
+}
+function highlightSql(id) {
+  document.querySelectorAll(".sqlcol.on").forEach((e) => e.classList.remove("on"));
+  if (!id) return;
+  const m = [...document.querySelectorAll(`.sqlcol[data-col="${CSS.escape(id)}"]`)].filter((e) => e.offsetParent !== null);
+  m.forEach((e) => e.classList.add("on"));
+  if (m[0] && document.getElementById("sqlpanel").classList.contains("open")) m[0].scrollIntoView({ block: "nearest" });
+}
+// cols on a component (derived from OVERLAY) — used to make generated-SQL tokens linkable
+function componentCols(id) { const s = new Set(); LM.OVERLAY.forEach(([a, b]) => { if (nodeOf(a) === id) s.add(portCol(a)); if (nodeOf(b) === id) s.add(portCol(b)); }); return s; }
+function setGrainBtn(v) { document.querySelectorAll("#grain button").forEach((x) => x.classList.toggle("on", x.dataset.v === v)); }
+// ---- DrRacket-style connector lines: focused graph column ↔ its SQL token(s) ----
+const linkLayer = document.getElementById("linkLayer");
+let lastLinkId = null;
+function clearLinks() { linkLayer.innerHTML = ""; }
+function drawLinks(id) {
+  lastLinkId = id;
+  linkLayer.innerHTML = "";
+  if (!id || !document.getElementById("sqlpanel").classList.contains("open")) return;
+  const row = document.querySelector(`#container .col-row[data-sel="${CSS.escape(id)}"]`);
+  const toks = [...document.querySelectorAll(".sqlcol.on")].filter((t) => t.offsetParent !== null);
+  if (!row || !toks.length) return;
+  const r = row.getBoundingClientRect(); const cont = document.getElementById("container").getBoundingClientRect();
+  const x1 = Math.min(r.right - 4, cont.right - 4); let y1 = r.top + r.height / 2; y1 = Math.max(cont.top + 8, Math.min(y1, cont.bottom - 8));
+  let s = "";
+  toks.forEach((t) => { const tr = t.getBoundingClientRect(); const x2 = tr.left, y2 = tr.top + tr.height / 2; const mx = (x1 + x2) / 2; s += `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="var(--accent)" stroke-width="1.6" opacity="0.85"/><circle cx="${x1}" cy="${y1}" r="3.5" fill="var(--accent)"/><circle cx="${x2}" cy="${y2}" r="3.5" fill="var(--accent)"/>`; });
+  linkLayer.innerHTML = s;
+}
+// link a component's graph node ↔ its SQL split section
+function drawCompLink(compId) {
+  lastLinkId = null; linkLayer.innerHTML = "";
+  if (!compId || !document.getElementById("sqlpanel").classList.contains("open")) return;
+  const node = document.querySelector(`#container [data-sel="${CSS.escape(compId)}"]`);
+  const sec = document.getElementById("ssec-" + compId);
+  if (!node || !sec) return;
+  const r = node.getBoundingClientRect(), tr = sec.getBoundingClientRect(), cont = document.getElementById("container").getBoundingClientRect();
+  const x1 = Math.min(r.right - 4, cont.right - 4); let y1 = r.top + r.height / 2; y1 = Math.max(cont.top + 8, Math.min(y1, cont.bottom - 8));
+  const x2 = tr.left, y2 = tr.top + 14, mx = (x1 + x2) / 2;
+  linkLayer.innerHTML = `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="var(--accent)" stroke-width="1.8" opacity="0.85"/><circle cx="${x1}" cy="${y1}" r="3.5" fill="var(--accent)"/><circle cx="${x2}" cy="${y2}" r="3.5" fill="var(--accent)"/>`;
+}
+// redraw whatever is currently linked (port or component) — used on zoom/pan
+function drawCurrentLinks() { const s = state.selection; if (!s) { linkLayer.innerHTML = ""; return; } if (s.kind === "port") drawLinks(s.id); else if (s.kind === "node") drawCompLink(s.id); }
+function focusColumn(full) {
+  state.selection = { kind: "port", id: full };
+  markBlock(null);
+  const need = state.grain !== "column";
+  if (need) { state.grain = "column"; setGrainBtn("column"); render(true); } else applyFocus();
+  openNode("port", full); highlightSql(full);
+  setTimeout(() => drawLinks(full), need ? 300 : 40);
+}
+function selectComponent(id) { if (!id) return; state.selection = { kind: "node", id }; applyFocus(); openNode("node", id); highlightSql(null); markBlock(id); requestAnimationFrame(() => drawCompLink(id)); }
+document.getElementById("sqlpanel").addEventListener("click", (e) => { const t = e.target.closest(".sqlcol"); if (t) { focusColumn(t.dataset.col); return; } const sec = e.target.closest(".sqlsec"); if (sec) selectComponent(sec.dataset.sec); });
+// connector lines TRACK the graph on zoom/pan (redraw to new positions) instead of disappearing
+let _rafQ = false;
+function redrawLinks() { if (_rafQ) return; _rafQ = true; requestAnimationFrame(() => { _rafQ = false; drawCurrentLinks(); }); }
+let _panning = false;
+containerEl.addEventListener("wheel", redrawLinks, { passive: true });
+containerEl.addEventListener("pointerdown", () => { _panning = true; });
+window.addEventListener("pointerup", () => { _panning = false; });
+containerEl.addEventListener("pointermove", () => { if (_panning) redrawLinks(); });
+window.addEventListener("resize", redrawLinks);
+function toggleSql(open) { const p = document.getElementById("sqlpanel"); const o = open === undefined ? !p.classList.contains("open") : open; p.classList.toggle("open", o); document.getElementById("sqlBtn").classList.toggle("on", o); clearLinks(); if (graph) setTimeout(() => { try { graph.resize(); } catch (e) {} graph.fitView(); redrawLinks(); }, 120); }
+document.getElementById("sqlBtn").onclick = () => toggleSql();
+document.getElementById("sqlClose").onclick = () => toggleSql(false);
+document.getElementById("sqlBtn").classList.add("on");   // open by default (tri-pane)
+buildSql();
+
+// ---------- Code-blocks panel (#blocks) + Flow lens (#flowstrip) ----------
+// the code blocks ARE LM.COMPONENTS; their category for the SHOW chips is "transform".
+// markBlock(id): single helper that keeps blocks-list row + flow-strip chip selection in sync
+// with the graph/SQL component highlight (the "code is the truth" spine).
+function blockVisible(c) {
+  // SHOW type chips: a block's category (all components are transforms here)
+  if (!state.types.has(catOf(c.id))) return false;
+  // ⌘K search box: match on block label OR type
+  const q = (document.getElementById("search").value || "").trim().toLowerCase();
+  if (!q) return true;
+  return c.label.toLowerCase().includes(q) || c.type.toLowerCase().includes(q) || c.id.toLowerCase().includes(q);
+}
+function renderBlocks() {
+  const host = document.getElementById("blocks");
+  const vis = LM.COMPONENTS.filter(blockVisible);
+  host.innerHTML = vis.map((c) => {
+    const m = NODE_META[c.id];
+    return `<div class="trow blockrow" data-block="${c.id}" title="${esc(c.label)}" style="--btype:${m.color}"><span class="bdot"></span><span class="lbl"><span class="bt">${c.type.toLowerCase()}</span><span class="bl">${esc(c.label)}</span></span></div>`;
+  }).join("") || `<div style="color:var(--dim);font:11px var(--font-mono);padding:8px">no blocks match</div>`;
+  document.getElementById("blocksCnt").textContent = vis.length + "/" + LM.COMPONENTS.length;
+  markBlock(state.selection && state.selection.kind === "node" ? state.selection.id : null);
+}
+function renderFlowStrip() {
+  const host = document.getElementById("flowstrip");
+  // topo order of the linear chain in LM.blockFlow()
+  const flow = LM.blockFlow();
+  const order = [];
+  flow.forEach(([a, b]) => { if (!order.includes(a)) order.push(a); if (!order.includes(b)) order.push(b); });
+  LM.COMPONENTS.forEach((c) => { if (!order.includes(c.id)) order.push(c.id); });
+  // only show blocks that pass the same chip/search filter as #blocks
+  const visIds = new Set(LM.COMPONENTS.filter(blockVisible).map((c) => c.id));
+  const seq = order.filter((id) => visIds.has(id));
+  let html = `<span class="flab">code flow</span>`;
+  seq.forEach((id, i) => {
+    const m = NODE_META[id];
+    if (i > 0) html += `<span class="flowarrow">→</span>`;
+    html += `<span class="flowchip" data-flow="${id}" title="${esc(m.label)}" style="--btype:${m.color}"><span class="fcdot"></span><span class="fct">${m.type}</span><span class="fcl">${esc(m.label)}</span></span>`;
+  });
+  if (!seq.length) html += `<span style="color:var(--dim);font:10px var(--font-mono)">no blocks shown</span>`;
+  host.innerHTML = html;
+  markBlock(state.selection && state.selection.kind === "node" ? state.selection.id : null);
+}
+// THE stitch helper: sync blocks-list row + flow-strip chip selection to a single block id (or none)
+function markBlock(id) {
+  document.querySelectorAll("#blocks .blockrow").forEach((el) => el.classList.toggle("sel-c", el.dataset.block === id));
+  document.querySelectorAll("#flowstrip .flowchip").forEach((el) => el.classList.toggle("active", el.dataset.flow === id));
+  const chip = id ? document.querySelector(`#flowstrip .flowchip[data-flow="${CSS.escape(id)}"]`) : null;
+  if (chip && chip.scrollIntoView) chip.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const row = id ? document.querySelector(`#blocks .blockrow[data-block="${CSS.escape(id)}"]`) : null;
+  if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+}
+document.getElementById("blocks").addEventListener("click", (e) => { const r = e.target.closest(".blockrow"); if (r) selectComponent(r.dataset.block); });
+document.getElementById("flowstrip").addEventListener("click", (e) => { const c = e.target.closest(".flowchip"); if (c) selectComponent(c.dataset.flow); });
+
+function segHandler(id, key, after) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); state[key] = b.dataset.v; if (after) after(); render(true); })); }
+segHandler("layer", "layer", () => { state.selection = null; markBlock(null); renderSqlPanel(); });
+segHandler("grain", "grain", () => { state.selection = null; markBlock(null); });
+document.getElementById("themeSw").addEventListener("click", (e) => { const b = e.target.closest("button[data-th]"); if (!b) return; document.documentElement.dataset.theme = b.dataset.th; document.querySelectorAll("#themeSw button").forEach((x) => x.classList.toggle("on", x === b)); if (graph) { graph.destroy(); graph = null; } render(true); });
+document.getElementById("fitBtn").onclick = () => { graph.fitView(); setTimeout(redrawLinks, 60); };
+document.getElementById("resetBtn").onclick = () => { state.selection = null; state.layer = "base"; state.grain = "column"; state.depth = "all"; state.types = new Set(["source", "transform", "target"]); navCursor = -1; document.querySelectorAll("#layer button").forEach((x) => x.classList.toggle("on", x.dataset.v === "base")); document.querySelectorAll("#grain button").forEach((x) => x.classList.toggle("on", x.dataset.v === "column")); document.querySelectorAll("#depth button").forEach((x) => x.classList.toggle("on", x.dataset.v === "all")); document.querySelectorAll("#typeChips .chip").forEach((x) => x.classList.add("on")); document.getElementById("search").value = ""; insp.classList.remove("open"); clearLinks(); markBlock(null); renderSqlPanel(); render(true); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { insp.classList.remove("open"); state.selection = null; markBlock(null); applyFocus(); } });
+
+// ---------- File Explorer (left) ----------
+const ACTIVE_FILE = "transform_accounts.sas";   // the only parsed file in this demo
+state.file = ACTIVE_FILE;
+const FILES = [
+  { t: "folder", name: "etl", open: true, kids: [
+    { t: "folder", name: "ingest", open: true, kids: [
+      { t: "file", name: "extract_balances.sas" }, { t: "file", name: "extract_customers.sas" } ] },
+    { t: "folder", name: "transform", open: true, kids: [
+      { t: "file", name: "transform_accounts.sas" }, { t: "file", name: "build_dim.sas" } ] },
+    { t: "folder", name: "load", open: true, kids: [ { t: "file", name: "report_risk.sas" } ] },
+  ] },
+  { t: "folder", name: "shared", open: false, kids: [ { t: "file", name: "macros.sas" } ] },
+];
+function buildFileTree() {
+  let uid = 0;
+  function row(node, depth) {
+    const ind = depth > 0 ? ` lvl${Math.min(depth, 3)}` : "";
+    if (node.t === "folder") {
+      const id = "fd" + uid++;
+      const kids = node.kids.map((k) => row(k, depth + 1)).join("");
+      return `<div class="trow${ind}"><span class="car" data-tid="${id}">${node.open ? "▾" : "▸"}</span><span class="lbl blockL" data-fold="${id}">${node.name}/</span></div><div class="kids${node.open ? "" : " collapsed"}" id="${id}">${kids}</div>`;
+    }
+    return `<div class="trow${ind}"><span class="car"></span><span class="lbl" data-file="${node.name}" style="font-family:var(--font-mono)">${node.name}</span></div>`;
+  }
+  document.getElementById("filenav").innerHTML = `<div class="navtools"><div class="ttypes"><span class="cap">files</span></div></div>` + FILES.map((n) => row(n, 0)).join("");
+  markFileNav();
+}
+function markFileNav() { document.querySelectorAll("#filenav .lbl[data-file]").forEach((el) => el.classList.toggle("sel", el.dataset.file === state.file)); }
+document.getElementById("filenav").addEventListener("click", (e) => {
+  const car = e.target.closest(".car[data-tid]"); if (car) { const k = document.getElementById(car.dataset.tid); if (k) { k.classList.toggle("collapsed"); car.textContent = k.classList.contains("collapsed") ? "▸" : "▾"; } return; }
+  const f = e.target.closest(".lbl[data-file]"); if (!f) return; state.file = f.dataset.file; state.selection = null; insp.classList.remove("open"); markBlock(null); render(true);
+});
+
+// ---------- Depth (bounds the highlighted lineage) ----------
+document.querySelectorAll("#depth button").forEach((b) => (b.onclick = () => { document.querySelectorAll("#depth button").forEach((x) => x.classList.toggle("on", x === b)); state.depth = b.dataset.v; if (state.selection && state.selection.kind === "port") { applyFocus(); requestAnimationFrame(() => drawLinks(state.selection.id)); } }));
+
+// ---------- Type-filter chips (sources / transforms / target) ----------
+document.querySelectorAll("#typeChips .chip").forEach((c) => (c.onclick = () => { const t = c.dataset.t; state.types.has(t) ? state.types.delete(t) : state.types.add(t); c.classList.toggle("on"); render(true); }));
+
+// ---------- Search + ⌘K + Ace-jump (ported from v3) ----------
+let navCursor = -1;
+const fileRows = () => [...document.querySelectorAll("#filenav .trow")].filter((r) => r.offsetParent !== null);
+function moveFileCursor(d) { const rs = fileRows(); if (!rs.length) return; document.querySelectorAll("#filenav .trow.cursor").forEach((r) => r.classList.remove("cursor")); navCursor = navCursor < 0 ? (d > 0 ? 0 : rs.length - 1) : Math.max(0, Math.min(rs.length - 1, navCursor + d)); const r = rs[navCursor]; r.classList.add("cursor"); r.scrollIntoView({ block: "nearest" }); }
+function allPortCols() { const s = new Set(); activeEdges().forEach(([a, b]) => { s.add(portCol(a)); s.add(portCol(b)); }); return [...s].sort(); }
+function buildSearchList() { document.getElementById("recent").innerHTML = allPortCols().map((c) => `<option value="${c}">`).join(""); }
+const search = document.getElementById("search");
+// search filters the blocks list + flow strip live (match on label/type), AND on Enter focuses a column
+search.addEventListener("input", () => { renderBlocks(); renderFlowStrip(); });
+search.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const q = e.target.value.trim().toLowerCase(); if (!q) return;
+  // prefer a matching code block (code is the truth); else fall back to a column
+  const blk = LM.COMPONENTS.find((c) => c.label.toLowerCase().includes(q) || c.type.toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
+  const row = [...document.querySelectorAll("#container .col-row")].find((r) => r.dataset.sel.split(".").pop().toLowerCase().includes(q));
+  if (row) focusColumn(row.dataset.sel);
+  else if (blk) selectComponent(blk.id);
+  e.target.value = ""; renderBlocks(); renderFlowStrip();
+});
+// ace-jump: label every visible port/component, type the hint to jump
+let aceOn = false, aceT = [], aceTyped = "";
+const aceLabels = (n) => { const cs = "asdfghjklqwertyuiopzxcvbnm".split(""); if (n <= cs.length) return cs.slice(0, n); const o = []; for (const a of cs) for (const b of cs) { o.push(a + b); if (o.length >= n) return o; } return o; };
+function startAce() {
+  cancelAce();
+  const els = [...document.querySelectorAll("#container [data-sel]")].filter((el) => { const r = el.getBoundingClientRect(); return el.offsetParent !== null && r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; });
+  if (!els.length) return;
+  const L = aceLabels(els.length);
+  aceT = els.map((el, i) => { const r = el.getBoundingClientRect(); const b = document.createElement("div"); b.className = "ajhint"; b.textContent = L[i]; b.style.cssText = `position:fixed;z-index:300;left:${r.left + 2}px;top:${r.top + 2}px`; document.body.appendChild(b); return { el, label: L[i], b }; });
+  aceOn = true; aceTyped = "";
+}
+function cancelAce() { aceOn = false; aceTyped = ""; aceT.forEach((t) => t.b.remove()); aceT = []; }
+function aceKey(e) { e.preventDefault(); e.stopPropagation(); const k = e.key; if (k === "Escape") return cancelAce(); if (k === "Backspace") aceTyped = aceTyped.slice(0, -1); else if (/^[a-z]$/i.test(k)) aceTyped += k.toLowerCase(); else return; const m = aceT.filter((t) => t.label.startsWith(aceTyped)); if (!m.length) return cancelAce(); if (m.length === 1 && m[0].label === aceTyped) { const el = m[0].el; cancelAce(); el.dispatchEvent(new MouseEvent("click", { bubbles: true })); return; } aceT.forEach((t) => (t.b.style.opacity = t.label.startsWith(aceTyped) ? "1" : "0.18")); }
+document.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); search.focus(); search.select(); return; }
+  if (aceOn) return aceKey(e);
+  if (/^(input|textarea)$/i.test(document.activeElement.tagName)) { if (e.key === "Escape") document.activeElement.blur(); return; }
+  if (e.key === "f" || e.key === "F") { e.preventDefault(); startAce(); return; }
+  if (e.key === "ArrowDown") { e.preventDefault(); moveFileCursor(1); return; }
+  if (e.key === "ArrowUp") { e.preventDefault(); moveFileCursor(-1); return; }
+  const cr = fileRows()[navCursor];
+  if (e.key === "Enter" && cr) { e.preventDefault(); const lbl = cr.querySelector(".lbl[data-file]"), car = cr.querySelector(".car[data-tid]"); if (lbl) lbl.click(); else if (car) car.click(); return; }
+  if ((e.key === "ArrowRight" || e.key === "ArrowLeft") && cr) { const car = cr.querySelector(".car[data-tid]"); if (car) { const k = document.getElementById(car.dataset.tid), col = k && k.classList.contains("collapsed"); if ((e.key === "ArrowRight" && col) || (e.key === "ArrowLeft" && !col)) car.click(); } return; }
+}, true);
+
+buildFileTree(); buildSearchList();
+render(true);
+</script>
+</body>
+</html>

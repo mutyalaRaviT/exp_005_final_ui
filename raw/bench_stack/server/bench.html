@@ -582,7 +582,7 @@ function renderCells(){
   selBlocks().forEach(i => { const b=BLOCKS[i];
     const ran = S.ran.has(i), cls = (i===S.focus?" focus":"") + (ran?" ran":"") + (S.busy.has(i)?" busy":"") + (S.hl && (b.writes===S.hl || (b.reads||[]).includes(S.hl))?" hl":"") + (S.story && S.story.includes(b.writes)?" story":"");
     const need = ran ? [] : deps(i);
-    const badge = ran ? (b.match==="differs" ? `<span class="pill bad"><i></i>differs${b.first_diff?` · ${esc(b.first_diff)}`:""}</span>` : b.match==="missing" ? `<span class="pill bad"><i></i>${esc(b.missing||"output missing")}</span>` : b.match==="failed" ? `<span class="pill bad" title="${esc(b.fail||"")}"><i></i>failed</span>` : warnOf(b) ? `<span class="pill warn" data-path="corpus/sas/test_vishnu_testdata_fixed.sas" title="${esc(b.warn)}"><i></i>match · 0 obs ⚠</span>` : b.out ? `<span class="pill good"><i></i>match</span>` : `<span class="pill idle">no table</span>`)
+    const badge = ran ? (b.match==="differs" ? `<span class="pill bad"><i></i>differs${b.first_diff?` · ${esc(b.first_diff)}`:""}</span>` : b.match==="missing" ? `<span class="pill bad"><i></i>${esc(b.missing||"output missing")}</span>` : b.match==="failed" ? `<span class="pill bad" title="${esc(b.fail||"")}"><i></i>failed</span>` : warnOf(b) ? `<span class="pill warn" title="${esc(b.warn)}"><i></i>match · 0 obs ⚠</span>` : b.out ? `<span class="pill good"><i></i>match</span>` : `<span class="pill idle">no table</span>`)
                       : (need.length ? `<span class="pill warn"><i></i>needs ${need.map(k=>`<u data-goto="${k}">${BLOCKS[k].name.replace("sales.","")}</u>`).join(", ")}</span>` : `<span class="pill idle">not run</span>`);
     const storyN = S.story ? S.story.indexOf(b.writes) : -1;
     const tbl = b.out ? table(b.out) : "";
@@ -598,7 +598,11 @@ function renderCells(){
   });
   c.innerHTML = h;
   c.querySelectorAll(".pair").forEach(p => p.addEventListener("click", e => { const g=e.target.closest("[data-goto]"); if(g){ S.focus=+g.dataset.goto; renderCells(); renderRight(); e.stopPropagation(); return; } const w=e.target.closest("[data-path]"); if(w){ openFile(w.dataset.path); e.stopPropagation(); return; } S.focus = +p.dataset.i; renderCells(); renderRight(); }));
-  c.querySelectorAll(".warnline").forEach(w => w.addEventListener("click", () => openFile("corpus/sas/test_vishnu_testdata_fixed.sas")));
+  // 2026-09-09 Task 5 fix round 1: this used to jump every warn line to
+  // corpus/sas/test_vishnu_testdata_fixed.sas regardless of which block was clicked
+  // (warnOf() fires per-block, not per-file) — that file is deleted and the click
+  // target was never actually tied to the block shown, so the dead branch is removed
+  // rather than repointed at an unrelated file.
   const f = c.querySelector(".pair.focus"); if (f) f.scrollIntoView({block:"nearest"});
   const b = BLOCKS[S.focus]; if(!b) return;
   $("#focusInfo").textContent = `block ${b.n} · ${b.name}`;
@@ -668,9 +672,9 @@ function renderLeft(){
   if(S.recent.length) h += `<div class="dir">Recent</div>` + S.recent.map(n=>`<div class="f" data-path="${n}">${n.split("/").pop()}<span class="tag ${n.endsWith(".py")?"py":n.endsWith(".sas")?"sas":"ir"}">${n.endsWith(".py")?"py":n.endsWith(".sas")?"sas":"ir"}</span></div>`).join("");
   FILES.forEach(g => { h += `<div class="dir" data-dir="${g.dir}" title="open ${g.dir}/ as a page">${g.dir}</div>` + g.items.map(it => `<div class="f${it.path===PROGRAM.path?" on":""}" data-path="${it.path}">${it.name}${it.kind?`<span class="tag ${it.kind}">${it.kind}</span>`:""}</div>`).join(""); });
   h += `<div class="dir">Similar to ${esc((PROGRAM.path||"").split("/").pop()||"this program")}</div>`;
-  if(!SIMILAR.length) h += `<div class="empty">no other SAS program to compare (corpus/sas, corpus/parts, testdata)</div>`;
+  if(!SIMILAR.length) h += `<div class="empty">no other SAS program to compare (corpus/team_finance/sas/raw)</div>`;
   SIMILAR.forEach(([n,s,why]) => { h += `<div class="sim" data-path="${n}" title="${why}"><span>${n.split("/").pop()}</span><span>${Math.round(s*100)}%</span><div class="bar"><i style="width:${s*100}%"></i></div><small style="grid-column:1/-1">${why}</small></div>`; });
-  h += `<div class="dir" style="margin-top:12px">score</div><div style="padding:2px 12px 10px 22px;font-size:11.5px;color:var(--muted)">Jaccard over block shapes ∪ lineage edges from node/4, over every SAS file in corpus/sas, corpus/parts and testdata (files the loop never parsed are folded once by the Rust engine into out/bench/sig). Same rules for SAS and PySpark, so a converted program can be matched back to its source.</div></div>`;
+  h += `<div class="dir" style="margin-top:12px">score</div><div style="padding:2px 12px 10px 22px;font-size:11.5px;color:var(--muted)">Jaccard over block shapes ∪ lineage edges from node/4, over every SAS file in corpus/team_finance/sas/raw (files the loop never parsed are folded once by the Rust engine into out/bench/sig). Same rules for SAS and PySpark, so a converted program can be matched back to its source.</div></div>`;
   $("#leftBody").innerHTML = h;
   const inp=$("#fsearch");
   inp.addEventListener("focus", ()=>setMode("FILTER")); inp.addEventListener("blur", ()=>setMode("COMMAND"));
@@ -988,10 +992,10 @@ function renderBottom(){
       const why = t.why || (t.verdict==="match" ? `${t.sas_rows} SAS rows == ${t.py_rows} Spark rows (${t.csv||""})` : `${t.n_mismatch||0} rows differ: sas ${t.sas_rows} / spark ${t.py_rows}`);
       return `<span class="pill ${cls}" title="${esc(why)}"><i></i>${t.verdict}</span>`; };
     h = `<div class="dm"><table><tr><th>table</th><th>${S.engine} interp</th><th>spark</th><th>rows</th><th>bytes</th><th>SAS listing</th></tr>` +
-      (rows.length ? rows.map(b=>`<tr><td class="mono">${b.name}</td><td${warnOf(b)?' style="color:var(--warn)"':""}>${b.out.rows.length} rows</td><td${warnOf(b)?' style="color:var(--warn)"':""}>${b.out.rows.length} rows</td><td>${b.out.rows.length}</td><td><span class="pill good"><i></i>equal</span>${warnOf(b)?` <span class="pill warn" title="${esc(b.warn||"")}"><i></i>0 obs · <u data-path="corpus/sas/test_vishnu_testdata_fixed.sas" style="cursor:pointer">fixed variant</u></span>`:""}</td><td>${lpill(b)}</td></tr>`).join("") : `<tr><td colspan="6" style="color:var(--muted)">Run a pair first.</td></tr>`) + `</table>`;
+      (rows.length ? rows.map(b=>`<tr><td class="mono">${b.name}</td><td${warnOf(b)?' style="color:var(--warn)"':""}>${b.out.rows.length} rows</td><td${warnOf(b)?' style="color:var(--warn)"':""}>${b.out.rows.length} rows</td><td>${b.out.rows.length}</td><td><span class="pill good"><i></i>equal</span>${warnOf(b)?` <span class="pill warn" title="${esc(b.warn||"")}"><i></i>0 obs</span>`:""}</td><td>${lpill(b)}</td></tr>`).join("") : `<tr><td colspan="6" style="color:var(--muted)">Run a pair first.</td></tr>`) + `</table>`;
     const nOk = Object.values(L.tables).filter(t=>t.verdict==="match").length, nAll = Object.keys(L.tables).length;
     h += `<div class="listing" style="margin-top:10px;font-size:11.5px;color:var(--muted)">` +
-      (L.loaded ? `SAS listing <b style="color:var(--text)">${esc(L.source||"")}</b> · ${nOk}/${nAll} tables match the file-level Spark CSVs (out/pyspark_ravi) · ` : `No SAS listing yet: run <span class="mono">testdata/test_vishnu_testdata.sas</span> in SAS OnDemand and paste the PROC PRINT output here. `) +
+      (L.loaded ? `SAS listing <b style="color:var(--text)">${esc(L.source||"")}</b> · ${nOk}/${nAll} tables match the file-level Spark CSVs (out/pyspark_ravi) · ` : `No SAS listing yet: run <span class="mono">corpus/team_finance/sas/raw/09_customer_summary.sas</span> in SAS OnDemand and paste the PROC PRINT output here. `) +
       `<u id="listingToggle" style="cursor:pointer">${L.loaded?"paste another":"paste listing"}</u>` +
       `<div id="listingBox" hidden style="margin-top:6px"><textarea id="listingText" rows="6" style="width:100%;box-sizing:border-box;font-size:11px" placeholder="sales_data\nObs  sale_id  sale_amount  date\n  1  001  0  01/01/2023\n..."></textarea>` +
       `<div style="margin-top:4px;display:flex;gap:8px;align-items:center"><button id="listingSend">compare</button><span>or in the terminal: <kbd>compare &lt;listing.txt&gt;</kbd></span></div></div></div></div>`;
@@ -1305,7 +1309,7 @@ function renderSessions(){
 S.right = "graph"; S.bottom = true; S.tab = "term";
 (async () => {
   await loadFiles(); await loadSessions();
-  let last = "corpus/sas/test_vishnu.sas"; try{ last = localStorage.getItem("bench.last") || last; }catch(e){}
+  let last = "../../corpus/team_finance/sas/raw/09_customer_summary.sas"; try{ last = localStorage.getItem("bench.last") || last; }catch(e){}
   await loadProgram(last);
   window.BENCH_READY = true;
 })();

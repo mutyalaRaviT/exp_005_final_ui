@@ -1,5 +1,13 @@
 % codegen/sas_pyspark.pl — SAS node/4 -> PySpark, in Prolog (exp_42, 2026-09-05).
 %
+% Fix round 1 (2026-09-09): every proj(...) pattern in this file was arity-2
+% (proj(Expr,AliasOpt)) while pipeline/specs/sas.py's PROJ has built arity-3
+% (proj(Expr,AliasOpt,LengthOpt)) since task 5b's LENGTH support — this file was
+% never touched or tested in 5b, so every proj/2 clause here silently matched
+% nothing. run_all.sh step 4's Prolog-vs-Rust byte-diff caught it: this file was
+% dropping the entire body of every CREATE TABLE AS SELECT. Fixed by widening
+% every proj/2 to proj/3 (the third arg unused here, matched with `_`).
+%
 % Why: the conversion RULES live here as clauses a person can read one at a
 % time: one clause per SAS statement shape, one clause per expression
 % functor. The input is ONLY the node/4 fact file the fold harness wrote
@@ -84,7 +92,7 @@ step_lines([data(Out)|Body], Lines) :-
 
 % DATA step: IF _N_ = 1 THEN SET lookup; SET main  ->  every row of main carries the lookup's one row
 step_lines([data(Out)|Body], Lines) :-
-    memberchk(if_then_set(_, lit(1), Look), Body), memberchk(set(In), Body), !,
+    memberchk(if_then_set(_, lit(1, _), Look), Body), memberchk(set(In), Body), !,
     ds_key(Out, K), ds_key(In, KI), ds_key(Look, KL),
     format(atom(L1), "put(\"~w\", sas_attach_first_row(ds[\"~w\"], ds[\"~w\"]))", [K, KI, KL]),
     format_lines(Body, FmtLines), append(FmtLines, [L1], Lines),
@@ -132,22 +140,52 @@ var_name(nvar(N, _), L) :- lower(N, L).
 
 % -------------------------------------------------------------- PROC SQL
 % CREATE TABLE out AS select  ->  put("out", <chain>)   (scalar subqueries first)
-sql_lines(Out, select_stmt([Core], OrderOpt, _Limit), Lines) :-
+% M3a defect 2 (2026-09-10): UNION ALL. `select_stmt(Cores, Order, Limit)` has
+% held a LIST of select_cores since task 5b, but this rule only ever matched a
+% one-element list, so a UNION ALL statement matched NO clause at all and the
+% whole PROC SQL step vanished from the generated program (18_dashboard_mart,
+% 25_final_pack: 4 branches, 0 lines emitted). Every branch is rendered now and
+% they are combined with `.union(...)`, left-associated.
+%
+% `.union` and not `.unionByName`: SQL UNION ALL is POSITIONAL — it matches
+% branches column by column, not by name — and that is exactly `DataFrame.union`.
+% `unionByName` would also be wrong in practice here: only the first branch of
+% 18_dashboard_mart names its columns (`'BRANCH' as metric_type, ...`), the other
+% three are bare projections whose Spark column names are `LARGETXN`, `l.acct_id`
+% and so on, so matching by name would raise instead of stacking the rows.
+%
+% The first branch sets the output schema, which is the rule sas_lineage.pl's
+% select_lineage/3 already follows (task 5d, the SetSchema flag).
+sql_lines(Out, select_stmt([Core|Cores], OrderOpt, _Limit), Lines) :-
     ds_key(Out, K),
-    core_chain(Core, Chain, [], Pre),
+    core_chain(Core, Chain0, [], Pre0),
+    union_chain(Cores, Chain0, Chain, Pre0, Pre),
     order_txt(OrderOpt, OrdTxt),
     format(atom(L), "put(\"~w\", ~w~w)", [K, Chain, OrdTxt]),
     core_out_cols(Core, Cols), set_schema(K, Cols),
     append(Pre, [L], Lines).
+
+% union_chain(+RemainingCores, +Acc, -Chain, +Pre0, -Pre): left-associated
+% `a.union(b).union(c)`; Pre keeps every branch's scalar-subquery lines in
+% branch order, the same way core_chain threads them within one branch.
+union_chain([], Chain, Chain, P, P).
+union_chain([C|Cs], Acc, Chain, P0, P) :-
+    core_chain(C, T, P0, P1),
+    format(atom(Acc1), "~w.union(~w)", [Acc, T]),
+    union_chain(Cs, Acc1, Chain, P1, P).
 
 order_txt(none, "").
 order_txt(some(Keys), T) :- maplist(px0, Keys, Ps), atomic_list_concat(Ps, ", ", PT), format(atom(T), ".orderBy(~w)", [PT]).
 
 % core_chain(+Core, -ChainTxt, +Pre0, -Pre): Pre collects the lines that must
 % run before the chain (scalar subqueries), in order.
-core_chain(select_core(Cols, From, JoinOpt, WhereOpt, GroupOpt, HavingOpt), Chain, Pre0, Pre) :-
+% task 5c: Joins is a LIST now (was `JoinOpt = none | some(join(Src,On))`);
+% joins_txt/4 concatenates one ".join(...)" per list item, source order,
+% still hardcoded "inner" (this pre-existing simplification — never reading
+% left_join vs inner_join's own functor for the join TYPE — is unchanged).
+core_chain(select_core(Cols, From, Joins, WhereOpt, GroupOpt, HavingOpt), Chain, Pre0, Pre) :-
     from_txt(From, FromTxt, Pre0, Pre1),
-    join_txt(JoinOpt, JoinTxt, Pre1, Pre2),
+    joins_txt(Joins, JoinTxt, Pre1, Pre2),
     where_txt(WhereOpt, WhereTxt, Pre2, Pre3),
     select_txt(Cols, GroupOpt, SelTxt, Pre3, Pre4),
     having_txt(HavingOpt, HavTxt, Pre4, Pre),
@@ -158,8 +196,15 @@ from_txt(table(D, some(A)), T, P, P) :- ds_key(D, K), lower(A, LA), format(atom(
 from_txt(subquery(Core, none), T, P0, P) :- core_chain(Core, C, P0, P), format(atom(T), "(~w)", [C]).
 from_txt(subquery(Core, some(A)), T, P0, P) :- core_chain(Core, C, P0, P), lower(A, LA), format(atom(T), "(~w).alias(\"~w\")", [C, LA]).
 
-join_txt(none, "", P, P).
-join_txt(some(join(Src, On)), T, P0, P) :- from_txt(Src, S, P0, P1), px(On, O, P1, P), format(atom(T), ".join(~w, ~w, \"inner\")", [S, O]).
+% task 5d: a join whose own arity is 1 (cross_join(Src): no ON) renders
+% ".crossJoin(src)" instead — arity decides this, not the functor name.
+joins_txt([], "", P, P).
+joins_txt([J|Js], T, P0, P) :-
+    functor(J, _, Arity), J =.. [_, Src|Rest], from_txt(Src, S, P0, P1),
+    ( Arity =:= 2 -> [On] = Rest, px(On, O, P1, P2), format(atom(JT), ".join(~w, ~w, \"inner\")", [S, O])
+    ; P2 = P1, format(atom(JT), ".crossJoin(~w)", [S]) ),
+    joins_txt(Js, RestT, P2, P),
+    atomic_list_concat([JT, RestT], T).
 
 where_txt(none, "", P, P).
 where_txt(some(C), T, P0, P) :- px(C, X, P0, P), format(atom(T), ".filter(~w)", [X]).
@@ -168,9 +213,13 @@ having_txt(none, "", P, P).
 having_txt(some(C), T, P0, P) :- px(C, X, P0, P), format(atom(T), ".filter(~w)", [X]).
 
 % SELECT list -> .select / .agg / .groupBy(...).agg
-select_txt([proj(star, none)], none, ".select(\"*\")", P, P) :- !.
+select_txt([proj(star, none, _)], none, ".select(\"*\")", P, P) :- !.
+% task 5d: a single-item qualified star (`a.*`) — Spark's own "alias.*"
+% column string expands every column of that aliased source, so this is the
+% direct analogue of the bare-star fast path just above.
+select_txt([proj(star(A0), none, _)], none, T, P, P) :- !, lower(A0, A), format(atom(T), ".select(\"~w.*\")", [A]).
 select_txt(Cols, none, T, P0, P) :-
-    ( member(proj(E, _), Cols), is_agg(E) ) ->
+    ( member(proj(E, _, _), Cols), is_agg(E) ) ->
         ( maplist_pre(proj_txt, Cols, Ts, P0, P), atomic_list_concat(Ts, ", ", TT), format(atom(T), ".agg(~w)", [TT]) )
     ;   ( maplist_pre(proj_txt, Cols, Ts, P0, P), atomic_list_concat(Ts, ", ", TT), format(atom(T), ".select(~w)", [TT]) ).
 select_txt(Cols, some(Keys), T, P0, P) :-
@@ -179,13 +228,15 @@ select_txt(Cols, some(Keys), T, P0, P) :-
     include(agg_proj, Cols, Aggs), maplist_pre(proj_txt, Aggs, ATs, P0, P), atomic_list_concat(ATs, ", ", AggTxt),
     format(atom(T), ".groupBy(~w).agg(~w)", [KeysTxt, AggTxt]).
 
-agg_proj(proj(E, _)) :- is_agg(E).
-key_txt(Key, Cols, T) :- ( member(proj(E, some(A)), Cols), same_expr(E, Key) -> px0(Key, KP), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [KP, LA]) ; px0(Key, T) ).
+agg_proj(proj(E, _, _)) :- is_agg(E).
+key_txt(Key, Cols, T) :- ( member(proj(E, some(A), _), Cols), same_expr(E, Key) -> px0(Key, KP), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [KP, LA]) ; px0(Key, T) ).
 same_expr(A, B) :- lower_term(A, LA), lower_term(B, LB), LA == LB.
 
-proj_txt(proj(star, none), "F.col(\"*\")", P, P).
-proj_txt(proj(E, none), T, P0, P) :- px(E, T, P0, P).
-proj_txt(proj(E, some(A)), T, P0, P) :- px(E, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
+proj_txt(proj(star, none, _), "F.col(\"*\")", P, P).
+% task 5d: a qualified star (`a.*`), same idea as the bare star arm above.
+proj_txt(proj(star(A0), none, _), T, P, P) :- !, lower(A0, A), format(atom(T), "F.col(\"~w.*\")", [A]).
+proj_txt(proj(E, none, _), T, P0, P) :- px(E, T, P0, P).
+proj_txt(proj(E, some(A), _), T, P0, P) :- px(E, X, P0, P), lower(A, LA), format(atom(T), "~w.alias(\"~w\")", [X, LA]).
 
 maplist_pre(_, [], [], P, P).
 maplist_pre(G, [X|Xs], [Y|Ys], P0, P) :- call(G, X, Y, P0, P1), maplist_pre(G, Xs, Ys, P1, P).
@@ -193,12 +244,26 @@ maplist_pre(G, [X|Xs], [Y|Ys], P0, P) :- call(G, X, Y, P0, P1), maplist_pre(G, X
 is_agg(call(N, _)) :- lower(N, L), memberchk(L, [sum, avg, mean, max, min, count, std, var, nmiss]).
 
 % output columns of a core — for the schema table
-core_out_cols(select_core(Cols, From, _, _, _, _), Out) :-
-    findall(C, ( member(proj(E, A), Cols), proj_col(E, A, From, C) ), Cs), flatten(Cs, Out).
-proj_col(_, some(A), _, L) :- !, lower(A, L).
-proj_col(col(N), none, _, L) :- !, lower(N, L).
-proj_col(star, none, table(D, _), Cols) :- ds_key(D, K), schema(K, Cols), !.
-proj_col(_, none, _, '_auto').
+% task 5d: proj_col now also sees Joins, so a qualified star (`a.*`) can
+% resolve against a JOIN source's own alias, not only FROM's.
+core_out_cols(select_core(Cols, From, Joins, _, _, _), Out) :-
+    findall(C, ( member(proj(E, A, _), Cols), proj_col(E, A, From, Joins, C) ), Cs), flatten(Cs, Out).
+proj_col(_, some(A), _, _, L) :- !, lower(A, L).
+proj_col(col(N), none, _, _, L) :- !, lower(N, L).
+proj_col(star, none, table(D, _), _, Cols) :- ds_key(D, K), schema(K, Cols), !.
+proj_col(star(A0), none, From, Joins, Cols) :- !,
+    lower(A0, A), ( alias_schema(From, Joins, A, S) -> Cols = S ; Cols = ['_auto'] ).
+proj_col(_, none, _, _, '_auto').
+
+% task 5d: the schema of whichever from_source (FROM itself, or one of its
+% JOINs) carries alias Al — used by proj_col's star(Alias) clause above; same
+% helper name/shape as the Rust mirrors' own alias_schema.
+alias_schema(From, _Joins, Al, Cols) :- from_source_alias(From, Al), !, table_schema(From, Cols).
+alias_schema(_From, Joins, Al, Cols) :- member(J, Joins), arg(1, J, Src), from_source_alias(Src, Al), !, table_schema(Src, Cols).
+from_source_alias(table(_, some(A0)), Al) :- !, lower(A0, Al).
+from_source_alias(subquery(_, some(A0)), Al) :- !, lower(A0, Al).
+table_schema(table(D, _), Cols) :- !, ds_key(D, K), schema(K, Cols).
+table_schema(_, []).
 
 % ------------------------------------------------------------ expressions
 % px(+Term, -PythonText, +Pre0, -Pre): Pre gathers scalar-subquery lines.
@@ -206,9 +271,33 @@ px0(T, P) :- px(T, P, [], _).
 
 px(col(N), T, P, P) :- lower(N, L), format(atom(T), "F.col(\"~w\")", [L]).
 px(col(A, N), T, P, P) :- lower(A, LA), lower(N, L), format(atom(T), "F.col(\"~w.~w\")", [LA, L]).
+% M3a defect 1: a NUMBER leaf now folds to lit(Value, Lexeme) (specs/sas.py
+% keep_lexeme=True). Only the printer reads the lexeme; every consumer below
+% reads Value and ignores it, so lit/2 is handled by one clause that defers to
+% the existing lit/1 clause rather than by duplicating any rule.
+px(lit(V, _), T, P, P) :- !, format(atom(T), "F.lit(~w)", [V]).
 px(lit(V), T, P, P) :- number(V), !, format(atom(T), "F.lit(~w)", [V]).
 px(lit(V), T, P, P) :- py_str(V, S), format(atom(T), "F.lit(~w)", [S]).
+% M3a defect 3 (2026-09-10): CASE WHEN ... END and the lone `.` (missing).
+% CASE_FORM has folded to case_expr([when(Cond,Then)...], none|some(Else)) since
+% task 5b and MISSING_FORM to `missing` since task 5d, but neither had a rule in
+% either PySpark emitter: 13_risk_flags.sas's risk_band and 25_final_pack.sas's
+% third UNION ALL branch fell through to no clause at all here (and made the Rust
+% mirror panic, which is how `lineageq_store convert` reported them as a warn and
+% stored an EMPTY program for the block).
+%
+% CASE maps to the PySpark chain F.when(c1, v1).when(c2, v2).otherwise(vN), with
+% no `.otherwise(...)` when the source has no ELSE — that is Spark's own default
+% (null), so writing one would invent a value the SAS did not name.
+% A lone `.` is SAS's numeric missing value, i.e. NULL: F.lit(None).
+px(case_expr(Whens, ElseOpt), T, P0, P) :- !,
+    when_chain(Whens, WT, P0, P1),
+    (   ElseOpt = some(E)
+    ->  px(E, ET, P1, P), format(atom(T), "~w.otherwise(~w)", [WT, ET])
+    ;   P = P1, T = WT ).
+px(missing, "F.lit(None)", P, P) :- !.
 px(star, "F.col(\"*\")", P, P).
+px(star(A0), T, P, P) :- lower(A0, A), format(atom(T), "F.col(\"~w.*\")", [A]).
 px(paren(E), T, P0, P) :- px(E, X, P0, P), format(atom(T), "(~w)", [X]).
 px(neg(E), T, P0, P) :- px(E, X, P0, P), format(atom(T), "(-~w)", [X]).
 px(not(E), T, P0, P) :- px(E, X, P0, P), format(atom(T), "(~~~w)", [X]).
@@ -220,6 +309,12 @@ px(subquery_expr(Core), T, P0, P) :-
     format(atom(Line), "_scalar~w = scalar(~w)", [N1, Chain]),
     append(P1, [Line], P),
     format(atom(T), "F.lit(_scalar~w)", [N1]).
+% task 5c: COUNT(DISTINCT x) -> F.countDistinct(x) — a special case ahead of
+% the generic call/2 clause below, so the DISTINCT marker never reaches px/4
+% as a bare operand (it has no general PySpark rule of its own; it only
+% means anything as this one wrapper).
+px(call(Name, [distinct(Arg)]), T, P0, P) :-
+    lower(Name, count), !, px(Arg, X, P0, P), format(atom(T), "F.countDistinct(~w)", [X]).
 px(call(Name, Args), T, P0, P) :-
     lower(Name, L), once(sas_fn(L, Py)),
     maplist_pre(px, Args, Xs, P0, P), atomic_list_concat(Xs, ", ", XT),
@@ -238,6 +333,7 @@ sas_fn(sum, sum).  sas_fn(avg, avg).  sas_fn(mean, avg).  sas_fn(max, max).  sas
 sas_fn(upcase, upper).  sas_fn(lowcase, lower).  sas_fn(abs, abs).  sas_fn(round, round).  sas_fn(substr, substring).
 sas_fn(F, _) :- \+ clause(sas_fn(F, _), true), format(user_error, "LINEAGEQ: no PySpark mapping for SAS function ~w~n", [F]), fail.
 
+py_lit(lit(V, _), T) :- !, format(atom(T), "~w", [V]).
 py_lit(lit(V), T) :- number(V), !, format(atom(T), "~w", [V]).
 py_lit(lit(V), T) :- py_str(V, T).
 
@@ -255,3 +351,15 @@ py_esc([0'\\|Cs], [0'\\, 0'\\|Es]) :- !, py_esc(Cs, Es).
 py_esc([0'"|Cs], [0'\\, 0'"|Es]) :- !, py_esc(Cs, Es).
 py_esc([0'\n|Cs], [0'\\, 0'n|Es]) :- !, py_esc(Cs, Es).
 py_esc([C|Cs], [C|Es]) :- py_esc(Cs, Es).
+
+% M3a defect 3: the CASE chain helpers, kept below every px clause so
+% px's own clauses stay contiguous (SWI warns otherwise).
+when_chain([when(C, V)|Ws], T, P0, P) :-
+    px(C, CT, P0, P1), px(V, VT, P1, P2),
+    format(atom(T0), "F.when(~w, ~w)", [CT, VT]),
+    when_rest(Ws, T0, T, P2, P).
+when_rest([], T, T, P, P).
+when_rest([when(C, V)|Ws], Acc, T, P0, P) :-
+    px(C, CT, P0, P1), px(V, VT, P1, P2),
+    format(atom(Acc1), "~w.when(~w, ~w)", [Acc, CT, VT]),
+    when_rest(Ws, Acc1, T, P2, P).

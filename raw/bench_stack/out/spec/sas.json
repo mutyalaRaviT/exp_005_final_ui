@@ -41,7 +41,22 @@
   "lt",
   "le",
   "gt",
-  "ge"
+  "ge",
+  "left",
+  "inner",
+  "case",
+  "when",
+  "else",
+  "end",
+  "length",
+  "cross",
+  "infile",
+  "dsd",
+  "dlm",
+  "truncover",
+  "datalines",
+  "output",
+  "distinct"
  ],
  "statement_end": [
   ";"
@@ -111,6 +126,11 @@
     {
      "spelling": "-",
      "functor": "neg",
+     "kind": "prefix"
+    },
+    {
+     "spelling": "distinct",
+     "functor": "distinct",
      "kind": "prefix"
     }
    ]
@@ -276,6 +296,95 @@
  "forms": [
   {
    "t": "parts",
+   "name": "case_expr",
+   "parts": [
+    {
+     "t": "kw",
+     "text": "CASE"
+    },
+    {
+     "t": "list",
+     "field": "whens",
+     "parts": [
+      {
+       "t": "group",
+       "functor": "when",
+       "parts": [
+        {
+         "t": "kw",
+         "text": "WHEN"
+        },
+        {
+         "t": "cap",
+         "field": "cond",
+         "kind": "expr"
+        },
+        {
+         "t": "kw",
+         "text": "THEN"
+        },
+        {
+         "t": "cap",
+         "field": "then",
+         "kind": "expr"
+        }
+       ]
+      }
+     ],
+     "min": 1,
+     "sep": []
+    },
+    {
+     "t": "opt",
+     "parts": [
+      {
+       "t": "kw",
+       "text": "ELSE"
+      },
+      {
+       "t": "cap",
+       "field": "else",
+       "kind": "expr"
+      }
+     ]
+    },
+    {
+     "t": "kw",
+     "text": "END"
+    }
+   ]
+  },
+  {
+   "t": "parts",
+   "name": "missing",
+   "parts": [
+    {
+     "t": "sym",
+     "text": "."
+    }
+   ]
+  },
+  {
+   "t": "parts",
+   "name": "star",
+   "parts": [
+    {
+     "t": "cap",
+     "field": "alias",
+     "kind": "ident"
+    },
+    {
+     "t": "sym",
+     "text": "."
+    },
+    {
+     "t": "sym",
+     "text": "*"
+    }
+   ]
+  },
+  {
+   "t": "parts",
    "name": "star",
    "parts": [
     {
@@ -308,20 +417,23 @@
  "expr_leaves": [
   {
    "name": "number",
-   "term": "lit(V)",
+   "term": "lit(V, Text)",
    "double_delim": false,
+   "keep_lexeme": true,
    "backslash_escape": true
   },
   {
    "name": "string",
    "term": "lit(V)",
    "double_delim": true,
+   "keep_lexeme": false,
    "backslash_escape": false
   },
   {
    "name": "word",
    "term": "col(V)",
    "double_delim": false,
+   "keep_lexeme": false,
    "backslash_escape": true
   }
  ],
@@ -415,6 +527,64 @@
    ]
   },
   {
+   "name": "length",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "LENGTH"
+    },
+    {
+     "t": "list",
+     "field": "vars",
+     "parts": [
+      {
+       "t": "rule",
+       "field": "v",
+       "name": "length_var"
+      }
+     ],
+     "min": 1,
+     "sep": []
+    }
+   ]
+  },
+  {
+   "name": "infile",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "INFILE"
+    },
+    {
+     "t": "kw",
+     "text": "DATALINES"
+    },
+    {
+     "t": "kw",
+     "text": "DSD"
+    },
+    {
+     "t": "kw",
+     "text": "DLM"
+    },
+    {
+     "t": "sym",
+     "text": "="
+    },
+    {
+     "t": "cap",
+     "field": "dlm",
+     "kind": "expr"
+    },
+    {
+     "t": "kw",
+     "text": "TRUNCOVER"
+    }
+   ]
+  },
+  {
    "name": "datalines",
    "assign": false,
    "parts": [
@@ -489,6 +659,36 @@
      "t": "rule",
      "field": "in",
      "name": "dsname"
+    }
+   ]
+  },
+  {
+   "name": "assign",
+   "assign": false,
+   "parts": [
+    {
+     "t": "cap",
+     "field": "var",
+     "kind": "ident"
+    },
+    {
+     "t": "sym",
+     "text": "="
+    },
+    {
+     "t": "cap",
+     "field": "val",
+     "kind": "expr"
+    }
+   ]
+  },
+  {
+   "name": "output",
+   "assign": false,
+   "parts": [
+    {
+     "t": "kw",
+     "text": "OUTPUT"
     }
    ]
   },
@@ -762,6 +962,42 @@
     ]
    }
   ],
+  "length_var": [
+   {
+    "functor": "clen",
+    "parts": [
+     {
+      "t": "cap",
+      "field": "name",
+      "kind": "ident"
+     },
+     {
+      "t": "sym",
+      "text": "$"
+     },
+     {
+      "t": "cap",
+      "field": "n",
+      "kind": "expr"
+     }
+    ]
+   },
+   {
+    "functor": "nlen",
+    "parts": [
+     {
+      "t": "cap",
+      "field": "name",
+      "kind": "ident"
+     },
+     {
+      "t": "cap",
+      "field": "n",
+      "kind": "expr"
+     }
+    ]
+   }
+  ],
   "from_source": [
    {
     "functor": "table",
@@ -812,6 +1048,80 @@
     ]
    }
   ],
+  "join_clause": [
+   {
+    "functor": "left_join",
+    "parts": [
+     {
+      "t": "kw",
+      "text": "LEFT"
+     },
+     {
+      "t": "kw",
+      "text": "JOIN"
+     },
+     {
+      "t": "rule",
+      "field": "src",
+      "name": "from_source"
+     },
+     {
+      "t": "kw",
+      "text": "ON"
+     },
+     {
+      "t": "cap",
+      "field": "on",
+      "kind": "expr"
+     }
+    ]
+   },
+   {
+    "functor": "inner_join",
+    "parts": [
+     {
+      "t": "kw",
+      "text": "INNER"
+     },
+     {
+      "t": "kw",
+      "text": "JOIN"
+     },
+     {
+      "t": "rule",
+      "field": "src",
+      "name": "from_source"
+     },
+     {
+      "t": "kw",
+      "text": "ON"
+     },
+     {
+      "t": "cap",
+      "field": "on",
+      "kind": "expr"
+     }
+    ]
+   },
+   {
+    "functor": "cross_join",
+    "parts": [
+     {
+      "t": "kw",
+      "text": "CROSS"
+     },
+     {
+      "t": "kw",
+      "text": "JOIN"
+     },
+     {
+      "t": "rule",
+      "field": "src",
+      "name": "from_source"
+     }
+    ]
+   }
+  ],
   "select_core": [
    {
     "functor": "select_core",
@@ -846,6 +1156,24 @@
             "kind": "ident"
            }
           ]
+         },
+         {
+          "t": "opt",
+          "parts": [
+           {
+            "t": "kw",
+            "text": "LENGTH"
+           },
+           {
+            "t": "sym",
+            "text": "="
+           },
+           {
+            "t": "cap",
+            "field": "len",
+            "kind": "expr"
+           }
+          ]
          }
         ]
        }
@@ -868,33 +1196,17 @@
       "name": "from_source"
      },
      {
-      "t": "opt",
+      "t": "list",
+      "field": "joins",
       "parts": [
        {
-        "t": "kw",
-        "text": "JOIN"
-       },
-       {
-        "t": "group",
-        "functor": "join",
-        "parts": [
-         {
-          "t": "rule",
-          "field": "src",
-          "name": "from_source"
-         },
-         {
-          "t": "kw",
-          "text": "ON"
-         },
-         {
-          "t": "cap",
-          "field": "on",
-          "kind": "expr"
-         }
-        ]
+        "t": "rule",
+        "field": "j",
+        "name": "join_clause"
        }
-      ]
+      ],
+      "min": 0,
+      "sep": []
      },
      {
       "t": "opt",
@@ -996,20 +1308,33 @@
         "text": "BY"
        },
        {
-        "t": "list",
-        "field": "orderby",
+        "t": "group",
+        "functor": "orderby",
         "parts": [
          {
           "t": "cap",
-          "field": "k",
+          "field": "key",
           "kind": "expr"
-         }
-        ],
-        "min": 1,
-        "sep": [
+         },
          {
-          "t": "sym",
-          "text": ","
+          "t": "opt",
+          "parts": [
+           {
+            "t": "choice",
+            "field": "dir",
+            "options": [
+             [
+              "ASC",
+              "asc"
+             ],
+             [
+              "DESC",
+              "desc"
+             ]
+            ],
+            "default": null
+           }
+          ]
          }
         ]
        }

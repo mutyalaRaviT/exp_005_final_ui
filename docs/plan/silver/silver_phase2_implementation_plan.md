@@ -3,11 +3,13 @@ tags: [plan, silver, phase2, implementation_plan]
 ---
 # Phase 2 Vertical Slice Implementation Plan
 
+> Re-baselined 2026-09-10 (M0): ports, fileids, fixture paths and test counts updated; pass marks unchanged.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** One Rust API serves both shipping UIs from one DuckDB store, and every answer it gives is proved identical to the Python implementation it replaces.
 
-**Architecture:** A single `axum` binary on `:8100` exposes plan §6's twelve questions. Each handler either answers from the DuckDB store (landed) or forwards to the Python oracle and translates the reply into canonical shape (not yet landed). Routes land one at a time; a route lands only when `tools/diff_route.py` finds no unexplained difference between the two arms across the corpus. The UIs are repointed once, at the start, and never break.
+**Architecture:** A single `axum` binary on `:8110` exposes plan §6's twelve questions. Each handler either answers from the DuckDB store (landed) or forwards to the Python oracle and translates the reply into canonical shape (not yet landed). Routes land one at a time; a route lands only when `tools/diff_route.py` finds no unexplained difference between the two arms across the corpus. The UIs are repointed once, at the start, and never break.
 
 **Tech Stack:** Rust 2021 (`axum` 0.7, `tokio`, `duckdb` 1.1 bundled, `serde`), the existing `rules_converter` and `inferred_duckdb` crates, Python 3.11 for the oracle and the diff tool, Vite 6 + React 19 for UI1, vanilla JS for UI2.
 
@@ -27,7 +29,7 @@ tags: [plan, silver, phase2, implementation_plan]
 - Commit messages: first line what changed, body why + pass mark hit or missed. End with:
   `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`
 - `git notes add` on every task's final commit carrying its measured numbers.
-- Ports: Rust API `:8100`, UI1 `:5199`, UI2 `:8142`. **`:5173`, `:5174`, `:5175`, `:8000`, `:8042`, `:8043` are already held by the owner's own long-running servers — never bind them, and never take a reading from them believing it is ours.**
+- Ports: Rust API `:8110`, UI1 `:5199`, UI2 `:8142`. **`:5173`, `:5174`, `:5175`, `:8000`, `:8042`, `:8043` are already held by the owner's own long-running servers — never bind them, and never take a reading from them believing it is ours.**
 - Every timing claim is measured 3× and reported as a range, never estimated.
 
 ## Environment (assume nothing is running)
@@ -51,7 +53,7 @@ If a venv is missing, rebuild it — `raw/lineage_server/server/requirements.txt
 | `backend/rust_inferred_duckdb/src/schema.rs` | modify — `node4.b0/b1`, `files.source`, `blocks.block_hash`, `runs`/`run_tables`/`run_samples`, `meta` |
 | `backend/rust_inferred_duckdb/src/lib.rs` | modify — write the new columns; reconvert key gains the spec hash |
 | `backend/rust_inferred_duckdb/src/datamatch.rs` | **create** — the row comparison, ported from Python |
-| `backend/api/src/main.rs` | **create** — axum wiring, `:8100` |
+| `backend/api/src/main.rs` | **create** — axum wiring, `:8110` |
 | `backend/api/src/oracle.rs` | **create** — forward to Python + translate; deleted route by route |
 | `backend/api/src/routes/*.rs` | **create** — one file per question |
 | `backend/api/src/types.rs` | **create** — the canonical JSON shapes, mirroring UI1's `src/api.ts` |
@@ -92,7 +94,7 @@ fn spec_() -> spec::Spec {
 
 #[test]
 fn every_edge_names_the_block_that_made_it() {
-    let src = concat!(env!("CARGO_MANIFEST_DIR"), "/../../raw/bench_stack/testdata/test_vishnu_testdata_fixed.sas");
+    let src = concat!(env!("CARGO_MANIFEST_DIR"), "/../../corpus/fixtures/test_vishnu_testdata_fixed.sas");
     let text = std::fs::read_to_string(src).unwrap();
     let (_stmts, terms, ids) = fold_file(&spec_(), &text);
     let edges = edges_per_block(&ids, &terms);
@@ -397,7 +399,7 @@ pub async fn forward(base: &str, path_and_query: &str) -> anyhow::Result<serde_j
 
 ```bash
 ./target/release/lineageq_api --db /tmp/p2.duckdb & sleep 1
-curl -s localhost:8100/api/health | python3 -m json.tool
+curl -s localhost:8110/api/health | python3 -m json.tool
 ```
 Expected: `ok true`, `landed []`, `forwarded` listing all twelve.
 
@@ -576,9 +578,9 @@ async fn convert_is_idempotent_over_http() {
 #[tokio::test]
 async fn dashboard_mart_has_twenty_five_edges() {
     // the "25 / 25" in the owner's baseline screenshot
-    let files = "ankitha_1/09_customer_summary.sas,ankitha_1/10_product_metrics.sas,\
-ankitha_1/11_branch_rollup.sas,ankitha_1/14_large_txn_report.sas,\
-ankitha_1/18_dashboard_mart.sas,ankitha_1/19_export_dashboard.sas,ankitha_1/25_final_pack.sas";
+    let files = "sas/raw/09_customer_summary.sas,sas/raw/10_product_metrics.sas,\
+sas/raw/11_branch_rollup.sas,sas/raw/14_large_txn_report.sas,\
+sas/raw/18_dashboard_mart.sas,sas/raw/19_export_dashboard.sas,sas/raw/25_final_pack.sas";
     let r = get(&format!("/api/edges?files={}", urlencoding::encode(files))).await;
     assert_eq!(r["total"], 25);
     let rows = r["rows"].as_array().unwrap();
@@ -615,11 +617,12 @@ async fn blocklinks_name_both_blocks() {
 ### Task 8: Land `source()`, extract UI1, and hit pass marks 1 and 2
 
 **Files:**
-- Create: `routes/source.rs`; `frontend/ui_across_file_ui/` (from `raw/node4_viz`, excluding `node_modules`, `scripts/hola_compare`)
-- Modify: `frontend/ui_across_file_ui/src/api.ts` (six fetches → canonical names), `vite.config.ts:11` (`:8000` → `:8100`), `src/useLineageGraph.ts:15` and `src/holaLayout.ts:9` (stale absolute paths), `scripts/smoke.mjs` (parameterise the `!== 11` assertion and the screenshot dir)
+- Create: `routes/source.rs`; `frontend/ui_across_file_ui/` (from `raw/node4_viz`, excluding `node_modules`, `scripts/hola_compare`; including `src/theme.css`, `TopBar`, `Rail`, `Drawer`, `BottomStrip`, `StatusBar` from 7dd8924)
+- Modify: `frontend/ui_across_file_ui/src/api.ts` (six fetches → canonical names), `src/useLineageGraph.ts:15` and `src/holaLayout.ts:9` (stale absolute paths), `scripts/smoke.mjs` (parameterise the `!== 11` assertion and the screenshot dir)
+- Not needed: `vite.config.ts:11` already proxies to `:8110` since Task 4 (M0, 2026-09-10).
 
 - [ ] **Step 1: Extract and repoint.** Name the source path in the commit.
-- [ ] **Step 2: Unit tests still pass** — `npm test` → **127 passed** (they stub `fetch`, so they pass regardless of backend; that is the point — they prove the extraction did not break the app).
+- [ ] **Step 2: Unit tests still pass** — `npx vitest run` → **174 passed** (they stub `fetch`, so they pass regardless of backend; that is the point — they prove the extraction did not break the app).
 - [ ] **Step 3: Run it against Rust with Python still up.**
 - [ ] **Step 4: PASS MARK — stop both Python servers, then measure.**
 
@@ -646,8 +649,8 @@ Expected: `passmark_11_branch_rollup: files=6 edges=7`, `enrich_fx: files=4 edge
 - [ ] **Step 5: PASS MARK 6 — through HTTP this time**
 
 ```bash
-for i in 1 2 3; do curl -s -o /dev/null -w "%{time_total}\n" "localhost:8100/api/file?fileid=big_1000.sas"; done
-for i in 1 2 3; do curl -s -o /dev/null -w "%{time_total}\n" "localhost:8100/api/blocks?fileid=big_1000.sas&from=0&to=40"; done
+for i in 1 2 3; do curl -s -o /dev/null -w "%{time_total}\n" "localhost:8110/api/file?fileid=big_1000.sas"; done
+for i in 1 2 3; do curl -s -o /dev/null -w "%{time_total}\n" "localhost:8110/api/blocks?fileid=big_1000.sas&from=0&to=40"; done
 ```
 Expected: both **< 20 ms**. In-process they were 1.1–4.3 ms and 0.7–1.3 ms; HTTP and JSON serialisation are the new cost. If `file()` exceeds 20 ms at 1000 blocks, say so — Fable flagged its 85 KB payload as an OPEN question about paging.
 
@@ -783,7 +786,7 @@ async fn one_block_runs_both_ways_and_matches() {
 
 ```bash
 for b in $(seq -f "b_%03g" 2 12); do
-  curl -s -X POST localhost:8100/api/run -H 'Content-Type: application/json' \
+  curl -s -X POST localhost:8110/api/run -H 'Content-Type: application/json' \
     -d "{\"fileid\":\"test_vishnu_testdata_fixed.sas\",\"block_id\":\"$b\",\"engine\":\"rust\"}" \
     | python3 -c "import json,sys;d=json.load(sys.stdin);print(d['block_id'],d['match'])"
 done

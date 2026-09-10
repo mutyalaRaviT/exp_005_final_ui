@@ -28,17 +28,33 @@ Term vocabulary (what node/4 holds — read this once, the terms then read thems
     merge([src(ds(..), none|some(Flag)) ...])
     by([Key ...])
     proc_sql
-    create_table_as(ds(..), select_stmt([select_core(Cols, From, JoinOpt, WhereOpt, GroupByOpt, HavingOpt) ...], OrderByOpt, LimitOpt))
-        Cols  = [proj(Expr, none|some(Alias)) ...]
+    create_table_as(ds(..), select_stmt([select_core(Cols, From, Joins, WhereOpt, GroupByOpt, HavingOpt) ...], OrderByOpt, LimitOpt))
+        Cols  = [proj(Expr, none|some(Alias), none|some(Length)) ...]
         From  = table(ds(..), none|some(Alias)) | subquery(select_core(..), none|some(Alias))
+        Joins = [left_join(Src,On) | inner_join(Src,On) | cross_join(Src) ...]   -- task 5c:
+            ZERO OR MORE joins, source order, no separator token (each alternative leads
+            with its own LEFT/INNER/CROSS keyword) — was `none | some(...)` (at most one)
+            through task 5b; widened because every remaining fold failure in the ankitha
+            corpus was a multi-JOIN create_table_as (see the note at select_core's RULES
+            entry below). task 5d added cross_join/1 (no ON clause, unlike the other two).
+    length([clen(Var,N)|nlen(Var,N)])   LENGTH var $ n ... — storage length
+    infile(Dlm)                    INFILE DATALINES DSD DLM='delim' TRUNCOVER
+    assign(Var, Val)                var = expr — a DATA-step assignment
+    output                          OUTPUT — writes the current PDV row
     empty                          a lone `;`
     run | quit
-    Expressions: col(N), lit(V), star, call(Name, [Args]), paren(E), subquery_expr(select_core(..)),
-        neg/1, mul/div/add/sub/cat, eq/ne/lt/le/gt/ge, in(E, [..]), not/1, and/or.
+    Expressions: col(N), lit(V), star, star(Alias) (task 5d: a qualified star `a.*`,
+        arity 1 — overloads bare star/0 by arity, same as col/1 vs col/2), missing
+        (a lone `.`), call(Name, [Args]), paren(E),
+        case_expr([when(Cond,Then)...], none|some(Else)), subquery_expr(select_core(..)),
+        neg/1, mul/div/add/sub/cat, eq/ne/lt/le/gt/ge, in(E, [..]), not/1, and/or,
+        distinct/1 (task 5c: COUNT(DISTINCT x) — DISTINCT prefixes an expr, same
+        precedence level as unary minus; the ladder does not gate it to aggregate call
+        args specifically, same permissiveness as `not` elsewhere in this ladder).
 """
 from pipeline.pydsl.pydsl_lib import (
     leaf, level, ladder, one_of, prefix, list_rhs, form,
-    kw, sym, ident, expr, group, comma_list, sep_list, opt, raw,
+    kw, sym, ident, expr, group, comma_list, sep_list, opt, raw, choice,
     statement, rule_alt, rule_ref, parts_form, rule_form,
 )
 
@@ -64,6 +80,24 @@ KEYWORDS = [
     "proc", "sql", "create", "table", "as", "select", "from", "where",
     "group", "having", "order", "union", "all", "join", "on", "desc", "asc", "limit",
     "then", "and", "or", "not", "in", "eq", "ne", "lt", "le", "gt", "ge",
+    # task 5b (2026-09-09), create_table_as family: LEFT/INNER JOIN (this
+    # corpus never writes a bare JOIN), CASE/WHEN/THEN.../END, and LENGTH —
+    # PROC SQL's trailing `AS alias LENGTH=n` on one SELECT-list item.
+    "left", "inner", "case", "when", "else", "end", "length",
+    # task 5d: CROSS JOIN — 17_compliance_check.sas's `cross join work.audit_log a`
+    # has no ON clause at all.
+    "cross",
+    # task 5b, infile family: INFILE DATALINES DSD DLM='delim' TRUNCOVER —
+    # note DATALINES here is a plain keyword read from the WORD side; the
+    # dedicated `datalines` tokeniser LEAF (LEAVES above) only fires when
+    # the word is immediately followed by `;`, which is not the case inside
+    # this option line, so the two never collide.
+    "infile", "dsd", "dlm", "truncover", "datalines",
+    # task 5b, output family: OUTPUT — writes the current PDV row.
+    "output",
+    # task 5c: COUNT(DISTINCT x) — grepped the corpus and both regression files for
+    # "distinct" used bare (column/table name); none found.
+    "distinct",
 ]
 
 # ------------------------------------------------------ expression ladder
@@ -73,7 +107,12 @@ KEYWORDS = [
 EXPR_LADDER = ladder(
     level("pow", one_of("**", functor="pow"), assoc="none",
           doc="exponent; one shot (2 ** 3 ** 2 is not folded — not needed here)"),
-    level("unary", prefix("-", functor="neg"), doc="unary minus"),
+    # task 5c: DISTINCT shares this level with unary minus — both are bare prefix
+    # operators, and SAS only ever writes DISTINCT immediately before an aggregate's
+    # argument (COUNT(DISTINCT x)), so binding it this tight never collides with
+    # anything the corpus actually writes.
+    level("unary", prefix("-", functor="neg") + prefix("distinct", functor="distinct"),
+          doc="unary minus; DISTINCT (COUNT(DISTINCT x))"),
     level("mul", one_of("*", "/", functor={"*": "mul", "/": "div"})),
     level("add", one_of("+", "-", functor={"+": "add", "-": "sub"})),
     level("cat", one_of("||", functor="cat"), doc="string concatenation"),
@@ -92,7 +131,44 @@ EXPR_LADDER = ladder(
 
 STAR_FORM = parts_form("star", sym("*"), doc="the bare `*` in SELECT * / COUNT(*)")
 
+# task 5d: a qualified star (`a.*`) — 04_build_accounts.sas's 2nd block writes
+# `select a.*, c.segment, p.prod_type from work.accounts_raw a inner join ...`
+# and this was the whole reason that statement never folded (confirmed: the
+# unqualified STAR_FORM above already worked fine on its own). Same functor
+# name as the bare star ("star") but arity 1 (`star(Alias)`), the identical
+# overloading `col` already uses for bare `col(N)` (arity 1, EXPR_LEAVES'
+# word leaf) vs qualified `col(Alias,N)` (arity 2, the "col" form below) — not
+# a new pattern, a second use of one this same file already relies on. Built
+# with parts_form (not the fixed shape-string `form()` vocabulary, which has
+# no "ID . *" entry) the same way CASE_FORM/STAR_FORM themselves are built.
+QSTAR_FORM = parts_form("star", ident("alias"), sym("."), sym("*"),
+                         doc="a qualified star: alias.* -> star(Alias), arity 1 "
+                             "(overloads the bare star/0 above by arity, like col/1 vs col/2)")
+
+# task 5b (2026-09-09): CASE WHEN ... END, same shape hive.py already proved
+# (pipeline/specs/hive.py's CASE_WHEN/CASE_FORM) — copied here, not re-derived,
+# since 13_risk_flags.sas and 17_compliance_check.sas both need it:
+#   CASE WHEN c.risk_score >= 0.75 THEN 'HIGH' WHEN ... ELSE 'LOW' END
+CASE_WHEN = group("when", kw("WHEN"), expr("cond"), kw("THEN"), expr("then"),
+                   doc="one WHEN cond THEN e branch inside a CASE")
+CASE_FORM = parts_form(
+    "case_expr", kw("CASE"),
+    sep_list("whens", [], CASE_WHEN, min=1),
+    opt(kw("ELSE"), expr("else")),
+    kw("END"),
+    doc="CASE WHEN cond THEN e [WHEN cond THEN e ...] [ELSE e] END")
+
+# task 5b: a lone `.` in a SELECT list is SAS's numeric missing value, not a
+# stray dot — 25_final_pack.sas's third UNION ALL branch writes `. ,` where a
+# real column would go. `.` is otherwise only ever a bare symbol token here
+# (lib.dataset, alias.col are both matched from the WORD side, not from `.`),
+# so this atom form cannot collide with them.
+MISSING_FORM = parts_form("missing", sym("."), doc="a lone `.` — the SAS numeric missing value")
+
 EXPR_FORMS = [
+    CASE_FORM,
+    MISSING_FORM,
+    QSTAR_FORM,
     STAR_FORM,
     form("paren", "( E )", doc="a source parenthesis, kept in the term"),
     form("call", "ID ( ARGS )", doc="function or aggregate call: MONTH(date), SUM(x), AVG(x), MAX(x), MIN(x)"),
@@ -101,14 +177,29 @@ EXPR_FORMS = [
 ]
 
 EXPR_LEAVES = [
-    leaf("number", "", "lit(V)", doc="a NUMBER token folds to a real Prolog number"),
+    # M3a (2026-09-10), defect 1: keep_lexeme=True -> lit(V, Text). The folded V
+    # is still a real Prolog number and every arithmetic consumer reads it and
+    # nothing else; Text is the token exactly as written, so print_stmt puts
+    # `0.40` back as `0.40` instead of the canonical `0.4`
+    # (corpus/team_finance/sas/raw/13_risk_flags.sas b_002 was the one file in
+    # the corpus whose rebuilt source differed from its original). Arity
+    # overloading is this spec's own established habit: col/1 vs col/2,
+    # star/0 vs star/1 — lit/2 (number) alongside lit/1 (string) is the same.
+    leaf("number", "", "lit(V, Text)", keep_lexeme=True,
+         doc="a NUMBER token folds to a real Prolog number PLUS its source lexeme"),
     leaf("string", "", "lit(V)", doc="a STRING token, quotes stripped, '' -> ' (no backslash escapes in SAS)",
          dequote=True, double_delim=True, backslash_escape=False),
     leaf("word", "", "col(V)", doc="a bare WORD used as a column"),
 ]
 
 # ------------------------------------------------------------ sub-shapes
-PROJ = group("proj", expr("e"), opt(kw("AS"), ident("as")), doc="one SELECT-list item, optionally renamed")
+# task 5b: `AS alias` and a trailing `LENGTH=n` are independent optional
+# tails (SAS PROC SQL lets a projection set an explicit output-column length:
+# `'BRANCH' as metric_type length=12`) — two Opts in one parts sequence is
+# already how select_core's own WHERE/GROUP BY/HAVING coexist below, so this
+# is the same, proven shape, not a new pattern.
+PROJ = group("proj", expr("e"), opt(kw("AS"), ident("as")), opt(kw("LENGTH"), sym("="), expr("len")),
+             doc="one SELECT-list item, optionally renamed and/or given an explicit output LENGTH")
 
 RULES = {
     "dsname": [
@@ -120,30 +211,106 @@ RULES = {
         rule_alt("nvar", ident("name"), opt(sym(":"), group("informat", ident("name"), sym("."))),
                  doc="a numeric variable, optionally read with :informat."),
     ],
+    "length_var": [
+        rule_alt("clen", ident("name"), sym("$"), expr("n"), doc="a character variable's length: name $ n"),
+        rule_alt("nlen", ident("name"), expr("n"), doc="a numeric variable's length: name n"),
+    ],
     "from_source": [
         rule_alt("table", rule_ref("ds", "dsname"), opt(ident("as")), doc="a dataset, optionally aliased"),
         rule_alt("subquery", sym("("), rule_ref("core", "select_core"), sym(")"), opt(ident("as")),
                  doc="a parenthesised SELECT in FROM"),
+    ],
+    # task 5c: ZERO OR MORE JOINs per select_core — task 5b capped this at one
+    # because the Rust lineage engine (rust_rules_converter/src/lineage.rs
+    # select_lineage) read select_core's join field positionally as
+    # `some(J)`/`none`, reading J's own args()[0]/args()[1] blindly as (src, on)
+    # without checking J's functor name. Every remaining fold failure in the
+    # ankitha corpus after 5b was exactly this: a create_table_as with 2+ JOINs
+    # (04_build_accounts.sas's 2nd block, 11_branch_rollup.sas — phase 2's pass
+    # mark 1 — 15_join_risk_txn.sas, 22_marketing_list.sas, 24_ops_alerts.sas).
+    # Fixing it means the FIELD becomes a list: `sep_list("joins", [], ...,
+    # min=0)` repeats join_clause zero or more times with NO separator token
+    # (each alternative already leads with its own LEFT/INNER keyword — the
+    # same "juxtaposition, no separator" shape CASE_FORM's `whens` already
+    # proved for WHEN..THEN clauses). select_core's own ARITY is unchanged (6
+    # args, same position); what changes is what that one arg IS — a Prolog
+    # list instead of `none`/`some(J)` — which is why this is a Rust change,
+    # not just a grammar one: every consumer that unwraps `some(J)` at that
+    # position (lineage.rs, interp.rs, emit.rs, emit_pretty.rs — the last of
+    # which also has a "zero clauses at all" fast-path check that compared the
+    # field to the atom `none`, which must become "list is empty") has to walk
+    # a list instead. See docs/plan for the full consumer list; task 5c's report
+    # names every file touched.
+    #
+    # Only LEFT/INNER (both explicitly qualified — this corpus never writes a
+    # bare `JOIN`) are alternatives here, and deliberately so: a bare-JOIN
+    # alternative sharing the "inner_join" functor with the explicit INNER
+    # alternative would make the two structurally IDENTICAL (same functor,
+    # same arity, source keywords contribute no term argument), so print
+    # could not tell them apart and would always emit whichever alternative
+    # is listed first — silently rewriting a source `JOIN` to `INNER JOIN`
+    # and breaking the source-rebuild law. Since nothing in this corpus
+    # writes a bare JOIN, that alternative would be untested AND unsound, so
+    # it is left out rather than added on faith.
+    #
+    # CROSS JOIN (17_compliance_check.sas — task 5c's one remaining fold
+    # failure besides the qualified star) is an ARITY-1 term (cross_join(Src))
+    # in the list, not arity-2: SAS/this corpus writes it with no ON clause at
+    # all. Every one of the four consumers (lineage.rs, interp.rs, emit.rs,
+    # emit_pretty.rs — and their four Prolog codegen mirrors) used to read
+    # J.args()[0]/[1] unconditionally once it saw a list item; task 5d taught
+    # all eight to branch on J's own arity (len 1 -> cross, len 2 -> ON-based)
+    # before indexing, rather than switch on the functor name — the same
+    # "don't check which alternative, check the shape" discipline the rest of
+    # this engine already uses (e.g. from_ds's own from.functor() match is the
+    # one place that DOES need the name, because table/2 and subquery/2 share
+    # an arity and must be told apart).
+    "join_clause": [
+        rule_alt("left_join", kw("LEFT"), kw("JOIN"), rule_ref("src", "from_source"), kw("ON"), expr("on"),
+                 doc="LEFT JOIN src ON e"),
+        rule_alt("inner_join", kw("INNER"), kw("JOIN"), rule_ref("src", "from_source"), kw("ON"), expr("on"),
+                 doc="INNER JOIN src ON e"),
+        rule_alt("cross_join", kw("CROSS"), kw("JOIN"), rule_ref("src", "from_source"),
+                 doc="CROSS JOIN src — no ON clause; arity 1, unlike left_join/inner_join's arity 2"),
     ],
     "select_core": [
         rule_alt(
             "select_core",
             kw("SELECT"), comma_list("cols", PROJ, min=1),
             kw("FROM"), rule_ref("from", "from_source"),
-            opt(kw("JOIN"), group("join", rule_ref("src", "from_source"), kw("ON"), expr("on"))),
+            sep_list("joins", [], rule_ref("j", "join_clause"), min=0),
             opt(kw("WHERE"), expr("where")),
             opt(kw("GROUP"), kw("BY"), comma_list("groupby", expr("k"), min=1)),
             opt(kw("HAVING"), expr("having")),
-            doc="SELECT cols FROM src [JOIN src ON e] [WHERE e] [GROUP BY e,...] [HAVING e]",
+            doc="SELECT cols FROM src ([LEFT|INNER] JOIN src ON e)* [WHERE e] [GROUP BY e,...] [HAVING e]",
         ),
     ],
+    # fix round 1 (2026-09-09): `choice(..., default="asc")` cannot round-trip. Choice's
+    # print (gen_prolog.py's Choice case in compile_parts_print) emits the literal keyword
+    # for whatever value the field resolved to, and the zero-token default branch resolves
+    # to THE SAME value ("asc") a real `ASC` keyword would — print cannot tell "the source
+    # wrote ASC" from "the source wrote nothing" once both collapse to one atom, so an
+    # omitted ASC/DESC gets one injected on rebuild (`order by a` -> `order by a asc`,
+    # source-rebuild law broken). No corpus statement caught this — `14_large_txn_report.sas`
+    # is the corpus's only ORDER BY and always writes DESC explicitly — but the bug is
+    # unconditional for a bare `ORDER BY key`, not corpus-specific; see
+    # test_bare_order_by_round_trips (rust_rules_converter/tests) and the fix-round-1
+    # addendum in the task 5c report. Fixed by dropping Choice's own `default=` and
+    # wrapping it in `opt(...)` instead — Opt genuinely preserves presence/absence (some/
+    # none), which a defaulted Choice cannot, and Group already tolerates an Opt inside its
+    # parts (PROJ's own two Opts prove this). `orderby`'s 2nd field is now
+    # `none|some(asc)|some(desc)` instead of a bare atom; this is a SAS-only fix — the
+    # identical latent bug is copied verbatim into pipeline/specs/hive.py's own select_stmt
+    # and is NOT touched here (see the task 5c report for why).
     "select_stmt": [
         rule_alt(
             "select_stmt",
             sep_list("cores", [kw("UNION"), kw("ALL")], rule_ref("core", "select_core"), min=1),
-            opt(kw("ORDER"), kw("BY"), comma_list("orderby", expr("k"), min=1)),
+            opt(kw("ORDER"), kw("BY"),
+                group("orderby", expr("key"), opt(choice("dir", {"ASC": "asc", "DESC": "desc"})))),
             opt(kw("LIMIT"), expr("n")),
-            doc="select_core (UNION ALL select_core)* [ORDER BY k,...]",
+            doc="select_core (UNION ALL select_core)* [ORDER BY key [ASC|DESC]] [LIMIT n] — "
+                "one ORDER BY key, same as pipeline/specs/hive.py's own select_stmt",
         ),
     ],
 }
@@ -156,11 +323,39 @@ STATEMENTS = [
               doc="INPUT v $ v v :informat. — list input"),
     statement("format", kw("FORMAT"), ident("var"), group("fmt", ident("name"), sym(".")),
               doc="FORMAT var fmt."),
+    # task 5b: LENGTH var $ n ... — storage length for one or more DATA-step
+    # variables; general per length_var's two alternatives (char with $, or
+    # bare numeric), though every occurrence in this corpus is char.
+    statement("length", kw("LENGTH"), sep_list("vars", [], rule_ref("v", "length_var"), min=1),
+              doc="LENGTH var $ n [var $ n | var n ...] — declares variable storage length"),
+    # task 5b: INFILE DATALINES DSD DLM='delim' TRUNCOVER — every occurrence
+    # in this corpus (8 of them) is this exact fixed shape, read straight off
+    # the following DATALINES block; DLM's delimiter is the one piece of
+    # real data (captured through expr so its literal round-trips).
+    statement("infile", kw("INFILE"), kw("DATALINES"), kw("DSD"), kw("DLM"), sym("="), expr("dlm"), kw("TRUNCOVER"),
+              doc="INFILE DATALINES DSD DLM='delim' TRUNCOVER"),
     statement("datalines", raw("rows", "datalines"), doc="DATALINES; rows ;"),
     statement("set", kw("SET"), rule_ref("in", "dsname"), doc="SET lib.ds"),
     statement("subset_if", kw("IF"), expr("cond"), doc="a subsetting IF: keep the row when cond is true"),
     statement("if_then_set", kw("IF"), ident("var"), sym("="), expr("val"), kw("THEN"), kw("SET"), rule_ref("in", "dsname"),
               doc="IF _N_ = 1 THEN SET lib.ds — read one row once, its variables are retained on every output row"),
+    # task 5b: a plain DATA-step assignment, `var = expr ;` — status = 'OK',
+    # event_ts = datetime(), run_id = 'FD_TABLE_DEPS'. NOT built with
+    # pydsl_lib's `assign=True` ("REF = <parts>") convenience: this engine's
+    # own Rust side (rust_rules_converter/src/parser.rs, fold()) has
+    # `if st.assign { continue; } // not used by SAS` — every assign=True
+    # statement is unconditionally skipped during fold, so one would never
+    # actually parse here. Writing the same shape by hand instead — a plain
+    # ident() capture, a literal `=`, then expr() — reaches the exact same
+    # term shape's spirit (assign(Var, Val)) through the ordinary piece path
+    # that fold() does not special-case. No other statement here starts with
+    # a bare WORD token, so this cannot be ambiguous with IF/SET/MERGE/etc,
+    # which all start with a keyword.
+    statement("assign", ident("var"), sym("="), expr("val"), doc="var = expr ; — a DATA-step variable assignment"),
+    # task 5b: OUTPUT — writes the current row to the output dataset (used
+    # to emit more than one row per DATA-step iteration, as 16_audit_log.sas
+    # does). No lineage of its own; it just needs to fold and round-trip.
+    statement("output", kw("OUTPUT"), doc="OUTPUT — writes the current PDV row"),
     statement("merge", kw("MERGE"),
               sep_list("sources", [], group("src", rule_ref("ds", "dsname"),
                                             opt(sym("("), kw("IN"), sym("="), ident("flag"), sym(")"))), min=1),

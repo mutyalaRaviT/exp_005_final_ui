@@ -1,5 +1,13 @@
 % codegen/sas_interp.pl — the executable node/4: run a SAS program's node/4 on data (exp_42, 2026-09-07).
 %
+% Fix round 1 (2026-09-09): every proj(...) pattern in this file was arity-2
+% (proj(Expr,AliasOpt)) while pipeline/specs/sas.py's PROJ has built arity-3
+% (proj(Expr,AliasOpt,LengthOpt)) since task 5b's LENGTH support — this file was
+% never touched or tested in 5b, so every proj/2 clause here silently matched
+% nothing. run_all.sh step 4's Prolog-vs-Rust byte-diff caught it: this file was
+% dropping the entire body of every CREATE TABLE AS SELECT. Fixed by widening
+% every proj/2 to proj/3 (the third arg unused here, matched with `_`).
+%
 % Why: loops 3 and 4 need the SAS side to RUN, and SAS is not on this machine.
 % exp_009's idea: an interpreter over the IR proves the parse by the answers it
 % produces. This file executes the same node/4 the PySpark was generated from,
@@ -54,7 +62,7 @@ step([data(Out)|Body]) :-
 
 % DATA out; IF _N_ = 1 THEN SET look; SET main  ->  main's rows, each carrying look's first row
 step([data(Out)|Body]) :-
-    memberchk(if_then_set(_, lit(1), Look), Body), memberchk(set(In), Body),
+    memberchk(if_then_set(_, lit(1, _), Look), Body), memberchk(set(In), Body),
     ds_key(Out, K), ds_key(In, KI), ds_key(Look, KL), remember_formats(Body),
     get(KI, C1, R1), get(KL, C2, R2),
     ( R2 = [First|_] -> true ; length(C2, N2), length(First, N2), maplist(=(missing), First) ),
@@ -147,24 +155,54 @@ select_stmt(select_stmt([Core|_], OrderOpt, _Limit), Cols, Rows) :-
     select_core(Core, Cols, Rows0),
     ( OrderOpt = some(Keys) -> order_rows(Keys, Cols, Rows0, Rows) ; Rows = Rows0 ).
 
-select_core(select_core(Projs, From, JoinOpt, WhereOpt, GroupOpt, HavingOpt), Cols, Rows) :-
-    from_rows(From, C0, R0),
-    ( JoinOpt = some(join(Src, On)) -> from_rows(Src, C1, R1), inner_join(C0, R0, C1, R1, On, CIn, RIn) ; CIn = C0, RIn = R0 ),
+% task 5c: Joins is a LIST now (was `JoinOpt = none | some(join(Src,On))`, at
+% most one) — every join folds through the running (Cols,Rows) pair left to
+% right, same "inner join" semantics as before (this interpreter never
+% distinguished LEFT from INNER; that pre-existing simplification is
+% unchanged here). task 5d: the fold also threads AliasCols (an assoc-free
+% list of Alias-[ColName,...] pairs, one entry per FROM/JOIN source that has
+% its own alias) — the lookup a qualified star (`a.*`) needs. rust_engine's
+% interp.rs::select_core is the mirror.
+select_core(select_core(Projs, From, Joins, WhereOpt, GroupOpt, HavingOpt), Cols, Rows) :-
+    from_rows(From, C0, R0), from_alias_cols(From, C0, A0),
+    foldl(apply_join, Joins, C0-R0-A0, CIn-RIn-AliasCols),
     ( WhereOpt = some(W) -> include(row_passes(CIn, [W]), RIn, RW) ; RW = RIn ),
     ( GroupOpt = some(Keys) -> group_rows(Keys, CIn, RW, Groups) ; ( has_agg(Projs) -> Groups = [RW] ; Groups = none ) ),
-    ( Groups == none -> findall(Row, ( member(R, RW), project(Projs, CIn, [R], Row) ), Rows0)
-    ; findall(Row, ( member(G, Groups), project(Projs, CIn, G, Row) ), Rows0) ),
-    out_cols(Projs, CIn, Cols),
+    ( Groups == none -> findall(Row, ( member(R, RW), project(Projs, CIn, AliasCols, [R], Row) ), Rows0)
+    ; findall(Row, ( member(G, Groups), project(Projs, CIn, AliasCols, G, Row) ), Rows0) ),
+    out_cols(Projs, CIn, AliasCols, Cols),
     ( HavingOpt = some(H) -> include(row_passes(Cols, [H]), Rows0, Rows) ; Rows = Rows0 ).
 
 from_rows(table(D, _), Cols, Rows) :- ds_key(D, K), get(K, Cols, Rows).
 from_rows(subquery(Core, _), Cols, Rows) :- select_core(Core, Cols, Rows).
 
+% task 5d: the alias of one from_source, paired with the column names IT
+% (not the running joined dataset) owns — [] if it has no alias.
+from_alias_cols(table(_, some(A0)), Cols, [A-Names]) :- !, lower(A0, A), findall(N, member(col(N, _), Cols), Names).
+from_alias_cols(subquery(_, some(A0)), Cols, [A-Names]) :- !, lower(A0, A), findall(N, member(col(N, _), Cols), Names).
+from_alias_cols(_, _, []).
+
+% apply_join/3: one step of the foldl over Joins. task 5d: J's own ARITY (not
+% its functor name) decides ON-based inner_join vs no-ON cross_join —
+% cross_join(Src) is arity 1 (no ON clause at all), left_join/inner_join
+% both arity 2 — matching the Rust mirror (interp.rs's select_core, same
+% task) and the spec comment's own reasoning at join_clause's RULES entry.
+apply_join(J, C0-R0-A0, Cols-Rows-AliasCols) :-
+    functor(J, _, Arity), J =.. [_, Src|Rest],
+    from_rows(Src, C1, R1), from_alias_cols(Src, C1, A1), append(A0, A1, AliasCols),
+    ( Arity =:= 2 -> [On] = Rest, inner_join(C0, R0, C1, R1, On, Cols, Rows)
+    ; cross_join(C0, R0, C1, R1, Cols, Rows) ).
+
 inner_join(C0, R0, C1, R1, On, Cols, Rows) :-
     append(C0, C1, Cols),
     findall(Row, ( member(A, R0), member(B, R1), append(A, B, Row), eval(On, Cols, Row, V), truthy(V) ), Rows).
 
-has_agg(Projs) :- member(proj(E, _), Projs), is_agg(E), !.
+% task 5d: CROSS JOIN — the cartesian product, no ON filter at all.
+cross_join(C0, R0, C1, R1, Cols, Rows) :-
+    append(C0, C1, Cols),
+    findall(Row, ( member(A, R0), member(B, R1), append(A, B, Row) ), Rows).
+
+has_agg(Projs) :- member(proj(E, _, _), Projs), is_agg(E), !.
 is_agg(call(N, _)) :- lower(N, L), memberchk(L, [sum, avg, mean, max, min, count]).
 
 % GROUP BY: groups in the order their key first appears (Spark's single-partition order is
@@ -175,19 +213,46 @@ group_rows(Keys, Cols, Rows, Groups) :-
     findall(G, ( member(KV, KVs), findall(R, member(KV-R, Pairs), G) ), Groups).
 
 % one output row from one group (a plain SELECT is a group of one row)
-project(Projs, Cols, Group, Row) :- findall(V, ( member(proj(E, _), Projs), proj_values(E, Cols, Group, Vs), member(V, Vs) ), Row).
-proj_values(star, _, [R|_], R) :- !.
-proj_values(E, Cols, Group, [V]) :- is_agg(E), !, E = call(N, [Arg]), lower(N, LN), findall(X, ( member(R, Group), eval(Arg, Cols, R, X) ), Xs), aggregate(LN, Xs, V).
-proj_values(E, Cols, [R|_], [V]) :- eval(E, Cols, R, V).
+% task 5d: AliasCols (built by select_core/3, above) resolves a qualified
+% star (`a.*`) to the ordered subset of Cols/Group's own row that source `a`
+% contributed — falls back to the whole joined row if the alias is somehow
+% unresolved (defensive, same choice the Rust mirror makes).
+project(Projs, Cols, AliasCols, Group, Row) :- findall(V, ( member(proj(E, _, _), Projs), proj_values(E, Cols, AliasCols, Group, Vs), member(V, Vs) ), Row).
+proj_values(star, _, _, [R|_], R) :- !.
+proj_values(star(A0), Cols, AliasCols, [R|_], Vs) :- !,
+    lower(A0, A), ( memberchk(A-Names, AliasCols) -> true ; findall(N, member(col(N, _), Cols), Names) ),
+    findall(V, ( member(N, Names), value_of(N, Cols, R, V) ), Vs).
+% task 5c: COUNT(DISTINCT x) — the aggregate's one arg may itself be
+% distinct(Inner); dedup the per-row values before handing them to
+% aggregate/3, same as before for every other aggregate.
+proj_values(E, Cols, _AliasCols, Group, [V]) :-
+    is_agg(E), !, E = call(N, [Arg0]), lower(N, LN),
+    ( Arg0 = distinct(Arg) -> DoDistinct = true ; Arg = Arg0, DoDistinct = false ),
+    findall(X, ( member(R, Group), eval(Arg, Cols, R, X) ), Xs0),
+    ( DoDistinct == true -> list_to_set(Xs0, Xs) ; Xs = Xs0 ),
+    aggregate(LN, Xs, V).
+proj_values(E, Cols, _AliasCols, [R|_], [V]) :- eval(E, Cols, R, V).
 
-out_cols(Projs, Cols, Out) :- findall(C, ( member(proj(E, A), Projs), out_col(E, A, Cols, C) ), Cs), flatten(Cs, Out).
-out_col(star, none, Cols, Cols) :- !.
-out_col(E, some(A), Cols, col(L, T)) :- !, lower(A, L), expr_type(E, Cols, T).
-out_col(col(N), none, Cols, col(L, T)) :- !, lower(N, L), ( memberchk(col(L, T), Cols) -> true ; T = num ).
-out_col(E, none, Cols, col('_auto', T)) :- expr_type(E, Cols, T).
+% task 5d: AliasCols mirrors project()'s own use of it — a qualified star
+% (`a.*`) contributes exactly the Col entries Cols already has for source
+% `a`'s own columns (order preserved), so the schema this returns stays in
+% lockstep with the row values project()/proj_values() actually push.
+out_cols(Projs, Cols, AliasCols, Out) :- findall(C, ( member(proj(E, A, _), Projs), out_col(E, A, Cols, AliasCols, C) ), Cs), flatten(Cs, Out).
+out_col(star, none, Cols, _AliasCols, Cols) :- !.
+out_col(star(A0), none, Cols, AliasCols, Out) :- !,
+    lower(A0, A), ( memberchk(A-Names, AliasCols) -> true ; findall(N, member(col(N, _), Cols), Names) ),
+    findall(col(N, T), ( member(N, Names), memberchk(col(N, T), Cols) ), Out).
+out_col(E, some(A), Cols, _AliasCols, col(L, T)) :- !, lower(A, L), expr_type(E, Cols, T).
+out_col(col(N), none, Cols, _AliasCols, col(L, T)) :- !, lower(N, L), ( memberchk(col(L, T), Cols) -> true ; T = num ).
+out_col(E, none, Cols, _AliasCols, col('_auto', T)) :- expr_type(E, Cols, T).
 
 expr_type(col(N), Cols, T) :- lower(N, L), memberchk(col(L, T), Cols), !.
 expr_type(call(F, [A]), Cols, T) :- lower(F, LF), memberchk(LF, [max, min]), !, expr_type(A, Cols, T).
+% M3a defect 1: a NUMBER leaf now folds to lit(Value, Lexeme) (specs/sas.py
+% keep_lexeme=True). Only the printer reads the lexeme; every consumer below
+% reads Value and ignores it, so lit/2 is handled by one clause that defers to
+% the existing lit/1 clause rather than by duplicating any rule.
+expr_type(lit(V, _), _, T) :- !, ( number(V) -> T = num ; T = char ).
 expr_type(lit(V), _, T) :- !, ( number(V) -> T = num ; T = char ).
 expr_type(_, _, num).
 
@@ -219,14 +284,22 @@ value_of(_, _, _, missing).
 
 eval(col(N), Cols, Row, V) :- !, lower(N, L), value_of(L, Cols, Row, V).
 eval(col(_, N), Cols, Row, V) :- !, lower(N, L), value_of(L, Cols, Row, V).
+eval(lit(X, _), _, _, X) :- !.
 eval(lit(X), _, _, X) :- !.
 eval(paren(E), Cols, Row, V) :- !, eval(E, Cols, Row, V).
+% task 5c: proj_values/4 always unwraps distinct(...) itself before calling eval/4
+% (dedup happens at the aggregate, not per row) — this clause is the defensive
+% fallback for any other context that hands eval/4 a bare distinct(E).
+eval(distinct(E), Cols, Row, V) :- !, eval(E, Cols, Row, V).
 eval(neg(E), Cols, Row, V) :- !, eval(E, Cols, Row, X), ( X == missing -> V = missing ; V is -X ).
 eval(not(E), Cols, Row, V) :- !, eval(E, Cols, Row, X), ( truthy(X) -> V = 0 ; V = 1 ).
 eval(and(A, B), Cols, Row, V) :- !, eval(A, Cols, Row, X), eval(B, Cols, Row, Y), ( truthy(X), truthy(Y) -> V = 1 ; V = 0 ).
 eval(or(A, B), Cols, Row, V) :- !, eval(A, Cols, Row, X), eval(B, Cols, Row, Y), ( ( truthy(X) ; truthy(Y) ) -> V = 1 ; V = 0 ).
 eval(subquery_expr(Core), _, _, V) :- !, select_core(Core, _, Rows), ( Rows = [[V|_]|_] -> true ; V = missing ).
-eval(in(E, Items), Cols, Row, V) :- !, eval(E, Cols, Row, X), ( member(lit(X), Items) -> V = 1 ; V = 0 ).
+eval(in(E, Items), Cols, Row, V) :- !, eval(E, Cols, Row, X), ( member(I, Items), lit_value(I, X) -> V = 1 ; V = 0 ).
+% M3a defect 1: an IN list item is lit/1 (string) or lit/2 (number).
+lit_value(lit(V), V).
+lit_value(lit(V, _), V).
 eval(call(F, Args), Cols, Row, V) :- !, lower(F, LF), maplist([A, X]>>eval(A, Cols, Row, X), Args, Xs), sas_fn(LF, Xs, V).
 eval(T, Cols, Row, V) :- T =.. [Op, A, B], eval(A, Cols, Row, X), eval(B, Cols, Row, Y), binop(Op, X, Y, V).
 

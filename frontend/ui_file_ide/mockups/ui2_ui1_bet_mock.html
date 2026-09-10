@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UI2 mock — the UI1 bet (one canvas, in-file to across-files)</title>
+<!--
+  html3, the "UI1 bet". Same frame and tokens as html1. The difference: the CANVAS is the centre, drawn
+  UI1's way (node4_viz: file cluster ▸ block cluster ▸ table occurrences, +/− on each, edge labels), the
+  hops ◀ ▶ grow the same canvas into the neighbour files, and the code is UI1's right pane (section rail
+  + code with block chips), with PySpark as a second tab. Cells are not the centre any more.
+  Press n for the notes and the safe-bet vs UI1-bet table. File: 15_join_risk_txn.sas, same as html1.
+-->
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#eef2f6; --panel:#ffffff; --panel2:#f5f8fb; --line:#d6dee7; --text:#1f2d3a; --muted:#6b7c8c; --faint:#9fb0bf;
+  --sas:#b8731a; --sas-bg:#fbf1e2; --py:#1f7fb8; --py-bg:#e6f2fa; --ir:#6a4fc2; --ir-bg:#eee9fa;
+  --good:#1c7a45; --good-bg:#e4f5ea; --bad:#b5302a; --bad-bg:#fbe7e5; --warn:#a4631a; --warn-bg:#fcf1e0;
+  --focus:#1f7fb8; --sel:#e6f2fa; --key:#f0f3f7; --shadow:0 6px 24px rgba(20,32,43,.12);
+  --join:#a47de8; --expr:#d4a64a; --filter:#e26060; --group:#4cb8b0;
+}
+:root[data-theme="dark"]{
+  --bg:#0f171f; --panel:#151f29; --panel2:#1b2733; --line:#273543; --text:#dbe5ee; --muted:#8fa3b5; --faint:#5e7183;
+  --sas:#e6a24a; --sas-bg:#2b2116; --py:#4fb0ea; --py-bg:#142a3a; --ir:#a58cf0; --ir-bg:#241f3a;
+  --good:#4fd08a; --good-bg:#12301f; --bad:#f0716a; --bad-bg:#3a1a18; --warn:#e8b45c; --warn-bg:#33261a;
+  --focus:#4fb0ea; --sel:#142a3a; --key:#1f2c39; --shadow:0 6px 24px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;height:100vh;overflow:hidden}
+code,pre,.mono,kbd{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace}
+kbd{display:inline-block;min-width:18px;padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--key);font-size:11px;line-height:16px;text-align:center;color:var(--text)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.tag{display:inline-block;padding:1px 7px;border-radius:5px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.tag.sas{background:var(--sas-bg);color:var(--sas)}.tag.py{background:var(--py-bg);color:var(--py)}.tag.ir{background:var(--ir-bg);color:var(--ir)}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid transparent}
+.pill.good{background:var(--good-bg);color:var(--good)}.pill.idle{background:var(--panel2);color:var(--muted);border-color:var(--line)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.pill.prog{background:var(--panel2);color:var(--text);border-color:var(--line)}.pill.prog.done{background:var(--good-bg);color:var(--good);border-color:transparent}
+
+/* ---- frame (Bench) ---- */
+#app{display:grid;grid-template-rows:38px 1fr 200px 26px;height:100vh}
+#top{display:flex;align-items:center;gap:12px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;position:relative}
+#top .brand{font-weight:700;letter-spacing:.02em}#top .brand span{color:var(--py)}
+#top .file{display:flex;align-items:center;gap:8px;color:var(--muted)}
+#top .file b{color:var(--text);font-weight:600;padding:2px 6px}
+.seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{padding:4px 10px;font-size:12px;color:var(--muted)}
+.seg button.on{background:var(--py-bg);color:var(--py);font-weight:600}
+.seg.sm button{padding:2px 8px;font-size:11px}
+.seg.hops button{padding:2px 6px;font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+#top .sp{margin-left:auto;display:flex;gap:8px;align-items:center}
+#top .theme{width:28px;height:26px;border:1px solid var(--line);border-radius:7px;color:var(--muted);font-size:14px}
+.chip{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border:1px solid var(--line);border-radius:999px;cursor:pointer;color:var(--faint);background:transparent}
+.chip.on{background:var(--panel2);color:var(--text)}
+.chip.on::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--ir);margin-right:5px;vertical-align:middle}
+#main{display:grid;grid-template-columns:44px 210px 1fr 360px;min-height:0}
+#rail{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding-top:8px;gap:4px}
+#rail button{width:32px;height:32px;border-radius:8px;color:var(--muted);display:grid;place-items:center;position:relative}
+#rail button.on{background:var(--sel);color:var(--focus)}
+#rail button kbd{position:absolute;right:-2px;bottom:-3px;min-width:14px;padding:0 3px;font-size:9px;line-height:13px}
+#rail svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.drawer{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;position:relative;min-width:0}
+.drawer.right{border-right:0;border-left:1px solid var(--line)}
+.dh{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);white-space:nowrap;position:relative}
+.dh kbd{margin-left:auto}
+.db{overflow:auto;flex:1;display:flex;flex-direction:column;min-height:0}
+/* explorer (UI1): All files | Current */
+.tree{padding:6px 0;font-size:12.5px}
+.tree .tabs{display:flex;gap:2px;padding:4px 8px;border-bottom:1px solid var(--line)}
+.tree .tabs button{padding:3px 8px;font-size:11px;color:var(--muted);border-bottom:2px solid transparent}
+.tree .tabs button.on{color:var(--text);border-color:var(--py)}
+.tree .dir{padding:4px 12px;color:var(--muted);font-weight:600;font-size:11px;letter-spacing:.05em;text-transform:uppercase;margin-top:6px;white-space:nowrap}
+.tree .f{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 22px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:"JetBrains Mono",monospace;font-size:11.5px}
+.tree .f:hover{background:var(--panel2)}
+.tree .f.on{background:var(--sel);color:var(--focus);font-weight:600}
+.tree .f.hop{color:var(--muted)}
+.tree .f .n{color:var(--faint);font-size:10px;margin-left:auto}
+.tree .f.blk{padding-left:38px;font-size:11px}
+.tree .f.tbl{padding-left:54px;font-size:11px;color:var(--muted)}
+.tree .f.tbl.w{color:var(--good)}.tree .f.tbl.r{color:var(--warn)}
+/* ---- centre: the UI1 canvas ---- */
+#center{position:relative;min-width:0;min-height:0;overflow:hidden;background:var(--bg);background-image:radial-gradient(var(--line) 1px,transparent 1px);background-size:18px 18px}
+#center .tb{position:absolute;left:10px;top:10px;z-index:5;display:flex;gap:6px;align-items:center}
+#center .tb .seg{background:var(--panel)}
+#center .tb .seg button{padding:3px 9px;font-size:11px}
+#edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#edges path{fill:none;stroke:var(--faint);stroke-width:1.4}
+#edges path.hl{stroke:var(--ir);stroke-width:2.4}
+#edges path.col{stroke:var(--ir);stroke-width:1.6;stroke-dasharray:0}
+#edges path.hop{stroke-dasharray:4 3;opacity:.7}
+#edges path.dim{opacity:.3}
+.elab{position:absolute;transform:translate(-50%,-50%);font:10px "JetBrains Mono",monospace;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:1px 6px;white-space:nowrap;pointer-events:none;z-index:2}
+.elab.hl{color:#fff;background:var(--ir);border-color:var(--ir)}
+/* UI1 node kinds */
+.rf-group{position:absolute;border-radius:10px;border:1px solid var(--line);background:color-mix(in srgb,var(--panel) 82%,transparent);box-shadow:0 2px 8px rgba(17,23,28,.06)}
+.rf-group.blk{border-radius:8px;background:color-mix(in srgb,var(--panel) 70%,transparent)}
+.rf-group.seed{box-shadow:0 0 0 2px var(--focus)}
+.rf-title{position:absolute;left:10px;top:7px;right:26px;display:flex;align-items:center;gap:6px;font:600 11px "IBM Plex Sans",sans-serif;color:var(--muted);white-space:nowrap;overflow:hidden}
+.rf-group.blk .rf-title{font:500 10px "JetBrains Mono",monospace}
+.rf-kind{font:700 8px "IBM Plex Sans",sans-serif;letter-spacing:.08em;text-transform:uppercase;background:var(--sel);color:var(--focus);padding:2px 5px;border-radius:3px}
+.rf-toggle{position:absolute;right:-9px;top:-9px;width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:700 12px/16px "JetBrains Mono",monospace;text-align:center;cursor:pointer;z-index:3}
+.rf-toggle:hover{border-color:var(--focus);color:var(--focus)}
+.rf-file{position:absolute;width:140px;height:34px;border-radius:8px;border:1px solid rgba(17,23,28,.12);display:flex;align-items:center;padding:0 12px;font:500 11px "JetBrains Mono",monospace;color:#14202b;background:#dfe9f3;cursor:pointer;box-shadow:0 1px 2px rgba(17,23,28,.08);white-space:nowrap;overflow:hidden}
+.rf-file.hop2{opacity:.55;border-style:dashed}
+.rf-file .sc{margin-left:auto;font-size:9px;color:rgba(20,32,43,.6)}
+.rf-occ{position:absolute;width:132px;border-radius:6px;background:var(--panel);border:1.5px solid var(--ir);font:500 10.5px "JetBrains Mono",monospace;color:var(--text);cursor:pointer;box-shadow:0 1px 1px rgba(17,23,28,.06);overflow:visible}
+.rf-occ.read{border-color:var(--warn)}.rf-occ.write{border-color:var(--good)}
+.rf-occ.dim{opacity:.4}
+.rf-occ .oh{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px;font-weight:600}
+.rf-occ .oh .rw{margin-left:auto;font:700 8px "IBM Plex Sans",sans-serif;letter-spacing:.08em;text-transform:uppercase}
+.rf-occ.read .oh .rw{color:var(--warn)}.rf-occ.write .oh .rw{color:var(--good)}
+.rf-occ .row{display:flex;align-items:center;height:20px;padding:0 8px;border-top:1px solid var(--line);font-size:10.5px;position:relative}
+.rf-occ .row.sel{background:var(--ir-bg);box-shadow:inset 3px 0 0 var(--ir);color:var(--ir);font-weight:600}
+.rf-occ .row.off{opacity:.45}
+.rf-occ .row .ty{margin-left:auto;color:var(--faint);font-size:9px}
+.rf-occ .more{padding:2px 8px 4px;border-top:1px solid var(--line);font-size:9.5px;color:var(--faint)}
+.rf-occ .rf-toggle{right:-8px;top:-8px;width:16px;height:16px;font-size:11px;line-height:14px}
+.gstat{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--ir);padding:5px 9px;font:10.5px "JetBrains Mono",monospace;color:var(--muted);z-index:2}
+.leg{position:absolute;right:10px;bottom:10px;background:var(--panel);border:1px solid var(--line);padding:5px 9px;font-size:10.5px;color:var(--muted);display:flex;gap:10px;z-index:2}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:3px;border:1.5px solid var(--warn);vertical-align:middle;margin-right:3px}
+.leg i.w{border-color:var(--good)}.leg i.f{background:#dfe9f3;border-color:rgba(17,23,28,.12)}
+/* ---- right: UI1 code pane ---- */
+.cp{display:flex;min-height:0;flex:1;overflow:hidden}
+.cp .secs{width:118px;flex:0 0 118px;border-right:1px solid var(--line);overflow:auto;font-size:11px}
+.cp .secs .q{margin:8px;padding:4px 7px;border:1px solid var(--line);border-radius:6px;color:var(--faint);font-size:11px;background:var(--panel2)}
+.cp .secs .s{padding:5px 8px;cursor:pointer;color:var(--muted);border-left:3px solid transparent;font-family:"JetBrains Mono",monospace;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp .secs .s.on{border-left-color:var(--focus);background:var(--sel);color:var(--text)}
+.cp .code{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.cp .ctabs{display:flex;gap:2px;padding:4px 8px;border-bottom:1px solid var(--line)}
+.cp .ctabs button{padding:3px 8px;font-size:11px;color:var(--muted);border-bottom:2px solid transparent}
+.cp .ctabs button.on{color:var(--text);border-color:var(--sas)}
+.cp pre{margin:0;padding:8px 10px;overflow:auto;flex:1;font-size:11.5px;line-height:1.55;white-space:pre;counter-reset:l 10}
+.cp pre .ln{display:inline-block;width:22px;color:var(--faint);font-size:10px;text-align:right;margin-right:10px;user-select:none}
+.cp pre .k{color:var(--sas);font-weight:600}.cp pre .c{color:var(--faint)}
+.cp pre .hi{background:var(--sel);display:inline-block;width:calc(100% + 20px);margin:0 -10px;padding:0 10px}
+.bchip{display:inline-flex;align-items:center;gap:6px;margin:6px 0 4px 32px;padding:2px 8px;border:1px solid var(--line);border-radius:999px;font:600 10px "IBM Plex Sans",sans-serif;color:var(--focus);background:var(--sel)}
+.col{cursor:pointer;text-decoration:underline dotted var(--faint);text-underline-offset:3px;border-radius:3px;padding:0 1px}
+.col.on{background:var(--ir-bg);color:var(--ir);box-shadow:inset 0 -2px 0 var(--ir);text-decoration:none;font-weight:600}
+/* ---- bottom strip: Edges (UI1) + Column ---- */
+#bottom{display:flex;flex-direction:column;border-top:1px solid var(--line);background:var(--panel);min-height:0;position:relative}
+#bottom .tabs{display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--line);height:32px}
+#bottom .tabs button{padding:6px 10px;font-size:12px;color:var(--muted);border-bottom:2px solid transparent}
+#bottom .tabs button.on{color:var(--text);border-color:var(--ir)}
+#bottom .tabs .sp{margin-left:auto;color:var(--muted);font-size:11px;display:flex;gap:8px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;border:1px solid transparent}
+.pill.good{background:var(--good-bg);color:var(--good)}.pill.idle{background:var(--panel2);color:var(--muted);border-color:var(--line)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;display:inline-block}
+.erows{flex:1;overflow:auto;padding:4px 12px}
+.erow{display:grid;grid-template-columns:1fr 24px 1fr auto auto;gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-size:11px}
+.erow .ar{color:var(--muted);text-align:center}
+.erow .lv{font:600 9px "IBM Plex Sans",sans-serif;letter-spacing:.08em;text-transform:uppercase;padding:1px 6px;border-radius:999px;background:var(--panel2);color:var(--muted);border:1px solid var(--line)}
+.erow .lv.col{background:var(--ir-bg);color:var(--ir);border-color:transparent}
+.erow .pv{font-size:10px;color:var(--faint)}
+.erow.hl{color:var(--ir)}
+#status{display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--panel);border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden}
+#status .mode{font-weight:600;color:var(--text)}
+#status .keys{display:flex;gap:10px;margin-left:auto}
+#linkLayer{position:fixed;inset:0;width:100%;height:100%;z-index:50;pointer-events:none;overflow:visible}
+#linkLayer path{fill:none;stroke:var(--ir);stroke-width:1.6;opacity:.85}
+#linkLayer circle{fill:var(--ir)}
+.nb{display:none;position:absolute;z-index:60;width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;font:700 11px/20px "JetBrains Mono",monospace;text-align:center;box-shadow:0 0 0 2px var(--panel)}
+body.notes .nb{display:block}
+#notes{display:none;position:fixed;right:14px;top:48px;z-index:70;width:470px;max-height:calc(100vh - 70px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);font-size:12px}
+body.notes #notes{display:block}
+#notes h2{margin:0;padding:10px 14px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+#notes .n{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);align-items:start}
+#notes .n .b{width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;font:700 11px/20px "JetBrains Mono",monospace;text-align:center}
+#notes .n b{display:block;margin-bottom:2px}
+#notes .n small{color:var(--muted)}
+#notes .n em{font-style:normal;color:var(--ir);font-family:"JetBrains Mono",monospace;font-size:11px}
+#notes table{width:100%;border-collapse:collapse;font-size:11px;margin:4px 0}
+#notes th,#notes td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+#notes th{color:var(--muted);font-weight:600}
+</style></head>
+<body>
+<div id="app">
+  <div id="top">
+    <div class="brand">lineage<span>Q</span></div>
+    <div class="file"><span class="tag sas">sas</span><b>team_finance/sas/raw/15_join_risk_txn.sas</b><kbd>⌘K</kbd></div>
+    <span class="pill good" title="the conversion was checked twice and both agree"><i></i>verified</span>
+    <span class="seg sm hops" title="how many upstream hops to draw"><button>−</button><button class="on">◀ 2</button><button>+</button></span>
+    <span class="seg sm hops" title="how many downstream hops to draw"><button>−</button><button class="on">1 ▶</button><button>+</button></span>
+    <span class="seg sm"><button>fit</button><button>re-layout</button><button>expand all</button><button>collapse all</button></span>
+    <span class="nb" style="left:560px;top:8px">1</span>
+    <div class="sp">
+      <button class="chip" id="notesBtn" title="numbered notes (n)">notes <kbd>n</kbd></button>
+      <button class="theme" id="themeBtn" title="Theme (t)">◐</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <nav id="rail">
+      <button class="on" title="Explorer (b)"><svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v11H3z"/></svg><kbd>b</kbd></button>
+      <button class="on" title="Code (c)"><svg viewBox="0 0 24 24"><path d="M8 7l-4 5 4 5M16 7l4 5-4 5"/></svg><kbd>c</kbd></button>
+      <button title="Cells: SAS ⇄ PySpark (j)"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="5"/><rect x="4" y="12" width="16" height="5"/></svg><kbd>j</kbd></button>
+      <button title="Keys (?)" style="margin-top:auto;margin-bottom:8px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/></svg></button>
+    </nav>
+
+    <aside class="drawer" id="left">
+      <div class="dh"><span>Explorer</span><span class="nb" style="right:36px;top:6px">2</span><kbd>b</kbd></div>
+      <div class="db">
+        <div class="tree">
+          <div class="tabs"><button>All files</button><button class="on">Current</button></div>
+          <div class="dir">upstream · 2 hops</div>
+          <div class="f hop">07_enrich_fx.sas<span class="n">hop 2</span></div>
+          <div class="f hop">13_risk_flags.sas<span class="n">hop 1</span></div>
+          <div class="f hop">04_build_accounts.sas<span class="n">hop 1</span></div>
+          <div class="f hop">12_txn_agg.sas<span class="n">hop 1</span></div>
+          <div class="dir">this file</div>
+          <div class="f on">15_join_risk_txn.sas</div>
+          <div class="f blk">#1 proc sql → risk_txn<span class="n">L11–27</span></div>
+          <div class="f tbl r">risk_flags · read</div>
+          <div class="f tbl r">accounts · read</div>
+          <div class="f tbl r">txn_agg · read</div>
+          <div class="f tbl w">risk_txn · write</div>
+          <div class="dir">downstream · 1 hop</div>
+          <div class="f hop">18_dashboard_mart.sas<span class="n">hop 1</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <section id="center">
+      <div class="tb"><span class="seg sm"><button class="on">Files</button><button class="on">Blocks</button><button class="on">Tables</button><button>Steps</button></span><span class="seg sm"><button class="on">Simple</button><button>Medium</button><button>Best</button></span><span class="nb" style="position:static">3</span></div>
+      <svg id="edges"></svg>
+      <!-- neighbour files: hop 1 left, hop 2 faint, hop 1 right -->
+      <div class="rf-file hop2" data-a="f07" style="left:18px;top:392px">07_enrich_fx.sas<span class="sc">hop 2</span></div>
+      <div class="rf-file" data-a="f13" style="left:18px;top:92px">13_risk_flags.sas</div>
+      <div class="rf-file" data-a="f04" style="left:18px;top:172px">04_build_accounts.sas</div>
+      <div class="rf-file" data-a="f12" style="left:18px;top:300px">12_txn_agg.sas</div>
+      <div class="rf-file" data-a="f18" style="left:684px;top:150px">18_dashboard_mart.sas</div>
+      <!-- the seed file, opened: file cluster ▸ block cluster ▸ table occurrences -->
+      <div class="rf-group seed" style="left:200px;top:48px;width:466px;height:440px"><div class="rf-title">15_join_risk_txn.sas <span style="color:var(--faint);font-weight:400">· 1 block</span></div><span class="rf-toggle" title="collapse back to a file">−</span>
+        <span class="nb" style="left:-10px;top:-10px">4</span>
+        <div class="rf-group blk" style="left:14px;top:32px;width:438px;height:392px"><div class="rf-title"><span class="rf-kind">#1 proc sql</span>→ work.risk_txn · L11–27</div><span class="rf-toggle" title="fold the tables into the block">−</span>
+          <div class="rf-occ read dim" data-a="risk_flags" style="left:16px;top:44px"><div class="oh">risk_flags<span class="rw">read</span></div><span class="rf-toggle">+</span></div>
+          <div class="rf-occ read dim" data-a="accounts" style="left:16px;top:104px"><div class="oh">accounts<span class="rw">read</span></div><span class="rf-toggle">+</span></div>
+          <div class="rf-occ read" data-a="txn_agg" style="left:16px;top:200px"><div class="oh">txn_agg<span class="rw">read</span></div><span class="rf-toggle" title="fold the columns">−</span>
+            <div class="row off" data-col="txn_agg.acct_id">acct_id<span class="ty">$8</span></div><div class="row off" data-col="txn_agg.txn_type">txn_type<span class="ty">$8</span></div><div class="row off" data-col="txn_agg.txn_cnt">txn_cnt<span class="ty">8</span></div><div class="row sel" data-col="txn_agg.amt_usd_sum">amt_usd_sum<span class="ty">8</span></div></div>
+          <div class="rf-occ write" data-a="risk_txn" style="left:284px;top:44px"><div class="oh">risk_txn<span class="rw">write</span></div><span class="rf-toggle" title="fold the columns">−</span>
+            <div class="row off" data-col="risk_txn.cust_id">cust_id</div><div class="row off" data-col="risk_txn.cust_name">cust_name</div><div class="row off" data-col="risk_txn.risk_band">risk_band</div><div class="row off" data-col="risk_txn.risk_score">risk_score</div><div class="row off" data-col="risk_txn.acct_id">acct_id</div><div class="row off" data-col="risk_txn.txn_type">txn_type</div><div class="row off" data-col="risk_txn.txn_cnt">txn_cnt</div><div class="row sel" data-col="risk_txn.amt_usd_sum" id="rowTgt">amt_usd_sum</div></div>
+        </div>
+      </div>
+      <div class="gstat">seed 15_join_risk_txn.sas · ◀ 2 hops, 1 ▶ · 6 files · 1 block open · 2 tables open · focus amt_usd_sum</div>
+      <div class="leg"><span><i class="f"></i>file</span><span><i></i>read</span><span><i class="w"></i>write</span><span>click a file: open it here · <kbd>+</kbd> columns</span></div>
+    </section>
+
+    <aside class="drawer right" id="right">
+      <div class="dh"><span>Code</span><span class="nb" style="left:70px;top:6px">5</span><span style="margin-left:8px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--faint)">15_join_risk_txn.sas</span><kbd>c</kbd></div>
+      <div class="cp">
+        <div class="secs"><div class="q">filter sections…</div><div class="s on">#1 proc sql → risk_txn</div></div>
+        <div class="code">
+          <div class="ctabs"><button class="on">SAS</button><button>PySpark</button><span style="margin-left:auto;font-size:10.5px;color:var(--faint);align-self:center">converted · verified</span></div>
+<pre><span class="bchip">#1 proc sql → risk_txn</span>
+<span class="hi"><span class="ln">11</span><span class="k">proc sql</span>;</span>
+<span class="hi"><span class="ln">12</span>  <span class="k">create table</span> work.risk_txn <span class="k">as</span></span>
+<span class="hi"><span class="ln">13</span>  <span class="k">select</span></span>
+<span class="hi"><span class="ln">14</span>      r.<span class="col">cust_id</span>,</span>
+<span class="hi"><span class="ln">15</span>      r.<span class="col">cust_name</span>,</span>
+<span class="hi"><span class="ln">16</span>      r.<span class="col">risk_band</span>,</span>
+<span class="hi"><span class="ln">17</span>      r.<span class="col">risk_score</span>,</span>
+<span class="hi"><span class="ln">18</span>      a.<span class="col">acct_id</span>,</span>
+<span class="hi"><span class="ln">19</span>      t.<span class="col">txn_type</span>,</span>
+<span class="hi"><span class="ln">20</span>      t.<span class="col">txn_cnt</span>,</span>
+<span class="hi"><span class="ln">21</span>      t.<span class="col on" id="tokSas">amt_usd_sum</span></span>
+<span class="hi"><span class="ln">22</span>  <span class="k">from</span> work.risk_flags r</span>
+<span class="hi"><span class="ln">23</span>  <span class="k">inner join</span> work.accounts a</span>
+<span class="hi"><span class="ln">24</span>    <span class="k">on</span> r.cust_id = a.cust_id</span>
+<span class="hi"><span class="ln">25</span>  <span class="k">left join</span> work.txn_agg t</span>
+<span class="hi"><span class="ln">26</span>    <span class="k">on</span> a.acct_id = t.acct_id;</span>
+<span class="hi"><span class="ln">27</span><span class="k">quit</span>;</span></pre>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="bottom">
+    <span class="nb" style="left:130px;top:6px">6</span>
+    <div class="tabs">
+      <button class="on">Edges</button><button>Column</button><button>Story</button>
+      <div class="sp"><span class="chip on">file</span><span class="chip on">table</span><span class="chip on">column</span><span style="color:var(--faint)">provenance:</span><span class="chip on">code</span><span class="chip">inferred</span><kbd>⌄</kbd><kbd>×</kbd></div>
+    </div>
+    <div class="erows">
+      <div class="erow hl"><span>txn_agg.amt_usd_sum</span><span class="ar">→</span><span>risk_txn.amt_usd_sum</span><span class="lv col">column</span><span class="pv">carried · left join on acct_id · L25–26</span></div>
+      <div class="erow"><span>12_txn_agg.sas</span><span class="ar">→</span><span>15_join_risk_txn.sas</span><span class="lv">file</span><span class="pv">via work.txn_agg</span></div>
+      <div class="erow"><span>13_risk_flags.sas</span><span class="ar">→</span><span>15_join_risk_txn.sas</span><span class="lv">file</span><span class="pv">via work.risk_flags</span></div>
+      <div class="erow"><span>04_build_accounts.sas</span><span class="ar">→</span><span>15_join_risk_txn.sas</span><span class="lv">file</span><span class="pv">via work.accounts</span></div>
+      <div class="erow"><span>15_join_risk_txn.sas</span><span class="ar">→</span><span>18_dashboard_mart.sas</span><span class="lv">file</span><span class="pv">via work.risk_txn</span></div>
+      <div class="erow"><span>07_enrich_fx.sas</span><span class="ar">→</span><span>12_txn_agg.sas</span><span class="lv">file</span><span class="pv">hop 2 · via work.txns_fx</span></div>
+    </div>
+  </div>
+
+  <div id="status">
+    <span class="mode">COMMAND</span><span>15_join_risk_txn.sas · block 1 · amt_usd_sum</span><span>verified</span>
+    <div class="keys"><span><kbd>◀</kbd><kbd>▶</kbd> hops</span><span><kbd>+</kbd><kbd>−</kbd> open / fold</span><span><kbd>j</kbd> cells</span><span><kbd>/</kbd> find</span><span><kbd>?</kbd> keys</span></div>
+  </div>
+</div>
+<svg id="linkLayer"></svg>
+
+<div id="notes">
+  <h2>html3 · the UI1 bet</h2>
+  <div class="n"><span class="b">1</span><div><b>UI1's top bar, as it is</b><small>Hops <em>◀ 2</em> / <em>1 ▶</em>, fit / re-layout / expand all / collapse all. No Jupyter | IDE switch — the canvas is the centre; cells are a drawer (<em>j</em>).</small></div></div>
+  <div class="n"><span class="b">2</span><div><b>Explorer = UI1's All files | Current</b><small>Current shows the seed file with its blocks and the tables each block reads (orange) and writes (green), and the hop files above and below.</small></div></div>
+  <div class="n"><span class="b">3</span><div><b>One canvas, three depths</b><small>Files / Blocks / Tables chips decide how deep the seed file is drawn; <em>+</em> on one table opens its columns in place. Steps (join, group by) are a fourth chip, off by default. Layout profiles Simple / Medium / Best as in UI1.</small></div></div>
+  <div class="n"><span class="b">4</span><div><b>The in-file view IS the across-files view zoomed in</b><small>The seed file is a group; its block is a group inside; its tables are nodes inside that. The neighbour files sit on the same canvas as collapsed file nodes at hop 1 (solid) and hop 2 (dashed). Click one: it opens the same way. No window switch, no "open in UI1" link.</small></div></div>
+  <div class="n"><span class="b">5</span><div><b>Code = UI1's right pane</b><small>Section rail + code with a block chip above each block; PySpark is a second tab, not a side-by-side cell. Column names are clickable; the line from the canvas row lands on the name.</small></div></div>
+  <div class="n"><span class="b">6</span><div><b>Edges drawer → the bottom strip</b><small>UI1's edge list with level pills (file / table / column) and provenance (code / inferred). The Column tab from html1 is next to it.</small></div></div>
+  <div class="n"><span class="b">⚖</span><div><b>Safe bet (html1) vs UI1 bet (html3)</b>
+<table><tr><th></th><th>html1 · safe</th><th>html3 · UI1</th></tr>
+<tr><td>centre</td><td>SAS ⇄ PySpark cells</td><td>the canvas</td></tr>
+<tr><td>across files</td><td>a link into UI1</td><td>hops on the same canvas</td></tr>
+<tr><td>graph</td><td>Bench SVG, tables or columns</td><td>nested groups, +/− per node, ELK</td></tr>
+<tr><td>code</td><td>two buffers, cell per block</td><td>one pane, sections, PySpark tab</td></tr>
+<tr><td>1000 blocks</td><td>proven: windowed cells, class-only focus</td><td>open: nested groups + ELK at 1000 blocks is the perf risk exp_005 was opened for</td></tr>
+<tr><td>code to build</td><td>port the Bench</td><td>merge node4_viz + the Bench's cells</td></tr>
+<tr><td>BA reading</td><td>reads code first, graph beside</td><td>reads the map first, code beside</td></tr></table>
+<small>My read: html3 is the better <b>map</b>; html1 is the better <b>desk</b>. If the BA's first question is "where does this number come from across the estate", html3 wins; if it is "what does this program do", html1 wins. The receipts in bronze_perf_receipts_exp42 decide the 1000-block row before anything else.</small></div></div>
+</div>
+
+<script>
+// [from, to, class, label]; anchors are [data-a] boxes (right-mid → left-mid) or .row[data-col] rows
+const EDGES=[
+  ["f13","risk_flags","hop",""],["f04","accounts","hop",""],["f12","txn_agg","hop",""],["f07","f12","hop dim","hop 2"],
+  ["risk_flags","risk_txn","dim","inner join · on cust_id"],["accounts","risk_txn","dim","on cust_id"],
+  ["txn_agg","risk_txn","hl","left join · on acct_id"],
+  ["txn_agg.amt_usd_sum","risk_txn.amt_usd_sum","col","carried"],
+  ["risk_txn","f18","hop","read by"],
+];
+const center=document.getElementById("center"), svg=document.getElementById("edges");
+const el=id=>center.querySelector(id.includes(".")?`.row[data-col="${id}"]`:`[data-a="${id}"] .oh, [data-a="${id}"]:not(.rf-occ)`);
+function drawEdges(){
+  center.querySelectorAll(".elab").forEach(e=>e.remove());
+  const c=center.getBoundingClientRect(); let s="", labs="";
+  EDGES.forEach(([a,b,cls,lab])=>{
+    const ra=el(a), rb=el(b); if(!ra||!rb) return;
+    const A=ra.getBoundingClientRect(), B=rb.getBoundingClientRect();
+    const x1=A.right-c.left, y1=A.top+A.height/2-c.top, x2=B.left-c.left, y2=B.top+B.height/2-c.top, mx=(x1+x2)/2;
+    s+=`<path class="${cls}" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+    if(lab) labs+=`<div class="elab ${cls.includes("hl")||cls==="col"?"hl":""}" style="left:${mx}px;top:${(y1+y2)/2}px">${lab}</div>`;
+  });
+  svg.innerHTML=s; svg.insertAdjacentHTML("afterend",labs);
+}
+const link=document.getElementById("linkLayer");
+function drawLinks(){
+  const row=document.getElementById("rowTgt"), t=document.getElementById("tokSas"); if(!row||!t) return;
+  const r=row.getBoundingClientRect(), tr=t.getBoundingClientRect();
+  const x1=r.right, y1=r.top+r.height/2, x2=tr.left, y2=tr.top+tr.height/2, mx=(x1+x2)/2;
+  link.innerHTML=`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/><circle cx="${x1}" cy="${y1}" r="3.5"/><circle cx="${x2}" cy="${y2}" r="3.5"/>`;
+}
+function redraw(){drawEdges();drawLinks();}
+addEventListener("resize",redraw); document.fonts?document.fonts.ready.then(redraw):redraw(); redraw();
+document.getElementById("themeBtn").onclick=()=>{const h=document.documentElement;h.dataset.theme=h.dataset.theme==="dark"?"":"dark";};
+const toggleNotes=()=>document.body.classList.toggle("notes");
+document.getElementById("notesBtn").onclick=toggleNotes;
+addEventListener("keydown",e=>{if(e.key==="n")toggleNotes();if(e.key==="t")document.getElementById("themeBtn").click();});
+</script>
+</body></html>

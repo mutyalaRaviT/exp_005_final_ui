@@ -5,7 +5,12 @@ const pg=await b.newPage({viewport:{width:2000,height:1200}});
 const errs=[]; pg.on('console',m=>{if(m.type()==='error')errs.push(m.text());});
 await pg.goto(BASE+'/bench',{waitUntil:'networkidle'});
 await pg.waitForTimeout(1200);
-await pg.evaluate(()=>window.openFile('testdata/test_vishnu_testdata_fixed.sas'));
+// M4b: UI2 is keyed by fileid now, and the pass mark is the exp_42 receipt file
+// (23 blocks, 80 statements, folded 80/80, round trip 80/80, 12 table edges),
+// converted into the store as its own root. localStorage would otherwise reopen
+// whatever was last looked at, so it is cleared first.
+await pg.evaluate(()=>{ try{ localStorage.removeItem('bench.last'); }catch(e){} });
+await pg.evaluate(()=>window.openFile('test_vishnu_testdata_fixed.sas'));
 await pg.waitForTimeout(6000);
 await pg.keyboard.press('c');            // cells view
 await pg.waitForTimeout(2500);

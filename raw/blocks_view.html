@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="paper">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Blocks View — daily_pnl.sas</title>
+<script src="https://unpkg.com/@antv/g6@5/dist/g6.min.js"></script>
+<script src="../lineage_model/blocks_model.js"></script>
+<script src="../lineage_model/model.js"></script>
+<style>
+
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap');
+  :root { --font-sans:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,sans-serif; --font-mono:'JetBrains Mono',ui-monospace,monospace; }
+  /* palettes (app=body · canvas=graph · sidebar=nav · panel=surface · tert=head · inner=blocks) */
+  html[data-theme="dark"] {
+    --bg:#14140f; --canvas:#14140f; --sidebar:#1a1a14; --panel:#20201a; --tert:#26261f; --inner:#1b1b15;
+    --line:#34342b; --hair:#2a2a22; --ink:#ececdf; --muted:#9a9a8a; --dim:#6f6f61; --heavy:#ececdf;
+    --accent:#e2683a; --accent-2:#e2683a; --accent-10:#3a261c; --accent-16:#3a2a1f; --edge:#4a4a3e;
+    --green:#6fbf6f; --code-bg:#1b1b15;
+  }
+  html[data-theme="paper"] {
+    --bg:#f4f2ec; --canvas:#f1efe8; --sidebar:#f8f6f0; --panel:#fffefb; --tert:#f7f5ef; --inner:#faf9f4;
+    --line:#e4e1d7; --hair:#ece9e0; --ink:#2c2a24; --muted:#7a766c; --dim:#a9a497; --heavy:#2c2a24;
+    --accent:#d8693a; --accent-2:#d8693a; --accent-10:#f7ece4; --accent-16:#fae7dc; --edge:#d8d3c6;
+    --green:#3f8a5a; --code-bg:#faf9f4;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font: 13px/1.4 var(--font-sans); display: flex; flex-direction: column; height: 100vh; }
+  .prog-hd { overflow: hidden; } .prog-hd > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  /* code panel (right) — DrRacket-style token↔block linking */
+  .sqlpanel { width: 380px; flex: 0 0 380px; border-left: 1px solid var(--line); background: var(--code-bg); display: none; flex-direction: column; min-height: 0; }
+  .sqlpanel.open { display: flex; }
+  .sqlpanel .sqlhd { padding: 9px 12px; border-bottom: 1px solid var(--line); font: 9px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  .sqlpanel .sqlhd .x { margin-left: auto; cursor: pointer; }
+  .sqlpanel pre { margin: 0; padding: 12px 14px; overflow: auto; flex: 1; min-height: 0; font: 12px/1.75 var(--font-mono); white-space: pre-wrap; }
+  #sqlsplit { flex: 1; min-height: 0; overflow: auto; }
+  .sqlpanel .sqlkw, .sqlpanel pre { color: var(--ink); }
+  .sqlcol { color: var(--ink); cursor: pointer; text-decoration: underline dotted var(--dim); text-underline-offset: 3px; border-radius: 3px; padding: 0 1px; }
+  .sqlcol:hover { color: var(--accent); text-decoration-color: var(--accent); }
+  .sqlcol.on { background: var(--accent-16); box-shadow: inset 0 -2px 0 var(--accent); text-decoration: none; }
+  header.top { padding: 9px 14px; border-bottom: 2px solid var(--line); background: var(--panel); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  header.top h1 { font-size: 13px; margin: 0 8px 0 0; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; }
+  input.search { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; font: 11px var(--font-mono); width: 168px; }
+  input.search:focus { outline: none; border-color: var(--accent); }
+  .grp { display: inline-flex; align-items: center; gap: 6px; }
+  .grp .cap { font: 9px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+  .seg button { border: 0; background: var(--panel); color: var(--muted); padding: 5px 9px; font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .8px; cursor: pointer; }
+  .seg button.on { background: var(--tert); color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+  .seg button:not(.on):hover { background: var(--tert); color: var(--ink); }
+  .spacer { margin-left: auto; }
+  button.btn { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .8px; cursor: pointer; }
+  button.btn:hover { border-color: var(--accent); color: var(--accent); }
+  button.btn.on { background: var(--tert); color: var(--accent); border-color: var(--accent); }
+  .files { position: relative; }
+  .body { flex: 1; display: flex; min-height: 0; }
+  .nav { width: 248px; flex: 0 0 248px; border-right: 1px solid var(--line); overflow: auto; padding: 0 6px 8px; background: var(--sidebar); }
+  .navtools { display: flex; flex-direction: column; gap: 6px; padding: 8px 2px; position: sticky; top: 0; background: var(--panel); z-index: 2; border-bottom: 1px solid var(--line); }
+  .navtools .ttypes { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  .navtools .ttypes .cap { font: 8px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-right: 2px; }
+  .chip { font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .6px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 3px; cursor: pointer; color: var(--dim); background: transparent; }
+  .chip.on { background: var(--tert); border-color: var(--line); color: var(--ink); }
+  .chip.on::before { content: ""; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--cdot, var(--accent)); margin-right: 5px; vertical-align: middle; }
+  .trow.match { background: var(--accent-10); box-shadow: inset 2px 0 0 var(--accent); }
+  .trow.match > .lbl { color: var(--ink); }
+  .trow { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 3px; font: 12px var(--font-mono); color: var(--ink); white-space: nowrap; }
+  .trow:hover { background: var(--tert); }
+  .trow.lvl1 { padding-left: 16px; } .trow.lvl2 { padding-left: 30px; } .trow.lvl3 { padding-left: 44px; }
+  .trow .car { width: 12px; cursor: pointer; color: var(--muted); text-align: center; flex: 0 0 auto; user-select: none; }
+  .trow .lbl { cursor: pointer; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .trow .lbl.fileL { font: 12px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--ink); }
+  .trow .lbl.blockL { font: 9px var(--font-sans); font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; }
+  .trow .lbl i { color: var(--dim); font-style: normal; font-size: 9px; margin-left: 6px; font-family: var(--font-mono); }
+  /* selected tree row */
+  .trow:has(.lbl.sel) { background: var(--accent-16); box-shadow: inset 3px 0 0 var(--accent); }
+  .trow .lbl.sel { color: var(--ink); font-weight: 600; }
+  .trow .lbl.sel i { color: var(--dim); }
+  .kids.collapsed { display: none; }
+  .hide { display: none !important; }
+  .trow.cursor { box-shadow: inset 0 0 0 1px var(--accent); }
+  .ajhint { position: fixed; z-index: 300; background: var(--accent); color: #fff; font: 10px/1 var(--font-mono); font-weight: 700; letter-spacing: .5px; padding: 2px 4px; border-radius: 3px; pointer-events: none; box-shadow: 0 1px 5px rgba(0,0,0,.6); }
+  kbd { font: 9px var(--font-mono); background: var(--tert); border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; color: var(--muted); }
+  .prog-hd { position: relative; }
+  .canvasWrap { flex: 1; position: relative; min-width: 0; display: flex; flex-direction: column; }
+  #container { position: relative; flex: 1; min-height: 0; }
+  .detail { position: absolute; right: 12px; bottom: 12px; z-index: 30; display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 6px 10px; }
+  .detail .cap { font: 9px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .statusbar { position: absolute; left: 12px; bottom: 12px; z-index: 30; color: var(--muted); font: 10px var(--font-mono); background: var(--panel); padding: 6px 10px; border: 1px solid var(--line); border-left: 3px solid var(--accent); }
+  .prog { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; box-shadow: none; font: 12px var(--font-sans); user-select: none; }
+  .prog-hd { display: flex; align-items: center; gap: 8px; padding: 0 10px; font: 12px var(--font-mono); font-weight: 600; color: var(--ink); letter-spacing: .3px; background: var(--tert); }
+  .prog-hd .kind { margin-left: auto; font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .12em; padding: 2px 6px; border-radius: 2px; border: 1px solid currentColor; background: var(--accent-10); }
+  .prog-body { display: flex; flex-direction: column; }
+  .col-row { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-top: 1px solid var(--line); font: 11px var(--font-mono); color: var(--ink); }
+  .tip { position: fixed; z-index: 200; pointer-events: none; background: var(--bg); border: 1px solid var(--accent); border-radius: 4px; padding: 7px 9px; font: 11px var(--font-sans); color: var(--ink); max-width: 320px; box-shadow: none; display: none; line-height: 1.45; }
+  .inspect { z-index: 40; height: 244px; flex: 0 0 244px; background: var(--bg); border-top: 2px solid var(--accent); display: none; flex-direction: column; box-shadow: none; }
+  .inspect.open { display: flex; }
+  .inspect .ihd { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .inspect .ihd .kind { font: 9px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); background: transparent; border: 1px solid var(--accent); padding: 2px 7px; border-radius: 3px; }
+  .inspect .ihd .nm { font: 13px var(--font-mono); font-weight: 500; } .inspect .ihd .loc { color: var(--muted); font: 11px var(--font-mono); }
+  .inspect .ihd .x { margin-left: auto; cursor: pointer; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 3px 9px; font: 10px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: .8px; }
+  .inspect .ihd .x:hover { border-color: var(--accent); color: var(--accent); }
+  .inspect .ibody { flex: 1; display: flex; min-height: 0; }
+  .inspect .col1 { flex: 1; border-right: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
+  .inspect .col2 { width: 44%; display: flex; flex-direction: column; min-width: 0; }
+  .inspect .sec { font: 9px var(--font-sans); font-weight: 500; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); padding: 6px 12px 2px; }
+  .inspect pre { margin: 0; padding: 2px 12px 10px; overflow: auto; flex: 1; font: 11.5px/1.6 var(--font-mono); color: var(--ink); white-space: pre; }
+  .inspect .elist { overflow: auto; flex: 1; padding: 0 12px 10px; }
+  .inspect .erow { padding: 4px 0; border-bottom: 1px solid var(--line); font: 11px var(--font-mono); display: flex; gap: 6px; align-items: baseline; }
+  .inspect .erow .ar { color: var(--muted); }
+
+  /* ===== tri-pane shell (left col: file explorer + blocks spine) ===== */
+  .leftcol { width: 248px; flex: 0 0 248px; border-right: 1px solid var(--line); background: var(--sidebar); display: flex; flex-direction: column; min-height: 0; }
+  .leftcol .nav { width: auto; flex: 0 0 auto; max-height: 38%; border-right: 0; }
+  .leftcol .blockspane { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+  .blockspane .bphd { padding: 8px 8px 6px; position: sticky; top: 0; background: var(--panel); z-index: 2; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 6px; }
+  .blockspane .bphd .cap { font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .blockspane .bphd .cnt { margin-left: auto; font: 9px var(--font-mono); color: var(--dim); }
+  #blocks { flex: 1; min-height: 0; overflow: auto; padding: 6px; }
+  #blocks .trow { gap: 7px; padding: 5px 6px; }
+  #blocks .trow .bdot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--btype, var(--dim)); box-shadow: 0 0 0 2px var(--panel); }
+  #blocks .trow .lbl { display: flex; flex-direction: column; gap: 1px; }
+  #blocks .trow .lbl .bt { font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  #blocks .trow .lbl .bl { font: 11px var(--font-mono); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #blocks .trow.sel-c { background: var(--accent-16); box-shadow: inset 3px 0 0 var(--accent); }
+  #blocks .trow.sel-c .bl { font-weight: 600; }
+  #blocks .trow.match { background: var(--accent-10); box-shadow: inset 2px 0 0 var(--accent); }
+  /* ===== left = git-graph DEPENDENCY TREE (rail of dots + control/contract/var branch lines) ===== */
+  #blocks .treewrap { position: relative; }
+  /* rail ABOVE the row backgrounds (z-index) so dots + branch links stay visible when a row is hovered/selected */
+  #blocks .rail { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; overflow: visible; }
+  #blocks .blockrow { position: relative; z-index: 1; gap: 7px; }
+  #blocks .blockrow .lbl { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  #blocks .blockrow .lbl .bt { font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  #blocks .blockrow .lbl .bl { font: 11px var(--font-mono); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #blocksCnt .tclear { cursor: pointer; color: var(--accent); margin-left: 4px; }
+  #blocksCnt .tclear:hover { text-decoration: underline; }
+  .bplegend { display: flex; gap: 9px; padding: 4px 8px 0; }
+  .bplegend span { font: 7.5px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--dim); display: inline-flex; align-items: center; gap: 4px; }
+  .bplegend i { width: 12px; height: 0; border-top: 2px solid currentColor; display: inline-block; }
+
+  /* flow strip — control-flow band across the TOP of the center */
+  .flowstrip { flex: 0 0 auto; display: flex; align-items: center; gap: 2px; padding: 7px 10px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; white-space: nowrap; min-height: 0; }
+  .flowstrip .flab { font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-right: 6px; flex: 0 0 auto; }
+  .flowchip { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 4px 9px; border: 1px solid var(--line); border-radius: 3px; background: var(--inner); cursor: pointer; font: 10px var(--font-sans); color: var(--ink); transition: border-color .12s, background .12s, opacity .12s; }
+  .flowchip:hover { border-color: var(--accent); }
+  .flowchip .fcdot { width: 8px; height: 8px; border-radius: 50%; background: var(--btype, var(--dim)); flex: 0 0 auto; }
+  .flowchip .fct { font: 7px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .flowchip .fcl { font: 10px var(--font-mono); color: var(--ink); }
+  .flowchip.active { background: var(--accent-16); border-color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+  .flowchip.active .fcl { font-weight: 600; }
+  .flowarrow { flex: 0 0 auto; color: var(--dim); font: 12px var(--font-mono); padding: 0 2px; user-select: none; }
+
+  /* ===== Blocks view additions (nested block boxes · contracts · legend · drill) ===== */
+  .prog.block-taskflow .prog-hd { box-shadow: inset 4px 0 0 #a47de8; }
+  .prog.block-variable .prog-hd { box-shadow: inset 4px 0 0 #d4a64a; }
+  .prog.block-datatask .prog-hd { box-shadow: inset 4px 0 0 #4cb8b0; }
+  .sb-row { display: flex; align-items: center; gap: 8px; padding: 0 10px; border-top: 1px solid var(--line); font: 10px var(--font-mono); color: var(--ink); }
+  .sb-row .sbk { font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--dim); flex: 0 0 auto; min-width: 52px; }
+  .sb-row .sbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+  .ct-row { display: flex; align-items: center; gap: 7px; padding: 0 10px; border-top: 1px solid var(--line); font: 10.5px var(--font-mono); color: var(--ink); cursor: pointer; transition: background .12s; }
+  .ct-row:hover { background: var(--tert); }
+  .ct-row.sel-c { background: var(--accent-16); box-shadow: inset 3px 0 0 var(--accent); }
+  .ct-row.out { flex-direction: row-reverse; }
+  .ct-row .ctdot { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; background: var(--dim); box-shadow: 0 0 0 2px var(--panel); }
+  .ct-row.o-derived .ctdot { background: var(--green); }
+  .ct-row.o-manual .ctdot { background: #d4a64a; }
+  .ct-row .ctn { font-weight: 600; color: var(--ink); }
+  .ct-row .cto { margin-left: auto; font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .ct-row.out .cto { margin-left: 0; margin-right: auto; }
+  .prog-hd .drill { cursor: pointer; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; font-size: 11px; line-height: 15px; flex: 0 0 auto; }
+  .prog-hd .drill:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .detail .lg { display: inline-flex; align-items: center; gap: 5px; font: 9px var(--font-sans); color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .detail .ls { width: 18px; height: 0; border-top-width: 2px; border-top-style: solid; display: inline-block; }
+  .detail .ls.control { border-color: var(--edge); }
+  .detail .ls.contract { border-color: var(--accent); }
+  .detail .ls.var { border-color: var(--dim); border-top-style: dashed; }
+  .inspect .cblock { padding: 4px 12px 8px; }
+  .inspect .crow { font: 11px var(--font-mono); color: var(--ink); padding: 2px 0; display: flex; align-items: center; gap: 7px; }
+  .inspect .crow .cd { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
+  .inspect .crow .cd.o-derived { background: var(--green); } .inspect .crow .cd.o-manual { background: #d4a64a; }
+  .inspect .crow .cw { font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .inspect .crow .co { margin-left: auto; font: 8px var(--font-sans); text-transform: uppercase; letter-spacing: .5px; color: var(--dim); }
+  /* drill overlay (graft → real column lineage) */
+  .drillov { position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.42); display: none; align-items: center; justify-content: center; }
+  .drillov.open { display: flex; }
+  .drillov .dwrap { width: 94vw; height: 92vh; background: var(--panel); border: 1px solid var(--accent); border-radius: 6px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 50px rgba(0,0,0,.45); }
+  .drillov .dhd { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--tert); font: 12px var(--font-mono); color: var(--ink); }
+  .drillov .dhd .dk { font: 9px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 2px 7px; }
+  .drillov .dhd .x { margin-left: auto; cursor: pointer; border: 1px solid var(--line); border-radius: 3px; padding: 3px 10px; font: 10px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .drillov .dhd .x:hover { border-color: var(--accent); color: var(--accent); }
+  .drillov iframe { flex: 1; border: 0; width: 100%; background: var(--bg); }
+
+  /* ===== drill redesign: breadcrumb · zoom transition · inside-view nodes ===== */
+  .crumbs { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--panel); border-bottom: 1px solid var(--line); font: 11px var(--font-mono); min-height: 0; }
+  .crumbs .crumb { cursor: pointer; color: var(--muted); padding: 2px 7px; border-radius: 3px; }
+  .crumbs .crumb:hover { color: var(--accent); background: var(--tert); }
+  .crumbs .crumb.cur { color: var(--ink); font-weight: 600; cursor: default; background: transparent; }
+  .crumbs .crumb.home { color: var(--ink); font-weight: 600; }
+  .crumbs .csep { color: var(--dim); }
+  .crumbs .lvlcap { margin-left: auto; font: 8px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); }
+  #container { transition: opacity .15s ease; cursor: grab; }
+  #container.fading { opacity: 0; }
+  #container.panning { cursor: grabbing; }
+  /* file-split (right panel when the FILE is selected): one section per block */
+  .sqlsec { border-bottom: 1px solid var(--line); }
+  .sqlsec.secon { background: var(--accent-10); box-shadow: inset 3px 0 0 var(--accent); }
+  .sqlsec pre { flex: 0 0 auto; }
+  .sqlcsec { font: 9px var(--font-sans); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); padding: 10px 14px 2px; cursor: pointer; display: flex; align-items: center; gap: 7px; }
+  .sqlcsec .sd { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; }
+  .sqlcsec .scnt { margin-left: auto; font: 8px var(--font-mono); color: var(--dim); letter-spacing: 0; text-transform: none; }
+  /* inside-view: op step + endpoint table nodes (reuse .prog) */
+  .opnode .prog-hd { box-shadow: inset 4px 0 0 var(--accent); cursor: pointer; }
+  .paramnode .prog-hd { box-shadow: inset 4px 0 0 #d4a64a; cursor: pointer; }
+  .prog-hd.opsel { background: var(--accent-16); }
+  /* &param tokens in the SQL panel (amber, like .sqlcol but for parameters) */
+  .sqlparam { color: #b8862f; cursor: pointer; font-weight: 600; text-decoration: underline dotted #d4a64a; text-underline-offset: 3px; border-radius: 3px; padding: 0 1px; }
+  .sqlparam:hover { color: #d4a64a; }
+  .sqlparam.on { background: #f6e7cf; box-shadow: inset 0 -2px 0 #d4a64a; text-decoration: none; }
+  .opnode .col-row .cn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .itable .prog-hd { cursor: default; }
+  /* the ⤢ open-inside affordance sits on every block header */
+  .prog-hd .drill { opacity: .55; } .prog:hover .prog-hd .drill { opacity: 1; }
+
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>BLOCKS VIEW · daily_pnl.sas</h1>
+  <input class="search" id="search" list="recent" placeholder="search block / table…  ⌘K" autocomplete="off" />
+  <datalist id="recent"></datalist>
+  <div class="grp"><span class="cap">Grain</span>
+    <div class="seg" id="grain"><button data-v="block" class="on">Block</button><button data-v="table">Table</button><button data-v="column">Column</button></div></div>
+  <div class="grp"><span class="cap">Depth</span>
+    <div class="seg" id="depth"><button data-v="all" class="on">All</button><button data-v="1">±1</button><button data-v="2">±2</button><button data-v="3">±3</button></div></div>
+  <div class="grp"><span class="cap">Scope</span>
+    <div class="seg" id="scope"><button data-v="all" class="on">All</button><button data-v="linked">Linked</button></div></div>
+  <div class="grp"><span class="cap">show</span>
+    <span id="typeChips"><button class="chip on" data-t="taskflow" style="--cdot:#a47de8">taskflow</button><button class="chip on" data-t="variable" style="--cdot:#d4a64a">variable</button><button class="chip on" data-t="datatask" style="--cdot:#4cb8b0">datatask</button></span></div>
+  <div class="spacer"></div>
+  <div class="grp"><span class="cap">Theme</span>
+    <div class="seg" id="themeSw"><button data-th="dark">Dark</button><button data-th="paper" class="on">Paper</button></div></div>
+  <button class="btn" id="sqlBtn">Code</button>
+  <button class="btn" id="fitBtn">Fit</button>
+  <button class="btn" id="resetBtn">Reset</button>
+</header>
+<div class="body" style="flex:1;display:flex;min-height:0;">
+  <div class="leftcol">
+    <div class="nav" id="filenav"></div>
+    <div class="blockspane">
+      <div class="bphd"><span class="cap">dependency tree</span><span class="cnt" id="blocksCnt"></span></div>
+      <div class="bplegend"><span style="color:var(--edge)"><i></i>flow</span><span style="color:var(--accent)"><i></i>contract</span><span style="color:#d4a64a"><i></i>var</span></div>
+      <div id="blocks"></div>
+    </div>
+  </div>
+  <div class="canvasWrap" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+  <div class="crumbs" id="crumbs"></div>
+  <div class="flowstrip" id="flowstrip"></div>
+  <div id="container" style="position:relative;flex:1;min-height:0;"></div>
+  <div class="detail" id="legend">
+    <span class="cap">edges</span>
+    <span class="lg"><i class="ls control"></i>control</span>
+    <span class="lg"><i class="ls contract"></i>contract</span>
+    <span class="lg"><i class="ls var"></i>variable</span>
+  </div>
+  <div id="ph" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;color:var(--muted);font:12px var(--font-mono);z-index:5;pointer-events:none;"></div>
+  <div class="statusbar" id="status"></div>
+  <div class="inspect" id="inspect">
+    <div class="ihd"><span class="kind" id="iKind"></span><span class="nm" id="iNm"></span><span class="loc" id="iLoc"></span><span class="x" id="iClose">close ✕</span></div>
+    <div class="ibody">
+      <div class="col1"><div class="sec" id="iCodeSec">Code</div><pre id="iCode"></pre></div>
+      <div class="col2"><div class="sec" id="iEdgesSec">Contracts & edges</div><div class="elist" id="iEdges"></div></div>
+    </div>
+  </div>
+  </div>
+  <div class="sqlpanel open" id="sqlpanel">
+    <div class="sqlhd"><span id="sqlTitle">Code</span><span class="x" id="sqlClose">✕</span></div>
+    <pre id="sqlcode"></pre>
+    <div id="sqlsplit" style="display:none"></div>
+  </div>
+</div>
+<svg id="linkLayer" style="position:fixed;inset:0;width:100%;height:100%;z-index:150;pointer-events:none;overflow:visible;"></svg>
+<div class="tip" id="tip"></div>
+
+<script>
+const BM = window.BM;
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+const W = 240, HD = 30, ROW = 24;
+const BLOCK_TYPES = BM.BLOCK_TYPES;
+
+// per-block metadata (parallels B_tripane NODE_META; color KIND by block type)
+const NODE_META = {};
+BM.BLOCKS.forEach((b) => (NODE_META[b.id] = { type: b.type, color: BLOCK_TYPES[b.type].color, label: b.label, block: b }));
+
+// grain = file-level lens ("block" | "table"); drill = id of the block we've zoomed INTO (null = file level).
+// block → table → column is one zoom ladder: Block/Table are file lenses, Column == drill the selection.
+const state = { grain: "block", drill: null, selection: null, treeFocus: null, depth: "all", scope: "all", types: new Set(["taskflow", "variable", "datatask"]) };
+const catOf = (id) => (NODE_META[id] ? NODE_META[id].type : "datatask");
+const LM = window.LM;   // sacred tested column lineage (for the dt_daily graft, rendered in-place)
+const firstDatatask = () => (BM.BLOCKS.find((b) => b.type === "datatask") || {}).id;
+const setGrainButton = (v) => document.querySelectorAll("#grain button").forEach((x) => x.classList.toggle("on", x.dataset.v === v));
+
+// ---- the three edge kinds (block grain) ----
+const controlEdges = () => BM.CONTROL_FLOW.map(([a, b]) => ({ kind: "control", from: a, to: b }));
+const contractEdges = () => BM.contractEdges().map((e) => ({ kind: "contract", from: e.from, to: e.to, label: e.label }));
+const varEdges = () => BM.VAR_EDGES.map(([a, b, v]) => ({ kind: "var", from: a, to: b, label: v }));
+const allBlockEdges = () => [...controlEdges(), ...contractEdges(), ...varEdges()];
+
+// ---- focus: block-grain BFS up/down over control + contract + var edges ----
+function blockAdj() { const out = {}, inn = {}; allBlockEdges().forEach((e) => { (out[e.from] = out[e.from] || []).push(e.to); (inn[e.to] = inn[e.to] || []).push(e.from); }); return { out, inn }; }
+function focusSet() {
+  const sel = state.selection; if (!sel) return null;
+  const root = sel.block, { out, inn } = blockAdj();
+  const maxN = state.depth === "all" ? null : +state.depth;
+  const walk = (m) => { const dist = { [root]: 0 }, q = [root]; while (q.length) { const n = q.shift(); if (maxN != null && dist[n] >= maxN) continue; (m[n] || []).forEach((x) => { if (dist[x] === undefined) { dist[x] = dist[n] + 1; q.push(x); } }); } return Object.keys(dist); };
+  return new Set([root, ...walk(inn), ...walk(out)]);
+}
+
+// ---- block box render (nested: header + contract IN rows + subblock rows + contract OUT rows) ----
+function blockRows(b) {
+  const rows = [];
+  b.in.forEach((ct) => rows.push({ role: "in", table: ct.table, origin: ct.origin }));
+  b.subblocks.forEach((s) => rows.push({ role: "sub", kind: s.kind, label: s.label }));
+  b.out.forEach((ct) => rows.push({ role: "out", table: ct.table, origin: ct.origin }));
+  return rows;
+}
+const nodeHeight = (b) => HD + blockRows(b).length * ROW;
+function nodeHTML(b) {
+  const m = NODE_META[b.id], rows = blockRows(b), H = HD + rows.length * ROW;
+  const drill = `<span class="drill" data-drill="${b.id}" title="open inside — double-click ⤢">⤢</span>`;
+  const hd = `<div class="prog-hd" data-sel="${b.id}" data-kind="block" style="height:${HD}px;border-bottom:2px solid ${m.color}"><span>${esc(b.label)}</span><span class="kind" style="color:${m.color}">${BLOCK_TYPES[b.type].label}</span>${drill}</div>`;
+  const body = rows.map((r) => {
+    if (r.role === "sub") return `<div class="sb-row" style="height:${ROW}px"><span class="sbk">${esc(r.kind)}</span><span class="sbl">${esc(r.label)}</span></div>`;
+    return `<div class="ct-row ${r.role} o-${r.origin}" data-sel="${b.id}::${r.role}::${r.table}" data-kind="contract" data-block="${b.id}" data-table="${r.table}" data-role="${r.role}" title="${r.role} · ${r.table} · ${r.origin}" style="height:${ROW}px"><span class="ctdot"></span><span class="ctn">${esc(r.table)}</span><span class="cto">${r.origin}</span></div>`;
+  }).join("");
+  return `<div class="prog block-${b.type}" style="width:${W}px;height:${H}px">${hd}<div class="prog-body" style="padding:0;gap:0">${body}</div></div>`;
+}
+function portsFor(b, H) {
+  const out = [
+    { key: "flow:l", placement: [0, (HD * 0.5) / H] }, { key: "flow:r", placement: [1, (HD * 0.5) / H] },
+    { key: "var:l", placement: [0, (HD * 0.86) / H] }, { key: "var:r", placement: [1, (HD * 0.86) / H] },
+  ];
+  blockRows(b).forEach((r, i) => {
+    if (r.role === "sub") return;
+    const yr = (HD + i * ROW + ROW / 2) / H;
+    if (r.role === "in") out.push({ key: `in:${r.table}:l`, placement: [0.015, yr] });
+    else out.push({ key: `out:${r.table}:r`, placement: [0.985, yr] });
+  });
+  return out;
+}
+
+// ---- table grain (secondary view): tables/views as nodes, contract table→table edges ----
+function tableHTML(t) {
+  const isSrc = BM.FILE_SOURCES.includes(t);
+  const isTerm = BM.BLOCKS.some((b) => b.out.some((o) => o.table === t)) && !BM.BLOCKS.some((b) => b.in.some((i) => i.table === t));
+  const color = isSrc ? "#5a8def" : (isTerm ? (cssVar("--accent") || "#d8693a") : "#4cb8b0");
+  const role = isSrc ? "source" : (isTerm ? "target" : "view");
+  return `<div class="prog" style="width:196px;height:${HD + 4}px"><div class="prog-hd" data-sel="${t}" data-kind="table" style="height:${HD}px;border-bottom:2px solid ${color}"><span>${t}</span><span class="kind" style="color:${color}">${role}</span></div></div>`;
+}
+function deriveTableView() {
+  const tables = new Set(), edges = [], seen = new Set();
+  BM.BLOCKS.forEach((b) => [...b.in, ...b.out].forEach((ct) => tables.add(ct.table)));
+  BM.BLOCKS.forEach((b) => b.in.forEach((i) => b.out.forEach((o) => {
+    const k = i.table + ">" + o.table;
+    if (i.table !== o.table && !seen.has(k)) { seen.add(k); edges.push({ kind: "contract", from: i.table, to: o.table, label: b.id }); }
+  })));
+  const nodes = [...tables].map((t) => ({ id: t, w: 196, h: HD + 4, html: tableHTML(t), ports: [{ key: "mid:l", placement: [0, 0.5] }, { key: "mid:r", placement: [1, 0.5] }] }));
+  return { grain: "table", nodes, edges };
+}
+
+// ---- INSIDE a block (the drill): render WHAT HAPPENS INSIDE, in the same canvas ----
+const MID = [{ key: "mid:l", placement: [0, 0.5] }, { key: "mid:r", placement: [1, 0.5] }];
+function tableTint(t) {
+  const isSrc = BM.FILE_SOURCES.includes(t);
+  const isTerm = BM.BLOCKS.some((b) => b.out.some((o) => o.table === t)) && !BM.BLOCKS.some((b) => b.in.some((i) => i.table === t));
+  return { color: isSrc ? "#5a8def" : (isTerm ? (cssVar("--accent") || "#d8693a") : "#4cb8b0"), role: isSrc ? "source" : (isTerm ? "target" : "view") };
+}
+const itableHTML = (nid, table, t) => `<div class="prog itable" style="width:150px;height:${HD + 4}px"><div class="prog-hd" data-sel="${nid}" data-kind="itable" data-table="${table}" style="height:${HD}px;border-bottom:2px solid ${t.color}"><span>${esc(table)}</span><span class="kind" style="color:${t.color}">${t.role}</span></div></div>`;
+const opHTML = (nid, s, color, i) => `<div class="prog opnode" style="width:176px;height:${HD + ROW}px"><div class="prog-hd" data-sel="${nid}" data-kind="op" data-op="${i}" style="height:${HD}px;border-bottom:2px solid ${color}"><span>${esc(s.kind)}</span></div><div class="prog-body" style="padding:0;gap:0"><div class="col-row" style="height:${ROW}px"><span class="cn">${esc(s.label)}</span></div></div></div>`;
+// generic: in-tables → subblock op steps → out-tables (built from the block's OWN subblocks + contracts)
+function deriveOpPipeline(id) {
+  const b = BM.blockById(id), color = BLOCK_TYPES[b.type].color;
+  const nodes = [], edges = [], inIds = [], opIds = [], outIds = [];
+  b.in.forEach((c) => { const nid = `it:${id}:in:${c.table}`, t = tableTint(c.table); nodes.push({ id: nid, w: 150, h: HD + 4, ports: MID, html: itableHTML(nid, c.table, t) }); inIds.push(nid); });
+  b.subblocks.forEach((s, i) => { const nid = `op:${id}:${i}`; nodes.push({ id: nid, w: 176, h: HD + ROW, ports: MID, html: opHTML(nid, s, color, i) }); opIds.push(nid); });
+  b.out.forEach((c) => { const nid = `it:${id}:out:${c.table}`, t = tableTint(c.table); nodes.push({ id: nid, w: 150, h: HD + 4, ports: MID, html: itableHTML(nid, c.table, t) }); outIds.push(nid); });
+  const chain = opIds;
+  if (chain.length) {
+    inIds.forEach((s) => edges.push({ from: s, to: chain[0] }));
+    for (let i = 0; i < chain.length - 1; i++) edges.push({ from: chain[i], to: chain[i + 1] });
+    outIds.forEach((t) => edges.push({ from: chain[chain.length - 1], to: t }));
+  } else inIds.forEach((s) => outIds.forEach((t) => edges.push({ from: s, to: t })));
+  return { grain: "inside", mode: "ops", blockId: id, nodes, edges };
+}
+// ---- datatask drill = B_tripane-style COLUMN lineage (sources → components → target) ----
+// + a PARAMETER layer: params resolve FIRST (parallel) and gate the source/FROM before the SQL runs.
+const COMP_COLOR = { FILTER: "#e26060", JOIN: "#a47de8", EXPRESSION: "#d4a64a", GROUPBY: "#4cb8b0" };
+function colMeta(L, n) {
+  if (L.sources.some((s) => s.table === n)) return { color: "#5a8def", role: "source" };
+  const comp = L.components.find((c) => c.id === n);
+  if (comp) return { color: COMP_COLOR[comp.type] || "#888", role: comp.type.toLowerCase(), label: comp.label };
+  if (n === L.target.table) return { color: cssVar("--accent") || "#d8693a", role: "target" };
+  return { color: "#888", role: "" };
+}
+function deriveDatataskColumns(b) {
+  const L = b.lineage, portsByNode = {};
+  const add = (x) => { const n = x.split(".")[0], c = x.split(".").slice(1).join("."); (portsByNode[n] = portsByNode[n] || []); if (!portsByNode[n].includes(c)) portsByNode[n].push(c); };
+  L.edges.forEach(([a, c]) => { add(a); add(c); });
+  const nodes = [], edges = [];
+  Object.keys(portsByNode).forEach((n) => {
+    const cols = portsByNode[n], H = HD + cols.length * ROW, m = colMeta(L, n);
+    const hd = `<div class="prog-hd" data-sel="${n}" data-kind="comp" style="height:${HD}px;border-bottom:2px solid ${m.color}"><span>${esc(m.label || n)}</span><span class="kind" style="color:${m.color}">${m.role}</span></div>`;
+    const rows = cols.map((c) => `<div class="col-row" data-sel="${n}.${c}" data-kind="col" data-col="${c}" style="height:${ROW}px"><span class="cn">${esc(c)}</span></div>`).join("");
+    const ports = [{ key: "mid:l", placement: [0, 0.5] }, { key: "mid:r", placement: [1, 0.5] }];
+    cols.forEach((c, i) => { const yr = (HD + i * ROW + ROW / 2) / H; ports.push({ key: `${c}:l`, placement: [0.03, yr] }, { key: `${c}:r`, placement: [0.97, yr] }); });
+    nodes.push({ id: n, w: 196, h: H, html: `<div class="prog" style="width:196px;height:${H}px">${hd}<div class="prog-body" style="padding:0;gap:0">${rows}</div></div>`, ports });
+  });
+  L.edges.forEach(([a, c]) => edges.push({ from: a.split(".")[0], to: c.split(".")[0], sp: `${a.split(".").slice(1).join(".")}:r`, tp: `${c.split(".").slice(1).join(".")}:l` }));
+  // params resolve first (leftmost, parallel) → edge into the source/FROM they parameterize
+  (L.params || []).forEach((p) => {
+    const pid = `param:${p.name}`;
+    nodes.push({ id: pid, w: 158, h: HD + ROW, ports: MID, html: `<div class="prog paramnode" style="width:158px;height:${HD + ROW}px"><div class="prog-hd" data-sel="${pid}" data-kind="param" data-param="${p.name}" title="${esc(p.note || "")}" style="height:${HD}px;border-bottom:2px solid #d4a64a"><span>&amp;${esc(p.name)}</span><span class="kind" style="color:#d4a64a">param</span></div><div class="prog-body" style="padding:0;gap:0"><div class="col-row" style="height:${ROW}px"><span class="cn">${esc(p.value || "")}</span></div></div></div>` });
+    edges.push({ from: pid, to: p.feeds, sp: "mid:r", tp: "mid:l", param: true });
+  });
+  return { grain: "inside", mode: "cols", blockId: b.id, nodes, edges };
+}
+function deriveInside(id) {
+  const b = BM.blockById(id);
+  if (b && b.type === "datatask" && b.lineage) return deriveDatataskColumns(b);   // mapping → column lineage
+  return deriveOpPipeline(id);   // taskflow / variable → op-step pipeline
+}
+
+function deriveView() {
+  if (state.drill) return deriveInside(state.drill);
+  if (state.grain === "table") return deriveTableView();
+  let blocks = BM.BLOCKS.filter(blockVisible);
+  if (state.treeFocus) { const cc = connectedSet(state.treeFocus); blocks = blocks.filter((b) => cc.has(b.id)); }   // focus a chain → main graph keeps only dependent boxes
+  let ids = new Set(blocks.map((b) => b.id));
+  const fs = focusSet();
+  if (state.scope === "linked" && fs) { ids = new Set([...ids].filter((id) => fs.has(id))); blocks = blocks.filter((b) => ids.has(b.id)); }
+  const edges = allBlockEdges().filter((e) => ids.has(e.from) && ids.has(e.to));
+  const nodes = blocks.map((b) => { const H = nodeHeight(b); return { id: b.id, w: W, h: H, html: nodeHTML(b), ports: portsFor(b, H) }; });
+  return { grain: "block", nodes, edges, blocks };
+}
+
+// ---- G6 edge styling per kind ----
+function g6Edge(e) {
+  const NEU = cssVar("--edge") || "#d8d3c6", MUT = cssVar("--dim") || "#999", PANEL = cssVar("--panel") || "#fff", MU2 = cssVar("--muted") || "#777";
+  if (state.drill) {
+    const id = `pipe:${e.from}.${e.sp || ""}=>${e.to}.${e.tp || ""}`;
+    if (e.param) return { id, source: e.from, target: e.to, style: { sourcePort: e.sp, targetPort: e.tp, stroke: "#d4a64a", lineWidth: 1.6, lineDash: [4, 3], endArrow: true, endArrowType: "vee", endArrowSize: 7, endArrowFill: "#d4a64a", labelText: "resolves first", labelFontSize: 8, labelFill: "#b8862f", labelBackground: true, labelBackgroundFill: PANEL, labelBackgroundOpacity: 0.9 } };
+    return { id, source: e.from, target: e.to, style: { sourcePort: e.sp || "mid:r", targetPort: e.tp || "mid:l", stroke: NEU, lineWidth: 1.5, endArrow: true, endArrowType: "vee", endArrowSize: 8, endArrowFill: NEU } };
+  }
+  const id = e.kind + ":" + e.from + "=>" + e.to + (e.label ? ":" + e.label : "");
+  const base = { id, source: e.from, target: e.to };
+  if (state.grain === "table") return { ...base, style: { sourcePort: "mid:r", targetPort: "mid:l", stroke: NEU, lineWidth: 1.4, endArrow: true, endArrowType: "vee", endArrowSize: 8, endArrowFill: NEU } };
+  if (e.kind === "control") return { ...base, style: { sourcePort: "flow:r", targetPort: "flow:l", stroke: NEU, lineWidth: 1.4, endArrow: true, endArrowType: "vee", endArrowSize: 8, endArrowFill: NEU } };
+  if (e.kind === "var") return { ...base, style: { sourcePort: "var:r", targetPort: "var:l", stroke: MUT, lineWidth: 1.2, lineDash: [4, 3], strokeOpacity: 0.65, endArrow: true, endArrowType: "vee", endArrowSize: 6, endArrowFill: MUT, labelText: "&" + e.label, labelFontSize: 8, labelFill: MUT, labelBackground: true, labelBackgroundFill: PANEL, labelBackgroundOpacity: 0.85, labelBackgroundRadius: 2 } };
+  // contract
+  return { ...base, style: { sourcePort: `out:${e.label}:r`, targetPort: `in:${e.label}:l`, stroke: NEU, lineWidth: 1.6, endArrow: true, endArrowType: "vee", endArrowSize: 8, endArrowFill: NEU, labelText: e.label, labelFontSize: 9, labelFill: MU2, labelBackground: true, labelBackgroundFill: PANEL, labelBackgroundOpacity: 0.92, labelBackgroundRadius: 2 } };
+}
+
+let graph = null;
+function render(fit) {
+  clearLinks();
+  const cont = document.getElementById("container"), ph = document.getElementById("ph");
+  cont.classList.add("fading");
+  document.getElementById("legend").style.display = (!state.drill && state.grain === "block" && state.file === ACTIVE_FILE) ? "flex" : "none";   // edge legend only meaningful at file-block level
+  if (state.file && state.file !== ACTIVE_FILE) {
+    if (graph) { graph.destroy(); graph = null; window.__graph = null; }
+    ph.style.display = "flex"; ph.textContent = state.file + " — not parsed in this demo (blocks only for daily_pnl.sas)";
+    document.getElementById("status").textContent = "select daily_pnl.sas to see its blocks";
+    cont.classList.remove("fading"); markFileNav(); renderBlocks(); renderFlowStrip(); renderBreadcrumb(); return;
+  }
+  ph.style.display = "none";
+  const v = deriveView();
+  const nodes = v.nodes.map((n) => ({ id: n.id, style: { size: [n.w, n.h], width: n.w, height: n.h, innerHTML: n.html, ports: n.ports, portR: 0 } }));
+  const ACC = cssVar("--accent") || "#d8693a";
+  const edges = v.edges.map(g6Edge);
+  const data = { nodes, edges };
+  const layout = { type: "antv-dagre", rankdir: "LR", nodesep: 24, ranksep: 88, align: "UL" };
+  if (graph) { graph.destroy(); graph = null; window.__graph = null; }
+  graph = new G6.Graph({
+    container: "container", autoResize: true, background: cssVar("--canvas") || "#f1efe8", data, layout,
+    node: { type: "html", state: { inactive: { opacity: 0.22 } } },
+    edge: { type: "cubic-horizontal", state: { highlight: { stroke: ACC, lineWidth: 2.4, endArrowFill: ACC, labelFill: ACC, strokeOpacity: 1 }, inactive: { strokeOpacity: 0.07, endArrowStrokeOpacity: 0.07, labelOpacity: 0.12 } } },
+    behaviors: ["zoom-canvas"], animation: false,   // pan handled by a custom translateBy drag (drag-canvas was dead with html nodes); nodes don't move
+  });
+  window.__graph = graph;
+  graph.render().then(() => { graph.fitView(); bindEdges(); applyFocus(); requestAnimationFrame(() => { cont.classList.remove("fading"); requestAnimationFrame(drawCurrentLinks); }); setTimeout(() => { try { graph.fitView(); drawCurrentLinks(); } catch (e) {} }, 90); });
+  updateStatus(v); renderBlocks(); renderFlowStrip(); renderBreadcrumb();
+}
+
+// ---------- focus highlight ----------
+function applyFocus() {
+  document.querySelectorAll("#container .ct-row").forEach((el) => el.classList.remove("sel-c"));
+  if (!graph) return;
+  if (state.drill || state.grain !== "block") {   // BFS dimming only at the file-block level
+    const sm = {}; (graph.getNodeData() || []).forEach((n) => (sm[n.id] = [])); (graph.getEdgeData() || []).forEach((e) => (sm[e.id] = [])); graph.setElementState(sm); return;
+  }
+  const fs = focusSet();
+  const sm = {};
+  (graph.getNodeData() || []).forEach((n) => (sm[n.id] = (!fs || fs.has(n.id)) ? [] : ["inactive"]));
+  (graph.getEdgeData() || []).forEach((e) => { sm[e.id] = !fs ? [] : ((fs.has(e.source) && fs.has(e.target)) ? ["highlight"] : ["inactive"]); });
+  graph.setElementState(sm);
+  const sel = state.selection;
+  if (sel && sel.kind === "contract") { const el = document.querySelector(`#container .ct-row[data-sel="${CSS.escape(sel.id)}"]`); if (el) el.classList.add("sel-c"); }
+}
+function updateStatus(v) {
+  const s = document.getElementById("status");
+  if (v.grain === "inside") { const b = BM.blockById(v.blockId); s.textContent = `INSIDE ${b.label} — ${v.mode === "cols" ? "column lineage (tested)" : BLOCK_TYPES[b.type].label + " internals"} · ${v.nodes.length} nodes · ${v.edges.length} edges  ·  Esc / breadcrumb to zoom out`; return; }
+  if (v.grain === "table") { s.textContent = `TABLE lens — contract lineage · ${v.nodes.length} tables · ${v.edges.length} edges  ·  double-click a datatask to drill in`; return; }
+  s.textContent = `BLOCK grain — ${BM.FILE} · ${v.nodes.length} blocks · ${v.edges.length} edges (control · contract · var)  ·  double-click / ⤢ a block to open inside`;
+}
+
+// ---------- inspector ----------
+const insp = document.getElementById("inspect");
+function fitAfterPanel() { requestAnimationFrame(() => requestAnimationFrame(() => { if (graph) graph.fitView(); })); }
+document.getElementById("iClose").onclick = () => { insp.classList.remove("open"); fitAfterPanel(); };
+function edgeRows(list) { return list.length ? list.map(([a, b]) => `<div class="erow"><span>${esc(a)}</span><span class="ar">→</span><span>${esc(b)}</span></div>`).join("") : '<div style="color:var(--dim);padding:6px 0">no edges</div>'; }
+function contractRows(b) {
+  const all = [...b.in.map((c) => ({ ...c, role: "in" })), ...b.out.map((c) => ({ ...c, role: "out" }))];
+  if (!all.length) return "";
+  return `<div class="cblock">` + all.map((c) => `<div class="crow"><span class="cd o-${c.origin}"></span><span class="cw">${c.role}</span><span>${esc(c.table)}</span><span class="co">${c.origin}</span></div>`).join("") + `</div>`;
+}
+function setInspect(kind, name, loc, code, etitle, list, contractsHtml) {
+  document.getElementById("iKind").textContent = kind;
+  document.getElementById("iNm").textContent = name;
+  document.getElementById("iLoc").textContent = loc;
+  document.getElementById("iCode").textContent = code;
+  document.getElementById("iEdgesSec").textContent = etitle;
+  document.getElementById("iEdges").innerHTML = (contractsHtml || "") + edgeRows(list);
+  const was = insp.classList.contains("open"); insp.classList.add("open"); if (!was) fitAfterPanel();
+}
+function openBlock(id) {
+  const b = BM.blockById(id); if (!b) return;
+  const list = [];
+  BM.CONTROL_FLOW.forEach(([a, bb]) => { if (a === id) list.push([b.label + " ⟶flow", bb]); else if (bb === id) list.push([a + " flow⟶", b.label]); });
+  BM.contractEdges().forEach((e) => { if (e.from === id) list.push([b.label + " [" + e.label + "]", e.to]); else if (e.to === id) list.push([e.from + " [" + e.label + "]", b.label]); });
+  BM.VAR_EDGES.forEach(([a, bb, v]) => { if (a === id) list.push([b.label + " &" + v, bb]); else if (bb === id) list.push([a + " &" + v, b.label]); });
+  setInspect(BLOCK_TYPES[b.type].label, b.label, BM.FILE, b.code, `Contracts & edges (${list.length})`, list, contractRows(b));
+}
+
+// ---------- code panel (right) — clickable contract tokens jump to producer/consumer ----------
+// tokenize a block's code, making its contract table/view names clickable.
+function tokenizeCode(b) {
+  const tables = new Set([...b.in, ...b.out].map((c) => c.table));
+  return b.code.split("\n").map((ln) => esc(ln).replace(/\b([a-z_][a-z0-9_]*)\b/gi, (w) => tables.has(w) ? `<span class="sqlcol" data-tbl="${w}">${w}</span>` : w)).join("\n");
+}
+// inside a datatask: tokenize SQL so columns + &params link to the graph (DrRacket style)
+function tokenizeDatataskSQL(b) {
+  const L = b.lineage, cols = new Set(), params = new Set((L.params || []).map((p) => p.name));
+  L.edges.forEach(([a, c]) => { cols.add(a.split(".").slice(1).join(".")); cols.add(c.split(".").slice(1).join(".")); });
+  L.sources.forEach((s) => s.cols.forEach((c) => cols.add(c))); L.target.cols.forEach((c) => cols.add(c));
+  return b.code.replace(/&[a-z_][a-z0-9_]*|[a-z_][a-z0-9_]*|[^&a-z_]+/gi, (tok) => {
+    if (tok[0] === "&") { const n = tok.slice(1); return params.has(n) ? `<span class="sqlparam" data-param="${n}">&amp;${esc(n)}</span>` : "&amp;" + esc(n); }
+    if (/^[a-z_]/i.test(tok)) return cols.has(tok) ? `<span class="sqlcol" data-col="${tok}">${esc(tok)}</span>` : esc(tok);
+    return esc(tok);
+  });
+}
+// FILE SPLIT — clicking the file (root) shows EVERY block as a section (header + code), like the SQL split.
+function renderFileSplit() {
+  const code = document.getElementById("sqlcode"), split = document.getElementById("sqlsplit");
+  document.getElementById("sqlTitle").textContent = `FILE SPLIT · ${BM.FILE}`;
+  code.style.display = "none"; split.style.display = "block";
+  split.innerHTML = BM.BLOCKS.map((b) => `<div class="sqlsec" id="fsec-${b.id}" data-sec="${b.id}"><div class="sqlcsec" style="color:${BLOCK_TYPES[b.type].color}"><span class="sd" style="background:${BLOCK_TYPES[b.type].color}"></span>${BLOCK_TYPES[b.type].label} · ${esc(b.label)}<span class="scnt">${b.subblocks.length} sub · ${b.in.length}in/${b.out.length}out</span></div><pre>${tokenizeCode(b)}</pre></div>`).join("");
+}
+function markSplitSection(id) {
+  document.querySelectorAll("#sqlsplit .sqlsec.secon").forEach((e) => e.classList.remove("secon"));
+  if (!id) return;
+  const sec = document.getElementById("fsec-" + id);
+  if (sec) { sec.classList.add("secon"); sec.scrollIntoView({ block: "nearest" }); }
+}
+function renderCodePanel(id) {
+  const code = document.getElementById("sqlcode"), split = document.getElementById("sqlsplit");
+  if (state.drill) {                       // inside a block → its SQL (datatask = column-linked tokens)
+    const b = BM.blockById(id || state.drill);
+    split.style.display = "none"; code.style.display = "block";
+    document.getElementById("sqlTitle").textContent = b ? `SQL · ${b.label}` : `CODE · ${BM.FILE}`;
+    code.innerHTML = b ? (b.lineage ? tokenizeDatataskSQL(b) : tokenizeCode(b)) : "";
+    return;
+  }
+  renderFileSplit();        // file level → whole-file split (all blocks + details)
+  markSplitSection(id);     // selecting a block highlights + scrolls to its section
+}
+function highlightTbl(tbl) {
+  document.querySelectorAll(".sqlcol.on").forEach((e) => e.classList.remove("on"));
+  if (!tbl) return;
+  document.querySelectorAll(`.sqlcol[data-tbl="${CSS.escape(tbl)}"]`).forEach((e) => e.classList.add("on"));
+}
+document.getElementById("sqlpanel").addEventListener("click", (e) => {
+  const par = e.target.closest(".sqlparam");   // inside-drill: &param token → highlight its node + resolve edge
+  if (par && state.drill) { highlightInsideParam(par.dataset.param); return; }
+  const t = e.target.closest(".sqlcol");
+  if (t) {
+    if (state.drill && t.dataset.col) { highlightInsideColumn(t.dataset.col); return; }   // column token → trace it
+    const tbl = t.dataset.tbl; if (!tbl) return;
+    const cur = state.selection ? state.selection.block : null;
+    const producer = BM.BLOCKS.find((b) => b.out.some((o) => o.table === tbl));
+    const consumer = BM.BLOCKS.find((b) => b.in.some((i) => i.table === tbl) && b.id !== cur);
+    const target = (producer && producer.id !== cur) ? producer.id : (consumer ? consumer.id : (producer ? producer.id : null));
+    if (target) selectBlock(target, { table: tbl });
+    return;
+  }
+  const sec = e.target.closest(".sqlsec");   // file-split section header → select that block
+  if (sec && sec.dataset.sec) selectBlock(sec.dataset.sec);
+});
+
+// ---------- DrRacket-style connector: selected block node ↔ code panel ----------
+const linkLayer = document.getElementById("linkLayer");
+function clearLinks() { linkLayer.innerHTML = ""; }
+function drawCurrentLinks() {
+  linkLayer.innerHTML = "";
+  const s = state.selection; if (!s) return;
+  if (!document.getElementById("sqlpanel").classList.contains("open")) return;
+  const node = document.querySelector(`#container .prog-hd[data-sel="${CSS.escape(s.block)}"]`);
+  const target = (!state.drill && document.querySelector("#sqlsplit .sqlsec.secon .sqlcsec")) || document.getElementById("sqlTitle");
+  if (!node || !target) return;
+  const r = node.getBoundingClientRect(), tr = target.getBoundingClientRect(), cont = document.getElementById("container").getBoundingClientRect();
+  if (r.bottom < cont.top || r.top > cont.bottom || r.width === 0) return;
+  const x1 = Math.min(r.right - 4, cont.right - 4); let y1 = r.top + r.height / 2; y1 = Math.max(cont.top + 8, Math.min(y1, cont.bottom - 8));
+  const x2 = tr.left, y2 = tr.top + tr.height / 2, mx = (x1 + x2) / 2;
+  linkLayer.innerHTML = `<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="var(--accent)" stroke-width="1.6" opacity="0.7"/><circle cx="${x1}" cy="${y1}" r="3.5" fill="var(--accent)"/><circle cx="${x2}" cy="${y2}" r="3.5" fill="var(--accent)"/>`;
+}
+let _rafQ = false;
+function redrawLinks() { if (_rafQ) return; _rafQ = true; requestAnimationFrame(() => { _rafQ = false; drawCurrentLinks(); }); }
+const containerEl = document.getElementById("container");
+containerEl.addEventListener("wheel", redrawLinks, { passive: true });
+window.addEventListener("resize", redrawLinks);
+// --- custom canvas pan: drag empty space to move the view (graph.translateBy is reliable; G6 drag-canvas was not) ---
+let _pan = null, _suppressClick = false;
+containerEl.addEventListener("pointerdown", (e) => {
+  if (e.target.closest(".prog")) return;   // started anywhere on a node box → it's a click, not a pan
+  _pan = { x: e.clientX, y: e.clientY, moved: false };
+});
+window.addEventListener("pointermove", (e) => {
+  if (!_pan || !graph) return;
+  const dx = e.clientX - _pan.x, dy = e.clientY - _pan.y;
+  if (!_pan.moved && Math.abs(dx) + Math.abs(dy) < 3) return;
+  if (!_pan.moved) containerEl.classList.add("panning");
+  _pan.moved = true; _pan.x = e.clientX; _pan.y = e.clientY;
+  try { graph.translateBy([dx, dy]); } catch (err) {}
+  redrawLinks();
+});
+window.addEventListener("pointerup", () => {
+  if (_pan && _pan.moved) { _suppressClick = true; setTimeout(() => (_suppressClick = false), 0); }
+  containerEl.classList.remove("panning"); _pan = null;
+});
+
+// ---------- selection + drill (one funnel: graph · list · strip · code · breadcrumb) ----------
+// single-click = SELECT (show code, focus). NO toggle-off (deselect via Esc / canvas bg) so dbl-click is reliable.
+function selectBlock(id, opts) {
+  opts = opts || {};
+  const wasInside = !!state.drill;
+  if (wasInside) { state.drill = null; state.grain = "block"; setGrainButton("block"); }   // file-level select exits the drill
+  if (opts.role) state.selection = { kind: "contract", block: id, id: `${id}::${opts.role}::${opts.table}`, table: opts.table, role: opts.role };
+  else state.selection = { kind: "block", block: id, id };
+  const bid = state.selection.block;
+  if (state.scope === "linked" || wasInside) render(true);
+  else { applyFocus(); renderBlocks(); renderFlowStrip(); }
+  markBlock(bid); openBlock(bid); renderCodePanel(bid); highlightTbl(opts.table || null);
+  if (!wasInside && state.scope !== "linked") renderBreadcrumb();
+  requestAnimationFrame(() => drawCurrentLinks());
+}
+// FOCUS A CHAIN (from the dependency tree): collapse the main graph to the connected boxes,
+// filter the tree + flow strip, zoom to the box. "show all" / Esc restores the full graph.
+function focusChain(id) {
+  state.treeFocus = id;
+  state.selection = { kind: "block", block: id, id };
+  render(true);
+  openBlock(id); renderCodePanel(id); markBlock(id);
+  zoomToNode(id);
+}
+// zoom the MAIN graph to a box (zoom in + center it; nodes/highlight stay — full graph, per the demo rule).
+// deferred so it runs AFTER the inspector-open fitView (which would otherwise reset the zoom).
+function zoomToNode(id) {
+  if (!graph) return;
+  setTimeout(() => {
+    if (!graph) return;
+    try { graph.zoomTo(0.9, undefined, false); } catch (e) { try { graph.zoomTo(0.9); } catch (_) {} }   // instant absolute zoom
+    requestAnimationFrame(() => {                        // then center the node via translateBy (reliable)
+      const node = document.querySelector(`#container .prog-hd[data-sel="${CSS.escape(id)}"]`);
+      if (!node) return;
+      const r = node.getBoundingClientRect(), c = containerEl.getBoundingClientRect();
+      try { graph.translateBy([(c.left + c.width / 2) - (r.left + r.width / 2), (c.top + c.height / 2) - (r.top + r.height / 2)], false); } catch (e) {}
+      redrawLinks();
+    });
+  }, 170);
+}
+function clearTreeFocus() { state.treeFocus = null; render(true); }   // "show all" → restore the full graph
+// double-click / ⤢ / Column = DRILL INTO the block (zoom in to its internals, same canvas).
+function drillInto(id) {
+  const b = BM.blockById(id); if (!b) return;
+  state.drill = id; state.selection = { kind: "block", block: id, id };
+  setGrainButton("column"); render(true);
+  openBlock(id); renderCodePanel(id); markBlock(id);
+  requestAnimationFrame(() => drawCurrentLinks());
+}
+function exitDrill() { if (!state.drill) return; state.drill = null; state.grain = "block"; setGrainButton("block"); render(true); }
+// inside a datatask: select a transform component (graph node or strip chip) → its generated SQL + highlight
+function selectComp(id) {
+  const b = BM.blockById(state.drill); if (!b || !b.lineage) return;
+  const comp = b.lineage.components.find((c) => c.id === id);
+  const sql = comp ? (comp.sql || comp.label) : (id === b.lineage.target.table ? "-- target " + id : "-- source " + id);
+  document.getElementById("sqlTitle").textContent = `SQL · ${b.label} › ${id}`;
+  const code = document.getElementById("sqlcode"); document.getElementById("sqlsplit").style.display = "none"; code.style.display = "block"; code.textContent = sql;
+  document.querySelectorAll("#container .prog-hd").forEach((el) => el.classList.toggle("opsel", el.dataset.sel === id));
+  document.querySelectorAll("#flowstrip .flowchip").forEach((el) => el.classList.toggle("active", el.dataset.comp === id));
+}
+// trace one column across the mapping (all boxes) + its SQL token
+function highlightInsideColumn(col) {
+  document.querySelectorAll("#container .col-row").forEach((el) => el.classList.toggle("sel-c", el.dataset.col === col));
+  document.querySelectorAll(".sqlcol.on,.sqlparam.on").forEach((e) => e.classList.remove("on"));
+  document.querySelectorAll(`.sqlcol[data-col="${CSS.escape(col)}"]`).forEach((e) => e.classList.add("on"));
+}
+// highlight a parameter: its node, its SQL &token, its resolve-first edge + strip chip
+function highlightInsideParam(name) {
+  document.querySelectorAll("#container .prog-hd").forEach((el) => el.classList.toggle("opsel", el.dataset.param === name));
+  document.querySelectorAll(".sqlcol.on,.sqlparam.on").forEach((e) => e.classList.remove("on"));
+  document.querySelectorAll(`.sqlparam[data-param="${CSS.escape(name)}"]`).forEach((e) => e.classList.add("on"));
+  document.querySelectorAll("#flowstrip .flowchip").forEach((el) => el.classList.toggle("active", el.dataset.param === name));
+}
+// inside view: select an op step → show its subblock code
+function selectOp(blockId, i) {
+  const b = BM.blockById(blockId); if (!b || !b.subblocks[i]) return;
+  const s = b.subblocks[i];
+  document.getElementById("sqlTitle").textContent = `CODE · ${b.label} › ${s.kind}`;
+  document.getElementById("sqlcode").textContent = s.code;
+  setInspect(s.kind, s.label, `${b.label} · ${BM.FILE}`, s.code, "Subblock", [], "");
+  document.querySelectorAll("#container .opnode .prog-hd").forEach((el) => el.classList.remove("opsel"));
+  const el = document.querySelector(`#container .prog-hd[data-sel="op:${blockId}:${i}"]`); if (el) el.classList.add("opsel");
+  document.querySelectorAll("#flowstrip .flowchip").forEach((el) => el.classList.toggle("active", el.dataset.op === String(i)));
+}
+// breadcrumb = the zoom stack; click a crumb to zoom back out
+function renderBreadcrumb() {
+  const host = document.getElementById("crumbs"); if (!host) return;
+  if (!state.drill) {
+    host.innerHTML = `<span class="crumb home" data-crumb="filehome">${BM.FILE}</span><span class="lvlcap">${state.grain === "table" ? "table lens" : "block grain"}</span>`;
+    return;
+  }
+  const b = BM.blockById(state.drill), v = BM.blockById(state.drill).drill && LM ? "column lineage" : BLOCK_TYPES[b.type].label + " internals";
+  host.innerHTML = `<span class="crumb" data-crumb="file">${BM.FILE}</span><span class="csep">▸</span><span class="crumb" data-crumb="block">${esc(b.label)}</span><span class="csep">▸</span><span class="crumb cur">inside</span><span class="lvlcap">${v}</span>`;
+}
+document.getElementById("crumbs").addEventListener("click", (e) => {
+  const c = e.target.closest(".crumb[data-crumb]"); if (!c) return;
+  if (c.dataset.crumb === "file") exitDrill();
+  else if (c.dataset.crumb === "block") selectBlock(state.drill);   // selectBlock exits the drill + selects
+  else if (c.dataset.crumb === "filehome") { state.selection = null; state.treeFocus = null; clearLinks(); insp.classList.remove("open"); render(true); renderCodePanel(null); }
+});
+
+// ---------- graph interactions ----------
+function bindEdges() {
+  graph.on("edge:click", (evt) => {
+    const id = evt.target.id, ed = (graph.getEdgeData() || []).find((e) => e.id === id); if (!ed) return;
+    const kind = id.split(":")[0], label = id.split(":")[2] || "";
+    const desc = kind === "control" ? "control flow — runs before" : kind === "contract" ? "contract — table/view passed" : "variable injection";
+    setInspect(kind + " edge", ed.source + " → " + ed.target, label ? "&" + label : "", desc + (label ? "\n" + label : ""), "Edge", [[ed.source, ed.target]]);
+  });
+}
+containerEl.addEventListener("click", (e) => {
+  if (_suppressClick) return;   // this click is the tail of a pan-drag — ignore
+  const drillBtn = e.target.closest("[data-drill]");
+  if (drillBtn) { e.stopPropagation(); drillInto(drillBtn.dataset.drill); return; }   // ⤢ = open inside, in-place
+  const el = e.target.closest("[data-sel]");
+  if (!el) { if ((state.selection || state.treeFocus) && !state.drill) { state.selection = null; state.treeFocus = null; clearLinks(); insp.classList.remove("open"); render(true); } return; }
+  e.stopPropagation();
+  const kind = el.dataset.kind;
+  if (kind === "block") selectBlock(el.dataset.sel);
+  else if (kind === "contract") selectBlock(el.dataset.block, { table: el.dataset.table, role: el.dataset.role });
+  else if (kind === "op") selectOp(state.drill, +el.dataset.op);
+  else if (kind === "comp") selectComp(el.dataset.sel);
+  else if (kind === "col") highlightInsideColumn(el.dataset.col);
+  else if (kind === "param") highlightInsideParam(el.dataset.param);
+  // itable: op-pipeline endpoints — no-op (the pipeline shows the flow)
+});
+// double-click a block (header or its ⤢) = drill into it
+containerEl.addEventListener("dblclick", (e) => {
+  const el = e.target.closest('[data-kind="block"]'); if (!el) return;
+  e.preventDefault(); e.stopPropagation();
+  drillInto(el.dataset.sel);
+});
+
+// ---------- blocks list + flow strip ----------
+function blockVisible(b) {
+  if (!state.types.has(b.type)) return false;
+  const q = (document.getElementById("search").value || "").trim().toLowerCase();
+  if (!q) return true;
+  return b.label.toLowerCase().includes(q) || b.type.toLowerCase().includes(q) || b.id.toLowerCase().includes(q)
+    || b.subblocks.some((s) => s.label.toLowerCase().includes(q) || s.kind.toLowerCase().includes(q))
+    || [...b.in, ...b.out].some((c) => c.table.toLowerCase().includes(q));
+}
+// topo order (control-flow order, then any stragglers)
+function flowOrder() {
+  const flow = BM.blockFlow(), order = [];
+  flow.forEach(([a, b]) => { if (!order.includes(a)) order.push(a); if (!order.includes(b)) order.push(b); });
+  BM.BLOCKS.forEach((b) => { if (!order.includes(b.id)) order.push(b.id); });
+  return order;
+}
+// connected set of a focused block = up+down BFS over all edges, bounded by Depth (so Depth filters the tree)
+function connectedSet(id) {
+  const { out, inn } = blockAdj();
+  const maxN = state.depth === "all" ? null : +state.depth;
+  const walk = (m) => { const dist = { [id]: 0 }, q = [id]; while (q.length) { const n = q.shift(); if (maxN != null && dist[n] >= maxN) continue; (m[n] || []).forEach((x) => { if (dist[x] === undefined) { dist[x] = dist[n] + 1; q.push(x); } }); } return Object.keys(dist); };
+  return new Set([id, ...walk(out), ...walk(inn)]);
+}
+// the blocks currently shown in the tree/strip: type-chip + search visible, filtered to the focus's connected set
+function shownBlocks() {
+  let list = BM.BLOCKS.filter(blockVisible);
+  if (state.treeFocus) { const cc = connectedSet(state.treeFocus); list = list.filter((b) => cc.has(b.id)); }
+  const order = flowOrder();
+  return list.slice().sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+}
+const TREE_ROWH = 46, TREE_RAIL = 34, TREE_DOTX = 15;
+// the dependency tree (git-graph rail): spine = control flow · accent arcs = contracts · amber dashed = var injection
+function renderBlocks() {
+  const host = document.getElementById("blocks");
+  const vis = shownBlocks();
+  if (!vis.length) { host.innerHTML = `<div style="color:var(--dim);font:11px var(--font-mono);padding:8px">no blocks match</div>`; document.getElementById("blocksCnt").textContent = "0/" + BM.BLOCKS.length; return; }
+  const idx = {}; vis.forEach((b, i) => (idx[b.id] = i));
+  const yOf = (i) => i * TREE_ROWH + TREE_ROWH / 2, H = vis.length * TREE_ROWH;
+  const ACC = cssVar("--accent") || "#d8693a", NEU = cssVar("--edge") || "#d8d3c6";
+  const arc = (i, j, color, dash) => { const y1 = yOf(i), y2 = yOf(j), bow = TREE_DOTX + (Math.abs(j - i) > 1 ? 15 : 9); return `<path d="M${TREE_DOTX},${y1} C${bow},${(y1 * 2 + y2) / 3} ${bow},${(y1 + y2 * 2) / 3} ${TREE_DOTX},${y2}" fill="none" stroke="${color}" stroke-width="1.6"${dash ? ' stroke-dasharray="3 3"' : ""} opacity="0.75"/>`; };
+  let spine = "";
+  BM.CONTROL_FLOW.forEach(([a, b]) => { if (idx[a] != null && idx[b] != null && Math.abs(idx[a] - idx[b]) === 1) spine += `<line x1="${TREE_DOTX}" y1="${yOf(idx[a])}" x2="${TREE_DOTX}" y2="${yOf(idx[b])}" stroke="${NEU}" stroke-width="2"/>`; });
+  BM.CONTROL_FLOW.forEach(([a, b]) => { if (idx[a] != null && idx[b] != null && Math.abs(idx[a] - idx[b]) > 1) spine += arc(idx[a], idx[b], NEU, false); });
+  let arcs = "";
+  BM.contractEdges().forEach((e) => { if (idx[e.from] != null && idx[e.to] != null) arcs += arc(idx[e.from], idx[e.to], ACC, false); });
+  BM.VAR_EDGES.forEach(([a, b]) => { if (idx[a] != null && idx[b] != null) arcs += arc(idx[a], idx[b], "#d4a64a", true); });
+  let dots = "";
+  vis.forEach((b, i) => (dots += `<circle cx="${TREE_DOTX}" cy="${yOf(i)}" r="5" fill="${BLOCK_TYPES[b.type].color}" stroke="var(--panel)" stroke-width="2"/>`));
+  const svg = `<svg class="rail" width="${TREE_RAIL}" height="${H}">${spine}${arcs}${dots}</svg>`;
+  const rows = vis.map((b) => `<div class="trow blockrow" data-block="${b.id}" title="${esc(b.label)} — click to focus its dependency chain" style="--btype:${BLOCK_TYPES[b.type].color};height:${TREE_ROWH}px;padding-left:${TREE_RAIL}px"><span class="lbl"><span class="bt">${BLOCK_TYPES[b.type].label}</span><span class="bl">${esc(b.label)} <i>${b.subblocks.length} sub</i></span></span></div>`).join("");
+  host.innerHTML = `<div class="treewrap" style="min-height:${H}px">${svg}${rows}</div>`;
+  document.getElementById("blocksCnt").innerHTML = state.treeFocus ? `${vis.length}/${BM.BLOCKS.length}<span class="tclear" id="treeClear">show all</span>` : `${vis.length}/${BM.BLOCKS.length}`;
+  markBlock(state.selection ? state.selection.block : null);
+}
+function renderFlowStrip() {
+  const host = document.getElementById("flowstrip");
+  if (state.drill) {   // inside: a datatask shows PARAMS (resolve first) ⇒ transform COMPONENTS; else op steps
+    const b = BM.blockById(state.drill);
+    if (b.type === "datatask" && b.lineage) {
+      const L = b.lineage;
+      let html = `<span class="flab">resolve ⇒ sql · ${esc(b.label)}</span>`;
+      (L.params || []).forEach((p) => { html += `<span class="flowchip" data-param="${p.name}" title="${esc(p.note || "")}" style="--btype:#d4a64a"><span class="fcdot"></span><span class="fct">param</span><span class="fcl">&${esc(p.name)}</span></span>`; });
+      if ((L.params || []).length) html += `<span class="flowarrow">⇒</span>`;
+      L.components.forEach((c, i) => { if (i > 0) html += `<span class="flowarrow">→</span>`; html += `<span class="flowchip" data-comp="${c.id}" title="${esc(c.label)}" style="--btype:${COMP_COLOR[c.type] || "#888"}"><span class="fcdot"></span><span class="fct">${esc(c.type.toLowerCase())}</span><span class="fcl">${esc(c.label)}</span></span>`; });
+      host.innerHTML = html; return;
+    }
+    let html = `<span class="flab">inside · ${esc(b.label)}</span>`;
+    b.subblocks.forEach((s, i) => { if (i > 0) html += `<span class="flowarrow">→</span>`; html += `<span class="flowchip" data-op="${i}" title="${esc(s.label)}" style="--btype:${BLOCK_TYPES[b.type].color}"><span class="fcdot"></span><span class="fct">${esc(s.kind)}</span><span class="fcl">${esc(s.label)}</span></span>`; });
+    host.innerHTML = html; return;
+  }
+  const order = flowOrder();
+  const visIds = new Set(shownBlocks().map((b) => b.id));
+  const seq = order.filter((id) => visIds.has(id));
+  let html = `<span class="flab">${state.treeFocus ? "flow · " + esc(BM.blockById(state.treeFocus).label) : "control flow"}</span>`;
+  seq.forEach((id, i) => { const m = NODE_META[id]; if (i > 0) html += `<span class="flowarrow">→</span>`; html += `<span class="flowchip" data-flow="${id}" title="${esc(m.label)}" style="--btype:${m.color}"><span class="fcdot"></span><span class="fct">${BLOCK_TYPES[m.type].label}</span><span class="fcl">${esc(m.label)}</span></span>`; });
+  if (!seq.length) html += `<span style="color:var(--dim);font:10px var(--font-mono)">no blocks shown</span>`;
+  host.innerHTML = html;
+  markBlock(state.selection ? state.selection.block : null);
+}
+function markBlock(id) {
+  document.querySelectorAll("#blocks .blockrow").forEach((el) => el.classList.toggle("sel-c", el.dataset.block === id));
+  document.querySelectorAll("#flowstrip .flowchip").forEach((el) => el.classList.toggle("active", el.dataset.flow === id));
+  const chip = id ? document.querySelector(`#flowstrip .flowchip[data-flow="${CSS.escape(id)}"]`) : null;
+  if (chip && chip.scrollIntoView) chip.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const row = id ? document.querySelector(`#blocks .blockrow[data-block="${CSS.escape(id)}"]`) : null;
+  if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+}
+// tree-row click = focus its dependency chain: collapse main graph to connected boxes + zoom to it
+document.getElementById("blocks").addEventListener("click", (e) => { const r = e.target.closest(".blockrow"); if (r) focusChain(r.dataset.block); });
+document.getElementById("blocks").addEventListener("dblclick", (e) => { const r = e.target.closest(".blockrow"); if (r) drillInto(r.dataset.block); });
+document.getElementById("blocksCnt").addEventListener("click", (e) => { if (e.target.closest("#treeClear")) clearTreeFocus(); });
+document.getElementById("flowstrip").addEventListener("click", (e) => { const c = e.target.closest(".flowchip"); if (!c) return; if (c.dataset.op !== undefined && state.drill) selectOp(state.drill, +c.dataset.op); else if (c.dataset.comp && state.drill) selectComp(c.dataset.comp); else if (c.dataset.param && state.drill) highlightInsideParam(c.dataset.param); else if (c.dataset.flow) selectBlock(c.dataset.flow); });
+
+// ---------- code panel toggle ----------
+function toggleSql(open) { const p = document.getElementById("sqlpanel"); const o = open === undefined ? !p.classList.contains("open") : open; p.classList.toggle("open", o); document.getElementById("sqlBtn").classList.toggle("on", o); clearLinks(); if (graph) setTimeout(() => { try { graph.resize(); } catch (e) {} graph.fitView(); redrawLinks(); }, 120); }
+document.getElementById("sqlBtn").onclick = () => toggleSql();
+document.getElementById("sqlClose").onclick = () => toggleSql(false);
+document.getElementById("sqlBtn").classList.add("on");
+renderCodePanel(null);
+
+// ---------- toolbar ----------
+function segHandler(id, key, after) { document.querySelectorAll(`#${id} button`).forEach((b) => (b.onclick = () => { document.querySelectorAll(`#${id} button`).forEach((x) => x.classList.toggle("on", x === b)); state[key] = b.dataset.v; if (after) after(); render(true); })); }
+segHandler("scope", "scope");
+// Grain = the zoom ladder. Block/Table are file lenses; Column = drill INTO the selected block (or first datatask).
+document.querySelectorAll("#grain button").forEach((btn) => (btn.onclick = () => {
+  const v = btn.dataset.v;
+  if (v === "column") { const target = (state.selection && state.selection.block) || firstDatatask(); if (target) drillInto(target); return; }
+  state.drill = null; state.grain = v; setGrainButton(v); render(true);
+}));
+document.querySelectorAll("#depth button").forEach((b) => (b.onclick = () => { document.querySelectorAll("#depth button").forEach((x) => x.classList.toggle("on", x === b)); state.depth = b.dataset.v; if (state.scope === "linked" || state.treeFocus) render(true); else { applyFocus(); renderBlocks(); renderFlowStrip(); requestAnimationFrame(drawCurrentLinks); } }));
+document.querySelectorAll("#typeChips .chip").forEach((c) => (c.onclick = () => { const t = c.dataset.t; state.types.has(t) ? state.types.delete(t) : state.types.add(t); c.classList.toggle("on"); render(true); }));
+document.getElementById("themeSw").addEventListener("click", (e) => { const b = e.target.closest("button[data-th]"); if (!b) return; document.documentElement.dataset.theme = b.dataset.th; document.querySelectorAll("#themeSw button").forEach((x) => x.classList.toggle("on", x === b)); if (graph) { graph.destroy(); graph = null; } render(true); });
+document.getElementById("fitBtn").onclick = () => { if (graph) graph.fitView(); setTimeout(redrawLinks, 60); };
+document.getElementById("resetBtn").onclick = () => {
+  state.selection = null; state.grain = "block"; state.drill = null; state.treeFocus = null; state.depth = "all"; state.scope = "all"; state.types = new Set(["taskflow", "variable", "datatask"]); navCursor = -1;
+  document.querySelectorAll("#grain button").forEach((x) => x.classList.toggle("on", x.dataset.v === "block"));
+  document.querySelectorAll("#depth button").forEach((x) => x.classList.toggle("on", x.dataset.v === "all"));
+  document.querySelectorAll("#scope button").forEach((x) => x.classList.toggle("on", x.dataset.v === "all"));
+  document.querySelectorAll("#typeChips .chip").forEach((x) => x.classList.add("on"));
+  document.getElementById("search").value = ""; insp.classList.remove("open"); clearLinks(); markBlock(null); renderCodePanel(null); render(true);
+};
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (state.drill) { exitDrill(); return; } const had = state.selection || state.treeFocus; insp.classList.remove("open"); state.selection = null; state.treeFocus = null; clearLinks(); if (had) render(true); } });
+
+// ---------- File Explorer (left) ----------
+const ACTIVE_FILE = "daily_pnl.sas";
+state.file = ACTIVE_FILE;
+const FILES = [
+  { t: "folder", name: "pnl", open: true, kids: [
+    { t: "folder", name: "daily", open: true, kids: [
+      { t: "file", name: "daily_pnl.sas" }, { t: "file", name: "fx_rates.sas" } ] },
+    { t: "folder", name: "stage", open: true, kids: [ { t: "file", name: "stage_txn.sas" } ] },
+  ] },
+  { t: "folder", name: "shared", open: false, kids: [ { t: "file", name: "macros.sas" } ] },
+];
+function buildFileTree() {
+  let uid = 0;
+  function row(node, depth) {
+    const ind = depth > 0 ? ` lvl${Math.min(depth, 3)}` : "";
+    if (node.t === "folder") {
+      const id = "fd" + uid++;
+      const kids = node.kids.map((k) => row(k, depth + 1)).join("");
+      return `<div class="trow${ind}"><span class="car" data-tid="${id}">${node.open ? "▾" : "▸"}</span><span class="lbl blockL" data-fold="${id}">${node.name}/</span></div><div class="kids${node.open ? "" : " collapsed"}" id="${id}">${kids}</div>`;
+    }
+    return `<div class="trow${ind}"><span class="car"></span><span class="lbl" data-file="${node.name}" style="font-family:var(--font-mono)">${node.name}</span></div>`;
+  }
+  document.getElementById("filenav").innerHTML = `<div class="navtools"><div class="ttypes"><span class="cap">files</span></div></div>` + FILES.map((n) => row(n, 0)).join("");
+  markFileNav();
+}
+function markFileNav() { document.querySelectorAll("#filenav .lbl[data-file]").forEach((el) => el.classList.toggle("sel", el.dataset.file === state.file)); }
+document.getElementById("filenav").addEventListener("click", (e) => {
+  const car = e.target.closest(".car[data-tid]"); if (car) { const k = document.getElementById(car.dataset.tid); if (k) { k.classList.toggle("collapsed"); car.textContent = k.classList.contains("collapsed") ? "▸" : "▾"; } return; }
+  const f = e.target.closest(".lbl[data-file]"); if (!f) return; state.file = f.dataset.file; state.selection = null; insp.classList.remove("open"); markBlock(null); renderCodePanel(null); render(true);
+});
+
+// ---------- Search + ⌘K + Ace-jump ----------
+let navCursor = -1;
+const fileRows = () => [...document.querySelectorAll("#filenav .trow")].filter((r) => r.offsetParent !== null);
+function moveFileCursor(d) { const rs = fileRows(); if (!rs.length) return; document.querySelectorAll("#filenav .trow.cursor").forEach((r) => r.classList.remove("cursor")); navCursor = navCursor < 0 ? (d > 0 ? 0 : rs.length - 1) : Math.max(0, Math.min(rs.length - 1, navCursor + d)); const r = rs[navCursor]; r.classList.add("cursor"); r.scrollIntoView({ block: "nearest" }); }
+function buildSearchList() { const s = new Set(); BM.BLOCKS.forEach((b) => { s.add(b.label); [...b.in, ...b.out].forEach((c) => s.add(c.table)); }); document.getElementById("recent").innerHTML = [...s].sort().map((c) => `<option value="${c}">`).join(""); }
+const search = document.getElementById("search");
+search.addEventListener("input", () => { renderBlocks(); renderFlowStrip(); });
+search.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const q = e.target.value.trim().toLowerCase(); if (!q) return;
+  const b = BM.BLOCKS.filter(blockVisible)[0];
+  if (b) selectBlock(b.id);
+  e.target.value = ""; renderBlocks(); renderFlowStrip();
+});
+let aceOn = false, aceT = [], aceTyped = "";
+const aceLabels = (n) => { const cs = "asdfghjklqwertyuiopzxcvbnm".split(""); if (n <= cs.length) return cs.slice(0, n); const o = []; for (const a of cs) for (const b of cs) { o.push(a + b); if (o.length >= n) return o; } return o; };
+function startAce() {
+  cancelAce();
+  const els = [...document.querySelectorAll("#container [data-sel]")].filter((el) => { const r = el.getBoundingClientRect(); return el.offsetParent !== null && r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; });
+  if (!els.length) return;
+  const L = aceLabels(els.length);
+  aceT = els.map((el, i) => { const r = el.getBoundingClientRect(); const b = document.createElement("div"); b.className = "ajhint"; b.textContent = L[i]; b.style.cssText = `position:fixed;z-index:300;left:${r.left + 2}px;top:${r.top + 2}px`; document.body.appendChild(b); return { el, label: L[i], b }; });
+  aceOn = true; aceTyped = "";
+}
+function cancelAce() { aceOn = false; aceTyped = ""; aceT.forEach((t) => t.b.remove()); aceT = []; }
+function aceKey(e) { e.preventDefault(); e.stopPropagation(); const k = e.key; if (k === "Escape") return cancelAce(); if (k === "Backspace") aceTyped = aceTyped.slice(0, -1); else if (/^[a-z]$/i.test(k)) aceTyped += k.toLowerCase(); else return; const m = aceT.filter((t) => t.label.startsWith(aceTyped)); if (!m.length) return cancelAce(); if (m.length === 1 && m[0].label === aceTyped) { const el = m[0].el; cancelAce(); el.dispatchEvent(new MouseEvent("click", { bubbles: true })); return; } aceT.forEach((t) => (t.b.style.opacity = t.label.startsWith(aceTyped) ? "1" : "0.18")); }
+document.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); search.focus(); search.select(); return; }
+  if (aceOn) return aceKey(e);
+  if (/^(input|textarea)$/i.test(document.activeElement.tagName)) { if (e.key === "Escape") document.activeElement.blur(); return; }
+  if (e.key === "f" || e.key === "F") { e.preventDefault(); startAce(); return; }
+  if (e.key === "ArrowDown") { e.preventDefault(); moveFileCursor(1); return; }
+  if (e.key === "ArrowUp") { e.preventDefault(); moveFileCursor(-1); return; }
+  const cr = fileRows()[navCursor];
+  if (e.key === "Enter" && cr) { e.preventDefault(); const lbl = cr.querySelector(".lbl[data-file]"), car = cr.querySelector(".car[data-tid]"); if (lbl) lbl.click(); else if (car) car.click(); return; }
+  if ((e.key === "ArrowRight" || e.key === "ArrowLeft") && cr) { const car = cr.querySelector(".car[data-tid]"); if (car) { const k = document.getElementById(car.dataset.tid), col = k && k.classList.contains("collapsed"); if ((e.key === "ArrowRight" && col) || (e.key === "ArrowLeft" && !col)) car.click(); } return; }
+}, true);
+
+buildFileTree(); buildSearchList();
+render(true);
+</script>
+</body>
+</html>

@@ -91,7 +91,11 @@ class Schemas:
         incols = self.from_cols(frm)
         out = []
         for p in projs:
-            e, a = targs(p)
+            # `proj/3` since Task 5b (`4bc57dc`): the spec gained a third argument and
+            # this two-way unpack raised ValueError on every SELECT, so the generator
+            # exited non-zero and `_ensure_blocks` silently kept the stale `blocks/`
+            # tree (plan Part J, J1). Index instead of unpack: works for proj/2 and proj/3.
+            _pa = targs(p); e, a = _pa[0], _pa[1]
             if functor(e) == "star":
                 out += incols
             elif functor(a) == "some":

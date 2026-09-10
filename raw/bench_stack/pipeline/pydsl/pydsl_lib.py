@@ -105,6 +105,22 @@ class Leaf:
                             # follows). Only meaningful when dequote=True.
 
 
+    keep_lexeme: bool = False  # M3a (2026-09-10), defect 1: this leaf's term
+                            # carries the ORIGINAL token text as a second
+                            # argument (lit(V, Text)) on top of the folded
+                            # value, so print reproduces the source spelling
+                            # byte for byte. Only meaningful on a "number"
+                            # leaf: `0.40` and `0.4` fold to the SAME Prolog
+                            # number, so without the lexeme the printer can
+                            # only ever write the canonical `0.4` and the
+                            # round trip is lossy. Opt-in per language: the
+                            # arity of lit/N is part of a language's term
+                            # vocabulary and every consumer of that language's
+                            # terms has to know it, so switching it on is a
+                            # spec decision, not a global one (Pig/Hive/Oozie
+                            # keep lit/1 and their generated grammars are
+                            # byte-identical to before this flag existed).
+
     backslash_escape: bool = True  # exp_42 (2026-09-05): SAS strings have NO
                             # backslash escape ('C:\\SASData' is four real
                             # characters). False = only the doubled delimiter
@@ -113,8 +129,9 @@ class Leaf:
                             # unquote_escaped/quote_escaped.
 
 
-def leaf(name, pattern, term, doc="", dequote=False, double_delim=False, backslash_escape=True):
-    return Leaf(name, pattern, term, doc, dequote, double_delim, backslash_escape)
+def leaf(name, pattern, term, doc="", dequote=False, double_delim=False, backslash_escape=True,
+         keep_lexeme=False):
+    return Leaf(name, pattern, term, doc, dequote, double_delim, keep_lexeme, backslash_escape)
 
 
 @dataclass

@@ -1,0 +1,173 @@
+//! `support` — in-process HTTP test helpers.
+//!
+//! **Why this exists.** Eight later tasks (5–12) write route tests that call bare
+//! `get(path)` / `post(path, body)` and expect JSON back. The plan never defines these
+//! (Task 3 ruling D1); they live here, once, so every later task's tests compile as
+//! written.
+//!
+//! **Why in-process.** Both helpers drive `lineageq_api::app` directly with
+//! `tower::ServiceExt::oneshot` — no `TcpListener::bind`, no port at all. The machine
+//! this runs on has long-running servers on 5173, 5174, 5175, 8000, 8042 and 8043; a test
+//! that bound a port could collide with one of those or, worse, silently read its
+//! response instead of the router's. Each call opens a fresh `test_state()` store, so
+//! tests never share state through the filesystem either.
+//!
+//! `get_raw` keeps the bytes and the status instead of parsing JSON, and `post_raw`
+//! does the same for a POST whose refusals are the thing under test.
+
+use axum::body::Body;
+use axum::http::Request;
+use http_body_util::BodyExt;
+use serde_json::Value;
+use tower::ServiceExt;
+
+pub async fn get(path: &str) -> Value {
+    let req = Request::builder()
+        .method("GET")
+        .uri(path)
+        .body(Body::empty())
+        .expect("build GET request");
+    send(req).await
+}
+
+/// Like `get`, but against a store seeded from `corpus/fixtures` — the exp_42 receipt file
+/// the in-file questions (`file`, `blocks`, `tablegraph`, `story`) are checked against.
+/// Task 9's own store, for the reason `lineageq_api::test_state_fixtures` gives: the
+/// fixture cannot go into `test_state()` without changing what `/api/files` counts.
+pub async fn get_fixtures(path: &str) -> Value {
+    let req = Request::builder()
+        .method("GET")
+        .uri(path)
+        .body(Body::empty())
+        .expect("build GET request");
+    send_with_state(lineageq_api::test_state_fixtures(), req).await
+}
+
+/// `get_raw`, against the fixtures store.
+pub async fn get_raw_fixtures(path: &str) -> RawRes {
+    get_raw_with_state(lineageq_api::test_state_fixtures(), path).await
+}
+
+/// `get`/`get_raw` against the default `test_state()` store (team_finance) — named
+/// explicitly for the tests in a file that has aliased `get` to the fixtures store.
+pub async fn get_team_finance(path: &str) -> Value {
+    let req = Request::builder().method("GET").uri(path).body(Body::empty()).expect("build GET request");
+    send_with_state(lineageq_api::test_state(), req).await
+}
+
+pub async fn get_raw_team_finance(path: &str) -> RawRes {
+    get_raw_with_state(lineageq_api::test_state(), path).await
+}
+
+pub async fn post(path: &str, body: Value) -> Value {
+    let req = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&body).expect("serialize request body"),
+        ))
+        .expect("build POST request");
+    send(req).await
+}
+
+/// `post`, against the fixtures store — `POST /api/run`'s only corpus (Task 12).
+pub async fn post_fixtures(path: &str, body: serde_json::Value) -> Value {
+    let req = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).expect("serialize request body")))
+        .expect("build POST request");
+    send_with_state(lineageq_api::test_state_fixtures(), req).await
+}
+
+pub struct RawRes {
+    pub status: u16,
+    pub content_type: String,
+    pub location: Option<String>,
+    pub body: String,
+}
+
+/// Like `get`, but keeps the bytes and the content type instead of parsing JSON — the
+/// Bench page is HTML, not an answer.
+pub async fn get_raw(path: &str) -> RawRes {
+    get_raw_with_state(lineageq_api::test_state(), path).await
+}
+
+
+/// Like `post`, but keeps the status and the body text instead of parsing JSON — for a
+/// route whose *refusals* are the thing under test (`POST /api/bench/save`, M4b): a 400
+/// answers with a plain-text reason, which `post` would panic trying to parse.
+pub async fn post_raw(path: &str, body: Value) -> RawRes {
+    let req = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).expect("serialize request body")))
+        .expect("build POST request");
+    raw_send_with_state(lineageq_api::test_state(), req).await
+}
+
+async fn get_raw_with_state(state: lineageq_api::AppState, path: &str) -> RawRes {
+    let req = Request::builder()
+        .method("GET")
+        .uri(path)
+        .body(Body::empty())
+        .expect("build GET request");
+    raw_send_with_state(state, req).await
+}
+
+async fn raw_send_with_state(state: lineageq_api::AppState, req: Request<Body>) -> RawRes {
+    let app = lineageq_api::app(state);
+    let res = app.oneshot(req).await.expect("router call");
+    let status = res.status().as_u16();
+    let content_type = res
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let location = res
+        .headers()
+        .get(axum::http::header::LOCATION)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let bytes = res
+        .into_body()
+        .collect()
+        .await
+        .expect("read response body")
+        .to_bytes();
+    RawRes {
+        status,
+        content_type,
+        location,
+        body: String::from_utf8_lossy(&bytes).to_string(),
+    }
+}
+
+async fn send(req: Request<Body>) -> Value {
+    send_with_state(lineageq_api::test_state(), req).await
+}
+
+async fn send_with_state(state: lineageq_api::AppState, req: Request<Body>) -> Value {
+    let app = lineageq_api::app(state);
+    let res = app.oneshot(req).await.expect("router call");
+    let status = res.status();
+    let bytes = res
+        .into_body()
+        .collect()
+        .await
+        .expect("read response body")
+        .to_bytes();
+    if bytes.is_empty() {
+        return serde_json::json!({ "_status": status.as_u16() });
+    }
+    serde_json::from_slice(&bytes).unwrap_or_else(|_| {
+        serde_json::json!({
+            "_status": status.as_u16(),
+            "_raw": String::from_utf8_lossy(&bytes).to_string(),
+        })
+    })
+}

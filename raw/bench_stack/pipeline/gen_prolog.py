@@ -358,8 +358,28 @@ def _leaf_parse_atom(lf):
             f"warn_if_escape_not_reversible({dd}, 0'\\\", A, atom) }}.")
 
 
+# M3a (2026-09-10), defect 1: a NUMBER leaf that sets keep_lexeme=True folds
+# to lit(Value, Text) — the folded number AND the token text it came from.
+# `0.40` and `0.4` are the same Prolog number, so a printer that only has the
+# number can only write `0.4` and the SAS source is not reproduced byte for
+# byte (corpus/team_finance/sas/raw/13_risk_flags.sas). The second argument is
+# never read by arithmetic; it exists only so print_stmt can write back what
+# was read. Off by default: lit/1 stays the term shape for every language that
+# has not opted in (Pig/Hive/Oozie/Sqoop), so their grammars do not change.
+def _leaf_parse_number(lf):
+    if lf.keep_lexeme:
+        return "prim(lit(N, V)) --> [tok(number,V)], { atom_number(V,N) }."
+    return "prim(lit(N)) --> [tok(number,V)], { atom_number(V,N) }."
+
+
+def _leaf_print_number(lf):
+    if lf.keep_lexeme:
+        return "expr_own(lit(N, T), 100, [T]) :- number(N), !."
+    return "expr_own(lit(N), 100, [NT]) :- number(N), !, format(atom(NT), '~w', [N])."
+
+
 LEAF_PARSE = {
-    "number": lambda lf: "prim(lit(N)) --> [tok(number,V)], { atom_number(V,N) }.",
+    "number": _leaf_parse_number,
     "string": _leaf_parse_string,
     "word": lambda lf: "prim(col(N)) --> [tok(word,N)].",
     "atom": _leaf_parse_atom,
@@ -370,7 +390,7 @@ LEAF_PARSE = {
     "path": lambda lf: "prim(resource(N)) --> [tok(path,N)].",
 }
 LEAF_PRINT = {
-    "number": lambda lf: "expr_own(lit(N), 100, [NT]) :- number(N), !, format(atom(NT), '~w', [N]).",
+    "number": _leaf_print_number,
     "string": lambda lf: ("expr_own(lit(S), 100, [QT]) :- atom(S), \\+ number(S), quote_plain(0''', S, QT)." if not lf.backslash_escape else "expr_own(lit(S), 100, [QT]) :- atom(S), \\+ number(S), quote_escaped(0''', S, QT)."),
     "word": lambda lf: "expr_own(col(N), 100, [N]) :- atom(N).",
     "atom": lambda lf: "expr_own(A, 100, [QT]) :- atom(A), quote_escaped(0'\\\", A, QT).",

@@ -13,11 +13,13 @@
 //! The engine is called in-process through the `rules_converter` library, so nothing is
 //! written to disk and re-parsed on the way.
 
+pub mod datamatch;
+pub mod lineage_blocks;
 pub mod schema;
 
 use duckdb::{params, Connection};
 use rules_converter::{emit, emit_pretty, fold_file, lineage, parser, rebuild_source, spec, term, tokenise};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::Instant;
 
@@ -27,6 +29,12 @@ pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 pub fn open(db: &Path) -> Res<Connection> {
     let conn = Connection::open(db)?;
     conn.execute_batch(schema::DDL)?;
+    // Additive columns on a store that already existed. A store created by the DDL just
+    // above already has them, and DuckDB says so with an error; that is the expected
+    // outcome, not a failure, so each statement is run and its result discarded.
+    for sql in schema::MIGRATIONS {
+        let _ = conn.execute(sql, params![]);
+    }
     Ok(conn)
 }
 
@@ -52,7 +60,9 @@ pub struct ConvertReport {
 /// changed has its rows deleted before the new ones land.
 pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<ConvertReport> {
     let t_all = Instant::now();
-    let spec: spec::Spec = serde_json::from_str(&std::fs::read_to_string(spec_path)?)?;
+    let spec_text = std::fs::read_to_string(spec_path)?;
+    let spec: spec::Spec = serde_json::from_str(&spec_text)?;
+    let spec_hash = hash_of(&spec_text);
     let mut rep = ConvertReport::default();
 
     let mut sas: Vec<std::path::PathBuf> = Vec::new();
@@ -66,14 +76,36 @@ pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<Co
             .unwrap_or(path)
             .to_string_lossy()
             .to_string();
-        let text = std::fs::read_to_string(path)?;
-        let hash = hash_of(&text);
+        // Decision D13 (plan Part I, finding I4): CRLF is normalised **on intake**, and
+        // `raw/` is never rewritten. The Python tokeniser reads with universal newlines,
+        // so on a CRLF file Prolog's trace offsets run one byte short per line while
+        // Rust's count the `\r` — node/4 differed on all 25 CRLF `team_finance` files and
+        // the plain PySpark differed on the 8 with datalines. Feeding the engine LF makes
+        // both sides see the same bytes (measured: node/4 0/25 -> 25/25, plain 13/25 ->
+        // 21/25, the four left being the pre-existing emitter panics).
+        //
+        // `raw_text` is what arrived and is what `files.source` stores, so `/api/source`
+        // still hands UI1 the bytes on disk, CRLF intact, and the code pane shows the file
+        // as it is. `text` is the LF view, and everything derived — the fold, node/4's
+        // trace offsets, `blocks.sas_text`, the emitted PySpark — is derived from it.
+        // `files.hash` is taken over `raw_text` so that a file whose only change is its
+        // line endings is still seen as changed.
+        let raw_text = std::fs::read_to_string(path)?;
+        let hash = hash_of(&raw_text);
+        let crlf = raw_text.contains("\r\n");
+        let text = if crlf { raw_text.replace("\r\n", "\n") } else { raw_text.clone() };
 
-        // unchanged? leave it alone
-        let seen: Option<String> = conn
-            .query_row("SELECT hash FROM files WHERE fileid = ?", params![&fileid], |r| r.get(0))
+        // unchanged file AND unchanged spec? leave it alone. If the spec changed, the
+        // grammar that produced the stored rows changed too, so they are stale answers
+        // even though the source file itself didn't move.
+        let seen: Option<(String, String)> = conn
+            .query_row(
+                "SELECT f.hash, coalesce(m.value, '') FROM files f LEFT JOIN meta m ON m.key = 'spec_hash' WHERE f.fileid = ?",
+                params![&fileid],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
             .ok();
-        if seen.as_deref() == Some(hash.as_str()) {
+        if seen.as_ref().map(|(h, s)| h == &hash && s == &spec_hash).unwrap_or(false) {
             rep.ok += 1;
             continue;
         }
@@ -89,7 +121,7 @@ pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<Co
         }
         match &folded {
             Ok(f) => {
-                write_file(&tx, &fileid, &hash, &text, "ok", None)?;
+                write_file(&tx, &fileid, &hash, &raw_text, "ok", None, crlf)?;
                 rep.blocks += write_blocks(&tx, &fileid, f)?;
                 rep.node4 += write_node4(&tx, &fileid, f)?;
                 rep.edges += write_edges(&tx, &fileid, f)?;
@@ -99,7 +131,7 @@ pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<Co
                 rep.ok += 1;
             }
             Err(e) => {
-                write_file(&tx, &fileid, &hash, &text, "error", Some(e))?;
+                write_file(&tx, &fileid, &hash, &raw_text, "error", Some(e), crlf)?;
                 event(&tx, "convert.error", &fileid, e)?;
                 rep.failed += 1;
             }
@@ -107,6 +139,11 @@ pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<Co
         tx.commit()?;
         rep.store_ms += t_store.elapsed().as_secs_f64() * 1000.0;
     }
+
+    // Written unconditionally, even when every file was skipped: if this only ran on a
+    // conversion, the first run after a spec change would store the new hash *and* skip
+    // every file (their file-hashes are unchanged), permanently masking the change.
+    conn.execute("INSERT OR REPLACE INTO meta VALUES ('spec_hash', ?)", params![&spec_hash])?;
 
     rep.total_ms = t_all.elapsed().as_secs_f64() * 1000.0;
     Ok(rep)
@@ -141,7 +178,7 @@ fn hash_of(s: &str) -> String {
 /// One file's fold, held in memory until it is written.
 pub struct Folded {
     pub blocks: Vec<BlockRow>,
-    pub node4: Vec<(String, usize, String, usize, usize)>, // block, seq, term, l0, l1
+    pub node4: Vec<(String, usize, String, usize, usize, usize, usize)>, // block, seq, term, l0, l1, b0, b1
     pub edges: Vec<(String, String, String, String)>,      // src, dst, kind, block
     pub statements: usize,
     pub folded_n: usize,
@@ -163,6 +200,47 @@ pub struct BlockRow {
     pub warn: bool,
 }
 
+/// The table named by a block's own head term, straight from the fold — used only as a
+/// fallback when `ds_lineage` has nothing to say (see the call site). Mirrors exactly the
+/// two shapes `lineage::sas::step` itself matches on: a `DATA` step's target, or a
+/// `PROC SQL` block's `CREATE TABLE AS`.
+fn block_write_target(bn: &[(String, &term::Term)]) -> Option<String> {
+    for (_, t) in bn {
+        match t.functor() {
+            ("data", 1) | ("create_table_as", 2) => return Some(lineage::ds_key(&t.args()[0])),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Ruling D9. `emit::Emitter::program` and `emit_pretty::Pretty::program` are ports of
+/// `codegen/*.pl` and refuse an unmapped SAS construct (e.g. `today()`, no
+/// `raw/bench_stack/codegen/*.pl` rule for it either) by panicking — that is how the
+/// engine signals "no rule for this", not a bug. Prolog is the reference and Rust mirrors
+/// it (owner rule, exp_42): we do not add a mapping Prolog doesn't have (that was the
+/// previous agent's mistake — see the Task 5 brief). But a library must not abort its
+/// caller's process over a per-block gap, and Task 6b puts `convert` behind HTTP, so a
+/// panic here would take the API down. `catch_unwind` is the right tool: the panic *is*
+/// the failure signal, so catching it is catching the real outcome, not working around
+/// one. A hook swap around the call keeps the default panic handler from spamming stderr
+/// for every warn block on a real corpus — `main` still hears about it, just via the
+/// return value instead of a printed backtrace. The caller stores empty text and sets
+/// `warn = true` on `Err`; the panic message becomes the finding the Task 5 report lists.
+pub fn catch_emit<F: FnOnce() -> String + std::panic::UnwindSafe>(f: F) -> Result<String, String> {
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let result = std::panic::catch_unwind(f);
+    std::panic::set_hook(prev_hook);
+    result.map_err(|payload| {
+        payload
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
+            .unwrap_or_else(|| "panic with non-string payload".to_string())
+    })
+}
+
 fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, String> {
     let t0 = Instant::now();
     let (stmts, terms, ids) = fold_file(spec, text);
@@ -177,7 +255,7 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
     let mut nodes: Vec<emit::Node> = Vec::new();
     for (i, st) in stmts.iter().enumerate() {
         let Some(t) = &terms[i] else { continue };
-        node4.push((ids[i].clone(), st.seq, format!("{}", t), st.l0, st.l1));
+        node4.push((ids[i].clone(), st.seq, format!("{}", t), st.l0, st.l1, st.b0, st.b1));
         nodes.push(emit::Node {
             block: ids[i].clone(),
             seq: st.seq,
@@ -246,16 +324,36 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
             .iter()
             .filter_map(|i| terms[*i].as_ref().map(|t| (bid.clone(), t)))
             .collect();
+        // What this block writes. `ds_lineage` only fires when the block also *reads*
+        // another table (lineage.rs's `step`), so a block that only writes — a DATA step
+        // seeded from `datalines`, with no `SET`/`MERGE` — leaves no ds_lineage fact even
+        // though it plainly names its own output right in the block's own head term. Ask
+        // that term directly before giving up, so `tables`/`search()` (Task 5) don't lose
+        // every seed table in a corpus.
         let name = lineage::sas::run(&bn)
             .text()
             .lines()
             .find(|l| l.starts_with("ds_lineage("))
             .and_then(|l| l.split('\'').nth(1).map(|s| s.to_string()))
+            .or_else(|| block_write_target(&bn))
             .unwrap_or_default();
 
         let bnodes: Vec<emit::Node> = nodes.iter().filter(|nd| &nd.block == bid).cloned().collect();
-        let py_text = emit::Emitter::new().program(&bnodes, "");
-        let py_pretty = emit_pretty::Pretty::new(text, &bnodes).program("");
+        let emit_bnodes = bnodes.clone();
+        let emit_result = catch_emit(move || emit::Emitter::new().program(&emit_bnodes, ""));
+        let pretty_bnodes = bnodes.clone();
+        let pretty_result = catch_emit(move || emit_pretty::Pretty::new(text, &pretty_bnodes).program(""));
+        let mut warn = false;
+        if let Err(msg) = &emit_result {
+            warn = true;
+            eprintln!("LINEAGEQ warn: {} block {} (emit): {}", fileid, bid, msg);
+        }
+        if let Err(msg) = &pretty_result {
+            warn = true;
+            eprintln!("LINEAGEQ warn: {} block {} (emit_pretty): {}", fileid, bid, msg);
+        }
+        let py_text = emit_result.unwrap_or_default();
+        let py_pretty = pretty_result.unwrap_or_default();
 
         blocks.push(BlockRow {
             block_id: bid.clone(),
@@ -267,27 +365,16 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
             sas_text,
             py_text,
             py_pretty,
-            warn: false,
+            warn,
         });
     }
 
-    // file-level edges, from ds_lineage(OUT, IN)
-    let all: Vec<(String, &term::Term)> = stmts
-        .iter()
-        .enumerate()
-        .filter_map(|(i, _)| terms[i].as_ref().map(|t| (ids[i].clone(), t)))
-        .collect();
-    let facts = lineage::sas::run(&all);
-    let mut edges = Vec::new();
-    for line in facts.text().lines() {
-        if let Some(rest) = line.strip_prefix("ds_lineage(") {
-            let parts: Vec<&str> = rest.split('\'').filter(|s| !s.trim().is_empty() && *s != "," && *s != ").").collect();
-            if parts.len() >= 2 {
-                // ds_lineage(OUT, IN) -> the edge runs IN -> OUT
-                edges.push((parts[1].to_string(), parts[0].to_string(), "ds".to_string(), String::new()));
-            }
-        }
-    }
+    // per-block edges, from ds_lineage(OUT, IN), attributed to the block that made them
+    let edges: Vec<(String, String, String, String)> =
+        crate::lineage_blocks::edges_per_block(&ids, &terms)
+            .into_iter()
+            .map(|e| (e.src, e.dst, e.kind, e.block_id))
+            .collect();
 
     let _ = fileid;
     Ok(Folded {
@@ -304,32 +391,36 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
 
 // ---------------------------------------------------------------- writers
 
-fn write_file(tx: &duckdb::Transaction, fileid: &str, hash: &str, text: &str, status: &str, err: Option<&String>) -> Res<()> {
+/// `text` is the file's bytes **as received** — CRLF and all. What the engine folded is
+/// the LF view of the same bytes; `crlf` says whether the two differ (Decision D13).
+fn write_file(tx: &duckdb::Transaction, fileid: &str, hash: &str, text: &str, status: &str, err: Option<&String>, crlf: bool) -> Res<()> {
     tx.execute(
-        "INSERT INTO files (fileid, hash, loc, status, error, converted_at) VALUES (?,?,?,?,?, now())",
-        params![fileid, hash, text.lines().count() as i32, status, err.map(|s| s.as_str()).unwrap_or("")],
+        "INSERT INTO files (fileid, hash, loc, status, error, converted_at, source, crlf_normalised) VALUES (?,?,?,?,?, now(), ?, ?)",
+        params![fileid, hash, text.lines().count() as i32, status, err.map(|s| s.as_str()).unwrap_or(""), text, crlf],
     )?;
     Ok(())
 }
 
 fn write_blocks(tx: &duckdb::Transaction, fileid: &str, f: &Folded) -> Res<usize> {
     let mut st = tx.prepare(
-        "INSERT INTO blocks (fileid, block_id, n, kind, name, l0, l1, sas_text, py_text, py_pretty, warn)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO blocks (fileid, block_id, n, kind, name, l0, l1, sas_text, py_text, py_pretty, warn, block_hash)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
     )?;
     for b in &f.blocks {
         st.execute(params![
             fileid, b.block_id, b.n as i32, b.kind, b.name,
-            b.l0 as i32, b.l1 as i32, b.sas_text, b.py_text, b.py_pretty, b.warn
+            b.l0 as i32, b.l1 as i32, b.sas_text, b.py_text, b.py_pretty, b.warn, hash_of(&b.sas_text)
         ])?;
     }
     Ok(f.blocks.len())
 }
 
 fn write_node4(tx: &duckdb::Transaction, fileid: &str, f: &Folded) -> Res<usize> {
-    let mut st = tx.prepare("INSERT INTO node4 (fileid, block_id, seq, term, trace_l0, trace_l1) VALUES (?,?,?,?,?,?)")?;
-    for (b, seq, t, l0, l1) in &f.node4 {
-        st.execute(params![fileid, b, *seq as i32, t, *l0 as i32, *l1 as i32])?;
+    let mut st = tx.prepare(
+        "INSERT INTO node4 (fileid, block_id, seq, term, trace_l0, trace_l1, trace_b0, trace_b1) VALUES (?,?,?,?,?,?,?,?)",
+    )?;
+    for (b, seq, t, l0, l1, b0, b1) in &f.node4 {
+        st.execute(params![fileid, b, *seq as i32, t, *l0 as i32, *l1 as i32, *b0 as i32, *b1 as i32])?;
     }
     Ok(f.node4.len())
 }
@@ -369,6 +460,103 @@ fn write_receipt(tx: &duckdb::Transaction, fileid: &str, f: &Folded) -> Res<()> 
 fn event(tx: &duckdb::Transaction, kind: &str, fileid: &str, detail: &str) -> Res<()> {
     tx.execute("INSERT INTO events (at_ts, kind, fileid, detail) VALUES (now(), ?,?,?)", params![kind, fileid, detail])?;
     Ok(())
+}
+
+
+// ---------------------------------------------------------------- human edits
+
+/// One human assertion about a flow — the `human_edits` row shape of `schema.rs`, which is
+/// `raw/lineage_server`'s own (`server/indexer.py`) column for column.
+///
+/// **Why this exists (Task 7, 2026-09-10).** `edges()` answers the *merged* view: inferred
+/// rows with un-flagged customer edits applied. Nothing in this store held a customer edit
+/// before, so the merge had nothing to merge. `edited_at` is carried as the string DuckDB
+/// prints it, not a chrono type: this crate has no date dependency, nothing sorts on it
+/// today, and a string survives the JSON fixture round trip the API's tests load it from.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HumanEdit {
+    pub edit_id: String,
+    pub edited_at: String,
+    pub editor: String,
+    pub action: String,
+    pub src: String,
+    pub dst: String,
+    pub table_name: String,
+    pub level: String,
+    pub comment: String,
+    pub block_id: Option<String>,
+    pub requires_check: bool,
+    pub fileid: Option<String>,
+    pub dismissed: bool,
+    pub freshness: String,
+}
+
+/// Write one human assertion. Idempotent on `edit_id` (a re-import of the same row
+/// replaces it) so seeding a store twice cannot double the merged view.
+pub fn insert_human_edit(conn: &Connection, e: &HumanEdit) -> Res<()> {
+    conn.execute("DELETE FROM human_edits WHERE edit_id = ?", params![e.edit_id])?;
+    conn.execute(
+        "INSERT INTO human_edits VALUES (?, CAST(? AS TIMESTAMP), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        params![
+            e.edit_id, e.edited_at, e.editor, e.action, e.src, e.dst, e.table_name,
+            e.level, e.comment, e.block_id, e.requires_check, e.fileid, e.dismissed,
+            e.freshness
+        ],
+    )?;
+    Ok(())
+}
+
+/// Read a JSON array of `HumanEdit`s from a file and write every one of them.
+///
+/// **Why this exists (M2/G3, 2026-09-10).** `insert_human_edit` existed, but nothing on the
+/// command line could call it: M1 seeded the dev store's one customer edit with a throwaway
+/// Python script, which means the dev store could not be rebuilt from the repo alone (plan
+/// Part G, finding G3). This is the store-side half of `lineageq_store human-edit <db>
+/// <json>`; the JSON shape is exactly what `backend/api/tests/fixtures/human_edits.json`
+/// holds, so the same file seeds the test store and the dev store.
+///
+/// Returns how many rows were written. Idempotent, because `insert_human_edit` is: running
+/// it twice on the same file leaves the same rows.
+///
+/// **Inputs → outputs.** a connection + a path to a JSON array → that many `human_edits`
+/// rows, and the count.
+pub fn load_human_edits(conn: &Connection, path: &Path) -> Res<usize> {
+    let text = std::fs::read_to_string(path)?;
+    let edits: Vec<HumanEdit> = serde_json::from_str(&text)?;
+    for e in &edits {
+        insert_human_edit(conn, e)?;
+    }
+    Ok(edits.len())
+}
+
+/// Every human assertion in the store, oldest first. `edges()` merges these over the
+/// inferred rows exactly as `service.py::_materialize_provided`'s `_merged_edges` does.
+pub fn human_edits(conn: &Connection) -> Res<Vec<HumanEdit>> {
+    let mut st = conn.prepare(
+        "SELECT edit_id, CAST(edited_at AS VARCHAR), editor, action, src, dst, table_name,
+                level, comment, block_id, requires_check, fileid, dismissed, freshness
+         FROM human_edits ORDER BY edited_at, edit_id",
+    )?;
+    Ok(st
+        .query_map([], |r| {
+            Ok(HumanEdit {
+                edit_id: r.get(0)?,
+                edited_at: r.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                editor: r.get::<_, Option<String>>(2)?.unwrap_or_default(),
+                action: r.get::<_, Option<String>>(3)?.unwrap_or_default(),
+                src: r.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                dst: r.get::<_, Option<String>>(5)?.unwrap_or_default(),
+                table_name: r.get::<_, Option<String>>(6)?.unwrap_or_default(),
+                level: r.get::<_, Option<String>>(7)?.unwrap_or_default(),
+                comment: r.get::<_, Option<String>>(8)?.unwrap_or_default(),
+                block_id: r.get(9)?,
+                requires_check: r.get::<_, Option<bool>>(10)?.unwrap_or(false),
+                fileid: r.get(11)?,
+                dismissed: r.get::<_, Option<bool>>(12)?.unwrap_or(false),
+                freshness: r.get::<_, Option<String>>(13)?.unwrap_or_else(|| "green".into()),
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?)
 }
 
 // ---------------------------------------------------------------- readers
@@ -457,6 +645,48 @@ pub fn tablegraph(conn: &Connection, fileid: &str) -> Res<Vec<(String, String, S
     let mut st = conn.prepare("SELECT src_table, dst_table, kind FROM edges WHERE fileid = ?")?;
     Ok(st
         .query_map(params![fileid], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+        .collect::<Result<Vec<_>, _>>()?)
+}
+
+/// One block that makes a table: which file it is in, which block, and where in that file's
+/// run order it sits.
+#[derive(Debug, Serialize)]
+pub struct Maker {
+    pub fileid: String,
+    pub block_id: String,
+    pub n: i32,
+}
+
+/// `story(table)` — every block anywhere in the store that writes `table`, in run order.
+///
+/// **Why this exists (Task 10, 2026-09-10).** `tablegraph()` answers "what does this *file*
+/// do"; `story()` answers the question a person actually asks about a table they do not
+/// trust — *who made this, in what order?* — and that question is not scoped to one file, so
+/// it cannot be answered off `tablegraph`'s per-file read.
+///
+/// **Run order, not insertion order.** `ORDER BY fileid, n` — `blocks.n` is the block's
+/// 0-based position in its file, which is the order the SAS program executes. The `edges`
+/// table has no ordering of its own (a `SELECT` off it comes back in whatever order DuckDB
+/// scanned), so the order has to be joined back from `blocks` or it is not an order at all.
+/// Task 10's own test asserts exactly that, and `tools/diff_route.py` deliberately keeps
+/// `makers` out of its order-blind field list for the same reason.
+///
+/// A table nobody writes — a source read from datalines, a typo — has no makers. That is an
+/// empty list, not an error: "nothing made this" is a real answer.
+///
+/// **Inputs → outputs.** `edges` joined to `blocks` + a table name → its makers, in run
+/// order.
+pub fn story(conn: &Connection, table: &str) -> Res<Vec<Maker>> {
+    let mut st = conn.prepare(
+        "SELECT DISTINCT e.fileid, e.block_id, b.n
+         FROM edges e JOIN blocks b ON b.fileid = e.fileid AND b.block_id = e.block_id
+         WHERE e.dst_table = ?
+         ORDER BY e.fileid, b.n",
+    )?;
+    Ok(st
+        .query_map(params![table], |r| {
+            Ok(Maker { fileid: r.get(0)?, block_id: r.get(1)?, n: r.get(2)? })
+        })?
         .collect::<Result<Vec<_>, _>>()?)
 }
 
