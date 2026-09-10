@@ -177,7 +177,16 @@ EXPR_FORMS = [
 ]
 
 EXPR_LEAVES = [
-    leaf("number", "", "lit(V)", doc="a NUMBER token folds to a real Prolog number"),
+    # M3a (2026-09-10), defect 1: keep_lexeme=True -> lit(V, Text). The folded V
+    # is still a real Prolog number and every arithmetic consumer reads it and
+    # nothing else; Text is the token exactly as written, so print_stmt puts
+    # `0.40` back as `0.40` instead of the canonical `0.4`
+    # (corpus/team_finance/sas/raw/13_risk_flags.sas b_002 was the one file in
+    # the corpus whose rebuilt source differed from its original). Arity
+    # overloading is this spec's own established habit: col/1 vs col/2,
+    # star/0 vs star/1 — lit/2 (number) alongside lit/1 (string) is the same.
+    leaf("number", "", "lit(V, Text)", keep_lexeme=True,
+         doc="a NUMBER token folds to a real Prolog number PLUS its source lexeme"),
     leaf("string", "", "lit(V)", doc="a STRING token, quotes stripped, '' -> ' (no backslash escapes in SAS)",
          dequote=True, double_delim=True, backslash_escape=False),
     leaf("word", "", "col(V)", doc="a bare WORD used as a column"),

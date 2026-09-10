@@ -349,7 +349,7 @@ prim(col(N,F)) --> [tok(word,N)], [tok(symbol,'.')], [tok(word,F)].
 prim(subquery_expr(V)) --> [tok(symbol,'(')], rule_select_core(V), [tok(symbol,')')].
 
 % leaves — token kind == leaf name, by convention (see pydsl_lib.leaf)
-prim(lit(N)) --> [tok(number,V)], { atom_number(V,N) }.
+prim(lit(N, V)) --> [tok(number,V)], { atom_number(V,N) }.
 prim(lit(S)) --> [tok(string,V)], { unquote_plain(V, S) }.
 prim(col(N)) --> [tok(word,N)].
 
@@ -534,7 +534,7 @@ expr_own(col(N,F), 100, Texts) :- flatten([[N], ['.'], [F]], Texts).
 expr_own(subquery_expr(V), 100, Texts) :- print_rule_select_core(V, Inner), flatten([['('], Inner, [')']], Texts).
 
 % leaves (print)
-expr_own(lit(N), 100, [NT]) :- number(N), !, format(atom(NT), '~w', [N]).
+expr_own(lit(N, T), 100, [T]) :- number(N), !.
 expr_own(lit(S), 100, [QT]) :- atom(S), \+ number(S), quote_plain(0''', S, QT).
 expr_own(col(N), 100, [N]) :- atom(N).
 

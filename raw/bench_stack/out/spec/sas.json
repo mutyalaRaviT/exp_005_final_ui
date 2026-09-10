@@ -417,20 +417,23 @@
  "expr_leaves": [
   {
    "name": "number",
-   "term": "lit(V)",
+   "term": "lit(V, Text)",
    "double_delim": false,
+   "keep_lexeme": true,
    "backslash_escape": true
   },
   {
    "name": "string",
    "term": "lit(V)",
    "double_delim": true,
+   "keep_lexeme": false,
    "backslash_escape": false
   },
   {
    "name": "word",
    "term": "col(V)",
    "double_delim": false,
+   "keep_lexeme": false,
    "backslash_escape": true
   }
  ],

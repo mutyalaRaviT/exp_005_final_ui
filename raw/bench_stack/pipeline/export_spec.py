@@ -59,7 +59,11 @@ def export(lang):
                     "ops": [{"spelling": o.spelling, "functor": o.functor, "kind": o.kind} for o in lv.ops]}
                    for lv in LANG["ladder"]],
         "forms": [form(f) for f in LANG["forms"]],
+        # M3a defect 1: keep_lexeme travels to Rust too — it decides the ARITY of
+        # the term this leaf builds (lit/1 vs lit/2), which the Rust parser has to
+        # mirror exactly or node/4 stops being byte-identical with Prolog's.
         "expr_leaves": [{"name": lf.name, "term": lf.term, "double_delim": lf.double_delim,
+                         "keep_lexeme": lf.keep_lexeme,
                          "backslash_escape": lf.backslash_escape} for lf in LANG["expr_leaves"]],
         "statements": [{"name": st.name, "assign": st.assign, "parts": [piece(x) for x in st.parts]}
                        for st in LANG["statements"]],
