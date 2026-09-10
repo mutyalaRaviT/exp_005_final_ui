@@ -59,14 +59,15 @@ pub const ALL_ROUTES: &[&str] = &[
     "run",
 ];
 
-/// Questions answered from the store today. Task 5 lands `files`/`search`; each later
-/// route task appends to this list as part of landing its route. `tests/landed.rs`
+/// Questions answered from the store today. Task 5 landed `files`/`search`; each later
+/// route task appended to this list as part of landing its route, and Task 6b (M4a) closed
+/// it: all twelve are here, and `LANDED` and `ALL_ROUTES` now hold the same names. `tests/landed.rs`
 /// (Ruling D6) fails loudly if this list and the router in `app()` ever disagree about
 /// which routes are actually wired up.
 pub const LANDED: &[&str] =
 &[
-    "files", "search", "neighborhood", "blocklinks", "edges", "source", "file", "blocks",
-    "tablegraph", "story", "run",
+    "files", "search", "neighborhood", "convert", "blocklinks", "edges", "source", "file",
+    "blocks", "tablegraph", "story", "run",
 ];
 
 /// Build the router from state alone. Called with a real store + real oracle addresses
@@ -92,13 +93,18 @@ pub fn app(state: AppState) -> Router {
         // Task 12: the only POST among the twelve, and the only route that runs other
         // programs rather than reading the store — see `routes::run`.
         .route("/api/run", axum::routing::post(routes::run::run))
+        // Task 6b (M4a): the twelfth question and the only one that writes. POST, like
+        // `run`, and it takes the store mutex for the whole call — see `routes::convert`.
+        .route("/api/convert", axum::routing::post(routes::convert::convert))
         // Ruling 6 (2026-09-09, final review fix wave): `/bench` redirects to oracle_b
         // rather than serving the page itself — see `routes::bench` for why.
         .route("/bench", get(routes::bench::bench))
         // Ruling 5 (2026-09-09, Task 5 fix round 1): every other `/api/*` path forwards
         // to oracle_a instead of 404ing — see `routes::forward` for why a fallback and
-        // not nine more named routes. Landing a route for real still means moving its
-        // name into `LANDED` and adding its own `.route()` above, same as always.
+        // not nine more named routes. With `convert` landed (Task 6b, M4a) there is no
+        // `/api/*` GET left for it to forward: it now only catches names that are not
+        // questions at all. Deleting it, and `oracle.rs` with it, is Task 14 (M4b), whose
+        // job is to prove nothing still needs them — not this task's to assume.
         .fallback(routes::forward::fallback)
         .with_state(state)
 }

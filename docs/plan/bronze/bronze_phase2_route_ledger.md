@@ -19,7 +19,7 @@ does it silently. See `tools/diff_route.py`'s module doc comment and Task 4's re
 | files | yes | yes | — |
 | search | yes | yes (q="") | — |
 | neighborhood | yes | yes (288 accepted, 3 root causes — Task 6 note) | 288 |
-| convert | no | — | — |
+| convert | yes | no oracle — new surface (Task 6b note) | — |
 | blocklinks | yes | yes (80 accepted, 1 root cause — Task 7 note) | 80 |
 | edges | yes | yes (84 accepted, 2 root causes — Task 7 note) | 84 |
 | source | yes | yes (0 diffs, Bench `/api/file?path=` — M2/G2) | — |
@@ -28,6 +28,10 @@ does it silently. See `tools/diff_route.py`'s module doc comment and Task 4's re
 | tablegraph | yes | yes (4 accepted, 1 root cause — Task 10 note) | 4 |
 | story | yes | no oracle — the Bench has no story surface (Task 10 note) | — |
 | run | yes | no oracle — the pass mark is the 2026-09-09 receipt, 11/11 (Task 12 note) | — |
+
+**Twelve of twelve, 2026-09-10 (M4a).** `convert` was the last unlanded question; with it the
+`landed` column has no `no` left in it and `/api/health` reports `forwarded: []`. The fallback and
+`oracle.rs` still exist — deleting them is Task 14 (M4b), whose job is to prove nothing needs them.
 
 `landed`: `no` until the route reads from the store instead of forwarding to a Python oracle
 (`oracle::forward` deleted for that arm) and its `diff_route.py` run — or, for `convert`/`run`,
@@ -696,9 +700,64 @@ the generator produces all 11 blocks from today's node/4 (probed at
 `raw/bench_stack/out/gen_block_testdata_probe.py`, a gitignored copy — M3b's write scope
 excludes `raw/bench_stack/`, so the fix was proved and left for the owner rather than applied).
 
+> **RESOLVED 2026-09-10 by M4a (plan Part J, J1).** The one line is applied
+> (`_pa = targs(p); e, a = _pa[0], _pa[1]`, which takes `proj/2` and `proj/3` alike) and
+> `_ensure_blocks` now raises on a non-zero exit from either child and removes the partial
+> `blocks/` tree, so a failed generation can never be cached as a complete one again. The
+> fixture's `blocks/` tree was deleted and regenerated from today's node/4 (generator exit 0,
+> manifest 2026-09-10 15:00:07, 11 block input sets) and everything above was re-measured on
+> those fresh rows: `bench_receipt.py --engine both` 11/11 rust and 11/11 prolog;
+> `tools/xcheck_datamatch.py` 11/11 identical on both legs; `POST /api/run` on `:8116`
+> 11/11 `match` with `engine: rust` and 11/11 with `engine: prolog`. **No verdict changed.**
+> The paragraph above stands as the record of what the 09-09 and M3b receipts actually rested
+> on; from 2026-09-10 the 11/11 rests on inputs generated from the node/4 in the tree.
+
 **Finding I5 is handled, not fixed.** The four team_finance files the Rust emitter still panics on
 come back as a structured answer, not a 500: measured 2026-09-10, `sas/raw/07_enrich_fx.sas`
 returns HTTP 200 with `match: "error"`, `message: "emit PySpark for 07_enrich_fx: LINEAGEQ: no
 PySpark mapping for SAS function coalesce"`, and `sas/raw/14_large_txn_report.sas` likewise with
 `not a list: orderby(col(t,amt_usd_sum),some(desc))`. A block that creates no table (`b_001`, the
 LIBNAME) answers `match: "no inputs"`. Neither hangs; every child process carries a 300 s deadline.
+
+---
+
+## Task 6b note: `convert()` lands as new surface — the one honest reason a route may land undiffed
+
+**Why there is no oracle row for `convert`.** Neither Python server answers this question in this
+shape. `:8000` has no convert route at all — its store was filled by a separate indexer. The
+Bench's `:8042 /api/convert` converts **one open file for its own editor** and returns that file's
+cells; this one walks a folder, writes eight tables and returns a `ConvertReport`. There is no
+field-for-field alignment for `diff_route.py` to make, so `convert` keeps its brief's own wording
+(silver plan, Task 6b step 5): **`no oracle — new surface`**. That is the only reason in this
+ledger that lets a route land without a differential, and it applies to exactly two rows,
+`convert` and `run`.
+
+**What stands in for the oracle.** The plan's own idempotence test, plus its guard:
+
+- `backend/api/tests/convert.rs::convert_is_idempotent_over_http` — first convert of a folder
+  `ok: 1`, `blocks > 0`; second convert of the *unchanged* folder `blocks: 0`.
+- `::a_changed_file_is_reconverted` — the guard that keeps the line above from being satisfied by
+  a `convert` that writes nothing at all: change the file's bytes and the blocks come back.
+- `::a_single_file_converts_too`, `::the_report_has_every_field_the_plan_names`,
+  `::a_request_with_no_target_is_a_400`, `::a_missing_path_is_a_404`,
+  `::convert_is_landed_and_no_longer_forwarded` — seven tests, all green.
+
+**Measured over HTTP, 2026-09-10, `:8116` on an empty store, `GET /api/files` polled every 20 ms
+for the whole call** (the point of the measurement is what a *read* sees while a convert runs):
+
+| convert | files | blocks | lock held | worst concurrent read | reads failed |
+|---|---:|---:|---:|---:|---:|
+| `corpus/team_finance` (first) | 25 | 26 | 106.5 ms | 81.3 ms | 0 |
+| `corpus/team_finance` (again, unchanged) | 25 | 0 | 5.2 ms | 1.1 ms | 0 |
+| `corpus/perf/big_2000.sas` (first) | 1 | 2000 | 2353.1 ms | 2328.4 ms | 0 |
+| `corpus/perf/big_2000.sas` (again, unchanged) | 1 | 0 | 1.3 ms | 1.3 ms | 0 |
+
+The handler takes the store mutex for the whole call, so those worst-read numbers are the cost of
+the spec's one-connection choice, stated rather than hidden: **2.3 s of blocked reads on a
+2000-block file**. Nothing failed — reads wait. The report carries `lock_ms` so the number is
+visible to any caller, not only to whoever runs this table again.
+
+**No stream.** Plan §6 says `convert()` "streams `block ready` events"; nothing in this slice
+consumes them (the spec's own OPEN item), so the route answers synchronously rather than shipping
+an SSE channel with no reader (Task 6b step 3).
+

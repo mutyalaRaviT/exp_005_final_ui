@@ -25,17 +25,29 @@ use support::{closed_addr, get_raw, get_raw_with_oracle_a};
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn a_non_landed_api_path_is_forwarded_not_404() {
-    // "convert" is in `ALL_ROUTES`, not in `LANDED`, and has no `.route()` in `app()` —
-    // the exact shape of route Ruling 5 fixes. (This was "edges" until Task 7 landed it,
-    // "file" until Task 9, and "run" until Task 12 landed it — all 2026-09-10; the test
-    // needs *some* still-unlanded name, and `convert` is now the only one left. Whoever
-    // lands it deletes this assertion along with the fallback itself.)
-    assert!(!lineageq_api::LANDED.contains(&"convert"));
+async fn an_unknown_api_path_is_forwarded_not_404() {
+    // This test used to pick a name that was in `ALL_ROUTES` but not in `LANDED` —
+    // "edges" until Task 7, "file" until Task 9, "run" until Task 12, "convert" until
+    // Task 6b (M4a). There is no such name any more: all twelve questions are answered
+    // from the store, so `LANDED == ALL_ROUTES` and **no `/api/*` GET route is forwarded**.
+    //
+    // The fallback still exists, and Ruling 5 is still the reason: an `/api/*` path this
+    // API does not know must reach oracle_a rather than 404, because UI1 and the Bench are
+    // still allowed to ask questions this slice never listed (that is what cost UI1 its
+    // edges drawer when Task 4 repointed its proxy). So the case under test is now an
+    // *unknown* name rather than an unlanded one — the same code path, the same assertion,
+    // proved on the only input left that exercises it. Deleting the fallback (and
+    // `oracle.rs` with it) is Task 14's job, whose whole content is proving nothing needs
+    // them; this test is what that proof will have to argue against.
+    assert_eq!(
+        lineageq_api::LANDED.len(),
+        lineageq_api::ALL_ROUTES.len(),
+        "if a question is unlanded again, name it here instead of an invented path"
+    );
 
-    let res = get_raw_with_oracle_a(&closed_addr(), "/api/convert?fileid=sas%2Fraw%2F11_branch_rollup.sas").await;
+    let res = get_raw_with_oracle_a(&closed_addr(), "/api/not_a_question_this_api_answers").await;
 
-    assert_ne!(res.status, 404, "a non-landed /api/* path must not 404 — the fallback should have caught it");
+    assert_ne!(res.status, 404, "an unknown /api/* path must not 404 — the fallback should have caught it");
     assert_eq!(res.status, 502, "oracle_a is a deliberately closed port, so the fallback's forward() must report it unreachable");
     assert!(
         res.body.contains("oracle unreachable"),
