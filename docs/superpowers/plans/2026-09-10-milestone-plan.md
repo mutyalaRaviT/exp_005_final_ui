@@ -378,3 +378,27 @@ Judgments and findings:
 | D13 | Fix CRLF handling so Prolog node/4 traces match Rust byte offsets on CRLF sources (tokeniser + driver + datalines printer), or normalise the corpus to LF on intake (`raw/` stays as received, `auto_convert` reads LF)? | Normalise on intake in M4's `convert()`; keep `raw/` untouched. | M4 corpus sweep honesty; M6 |
 
 Next dispatch: **M3b** (Tasks 11 + 12), brief at `.superpowers/sdd/milestones/m3b-brief.md`.
+
+---
+
+## Part J — M3b exam (2026-09-10)
+
+M3b returned `0f399b8` (Task 11) and `59538da` (Task 12). Reproduced by the dispatcher: `cargo test --workspace --release` 68 passed 0 failed; a fresh combined store (team_finance + fixtures) behind `lineageq_api` on :8115; `POST /api/run` on `b_002`…`b_012` with `engine: rust` → **11/11 match**, left 1.1–2.0 ms, right 4.4–4.6 s (Spark JVM); `engine: prolog` on `b_007` → match, 27.9 ms. `LANDED` is 11 of 12; only `convert` forwards. **M3b accepted. Phase-2 pass mark 5 is met, on both engines.** The verification loop's L2 and L3 have now run inside exp_005 for the first time.
+
+Findings and rulings:
+
+| # | finding | ruling |
+|---|---|---|
+| J1 | **The Z3 input generator has been broken since Task 5b** (`4bc57dc`): `gen_block_testdata.py` unpacks `proj/2` but the spec emits `proj/3`. `bench_api._ensure_blocks` caches on `manifest.json` and never checks the generator's exit code, so every 11/11 receipt since then, the 2026-09-09 one and today's Step 0 included, reused a `blocks/` tree generated from an older node/4. M3b restored that snapshot so its comparison is like-for-like; the one-line fix is proven on a gitignored copy. | **M4a fixes the generator and the exit-code check, regenerates inputs from today's node/4, and re-measures 11/11 on fresh rows.** Until then the pass mark is honest only as "two engines agree on the inputs the 09-09 receipt used". |
+| J2 | `normalize_value(".")` → `""` follows `datamatch.ts`; `datamatch.py` returns `"."`. Task 11's own test asserts `""`. | Accepted (D13 on the test). Owner may want the Python reference aligned; **D14**. |
+| J3 | The Rust left side runs in-process (`rules_converter::interp` as a library) rather than as a child; a subprocess hit 159 ms under a full test run, over the brief's 100 ms. Prolog, the generator, `block-programs` and Spark remain children. | Accepted; same node/4, same library, faster. |
+| J4 | A concurrency bug in `prepare()` (truncating writes racing across two requests on one file) was found and fixed with atomic temp+rename. | Good. |
+| J5 | `catch_emit` installs a silent global panic hook; unrelated test panics print nothing while it is in force. | Backlog; M5 or later. |
+| J6 | `run_samples` insert path never exercised (nothing differed). | M6's planted-defect control covers it. |
+| J7 | `run()` writes node/4 to `out/api/<stem>/run/`, sharing only `blocks/` with the Bench. | Fine. |
+
+| ID | Question | Default until answered | Blocks |
+|---|---|---|---|
+| D14 | Align `pipeline/datamatch.py`'s `"."` normalisation with the TypeScript and Rust (`""`), or keep three references with one disagreement? | Align Python in M4b's corpus sweep tooling pass; Rust and TS already agree. | nothing now |
+
+**M4 is dispatched in two halves.** **M4a**: Task 6b `convert()` with CRLF normalised on intake (D13 default), the generator fix and exit-code check (J1), regenerate the fixture's inputs and re-run pass mark 5 on fresh rows; brief at `.superpowers/sdd/milestones/m4a-brief.md`. **M4b**: Task 13 (extract UI2, strip Prolog) and Task 14 (close the slice, delete `oracle.rs`, delete `raw/node4_viz` per D11, receipts page, gold §7 C1–C7).
