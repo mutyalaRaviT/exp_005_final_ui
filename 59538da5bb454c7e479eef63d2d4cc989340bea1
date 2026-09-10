@@ -1,0 +1,42 @@
+M3b receipt — 2026-09-10, this machine (darwin 25.5.0, Java 17, pyspark 4.2.0, z3 5.1.0)
+
+STEP 0 (reference harness, before any code):
+  raw/bench_stack/.venv/bin/python server/bench_receipt.py ../../corpus/fixtures/test_vishnu_testdata_fixed.sas --engine both
+    bench  11/11 blocks match (rust interp == spark, Z3 inputs, 50 s)
+    bench  11/11 blocks match (prolog interp == spark, Z3 inputs, 50 s)
+  CSVs: raw/bench_stack/out/api/test_vishnu_testdata_fixed/blocks/<b>/{in,rust,prolog,spark}/*.csv
+  snapshot kept at raw/bench_stack/out/xcheck_baseline_2026-09-10/ (gitignored)
+
+TASK 11: cargo test --release -p inferred_duckdb --test datamatch -> 3 passed 0 failed
+  xcheck_datamatch.py, left=rust:   11/11 identical (python vs rust verdict+n_mismatch)
+  xcheck_datamatch.py, left=prolog: 11/11 identical
+  negative controls (deliberately mismatched pairs): (FAIL,20) and (FAIL,1), identical both sides
+
+TASK 12 pass mark 5 — POST /api/run on :8113, db /tmp/m3b.duckdb (team_finance + fixtures):
+  block  engine=rust                       engine=prolog
+  b_002  match  left  1.2 ms  right 4326.9  match  left 43.9 ms  right 4310.2
+  b_003  match  left  1.5 ms  right 4418.3  match  left 27.6 ms  right 4505.3
+  b_004  match  left  1.9 ms  right 4490.6  match  left 27.0 ms  right 4733.6
+  b_005  match  left  1.8 ms  right 4366.3  match  left 26.4 ms  right 4355.0
+  b_006  match  left  1.7 ms  right 4483.0  match  left 27.5 ms  right 4426.2
+  b_007  match  left  1.7 ms  right 4435.9  match  left 26.1 ms  right 4439.1
+  b_008  match  left  1.7 ms  right 4440.1  match  left 27.0 ms  right 4463.5
+  b_009  match  left  1.8 ms  right 4403.8  match  left 26.2 ms  right 4522.0
+  b_010  match  left  2.0 ms  right 4495.5  match  left 25.6 ms  right 4411.1
+  b_011  match  left  1.7 ms  right 4601.8  match  left 26.8 ms  right 4543.3
+  b_012  match  left  2.0 ms  right 4563.1  match  left 25.6 ms  right 4851.6
+  TOTAL  11/11 match (rust)                 11/11 match (prolog)
+  store rows: runs 22, run_tables 22, run_samples 0 (nothing differed, nothing to sample)
+
+REGRESSION NET: cargo test --workspace --release -> 68 passed, 0 failed
+  diff_route.py against this binary (:8114, team_finance store + 1 human edit):
+    files clean · search clean · neighborhood clean (25 calls) · blocklinks clean · edges clean
+
+ERROR PATHS (HTTP 200, structured, no hang):
+  sas/raw/07_enrich_fx.sas b_002       -> match=error 'no PySpark mapping for SAS function coalesce'
+  sas/raw/14_large_txn_report.sas b_002 -> match=error 'not a list: orderby(col(t,amt_usd_sum),some(desc))'
+  test_vishnu_testdata_fixed.sas b_001 -> match='no inputs' (LIBNAME creates nothing)
+
+OPEN, not fixed here (outside M3b write scope): raw/bench_stack/loops/gen_block_testdata.py
+  cannot regenerate inputs from today's node/4 — core_cols unpacks proj/2, the pyDSL has emitted
+  proj/3 since 4bc57dc (Task 5b). One-line fix proved on a gitignored copy; ledger Task 12 note.
