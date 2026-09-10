@@ -25,6 +25,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -335,7 +336,14 @@ def _csv_rows(p):
 
 
 def _ensure_blocks(stem):
-    """Z3 inputs + block programs for every block of the program, once."""
+    """Z3 inputs + block programs for every block of the program, once.
+
+    A non-zero exit from either child is an ERROR, and the partial `blocks/` tree is
+    removed. Before (plan Part J, J1) the rc was ignored and the cache keyed only on
+    `manifest.json`, so a generator that had been failing since Task 5b (`4bc57dc`) left
+    the tree written by an older node/4 in place and every 11/11 receipt after it silently
+    compared today's engines against yesterday's inputs.
+    """
     work = ROOT / "out/api" / stem
     bdir = work / "blocks"
     if (bdir / "manifest.json").exists():
@@ -343,6 +351,9 @@ def _ensure_blocks(stem):
     node4_json = work / "ir" / f"{stem}.node4.json"
     log = []
     rc, o, e = sh([PY, "loops/gen_block_testdata.py", stem, node4_json, bdir]); log.append(o + e)
+    if rc != 0:
+        _drop_blocks(bdir)
+        raise RuntimeError(f"gen_block_testdata.py failed (rc={rc}) for {stem}; blocks/ removed so no stale cache is left:\n{(o + e).strip()[-2000:]}")
     # the plain PySpark body is what the PySpark pyDSL folds (as the studio does)
     py_plain = work / f"{stem}_ravi_prolog.py"
     body_dir = work / "pyspark_corpus"; body_dir.mkdir(exist_ok=True)
@@ -350,8 +361,19 @@ def _ensure_blocks(stem):
     last = max(i for i, l in enumerate(lines) if l.startswith("# ====="))
     job = body_dir / f"{stem}.py"; job.write_text("".join(lines[last + 1:]).lstrip("\n"))
     rc, o, e = sh([RUST, "block-programs", "out/spec/pyspark.json", job, "codegen/sas_runtime_preamble.py", bdir]); log.append(o + e)
-    manifest = json.loads((bdir / "manifest.json").read_text()) if (bdir / "manifest.json").exists() else []
+    if rc != 0:
+        _drop_blocks(bdir)
+        raise RuntimeError(f"block-programs failed (rc={rc}) for {stem}; blocks/ removed so no stale cache is left:\n{(o + e).strip()[-2000:]}")
+    if not (bdir / "manifest.json").exists():
+        _drop_blocks(bdir)
+        raise RuntimeError(f"gen_block_testdata.py exited 0 but wrote no manifest.json for {stem}; blocks/ removed")
+    manifest = json.loads((bdir / "manifest.json").read_text())
     return bdir, manifest, "\n".join(log)
+
+
+def _drop_blocks(bdir):
+    """Remove a partial `blocks/` tree so the next call regenerates instead of caching it."""
+    shutil.rmtree(bdir, ignore_errors=True)
 
 
 def run_block(stem, block, engine="rust", session_id=None):
