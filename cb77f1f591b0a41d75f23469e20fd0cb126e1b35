@@ -1,0 +1,57 @@
+M2 receipts, all measured 2026-09-10 on branch phase-2.
+
+TESTS
+  cargo test --release --workspace     61 passed, 0 failed  (43 at end of M1)
+  raw/lineage_server/.venv/bin/python -m pytest tools/tests/ -v   13 passed
+  npx vitest (frontend) not run: M2 changed no frontend file.
+
+PASS MARK 6 (Task 9), over HTTP, three curls each
+  store: lineageq_store convert raw/bench_stack/out/spec/sas.json corpus/perf /tmp/perf.duckdb
+         -> 3 files, 3100 blocks, 10240 node4, 3728 edges
+  api:   backend/target/release/lineageq_api --db /tmp/perf.duckdb --port 8111
+  /api/file?fileid=big_1000.sas                 0.009768  0.005511  0.004940 s
+  /api/blocks?fileid=big_1000.sas&from=0&to=40  0.005569  0.004827  0.004435 s
+  mark is < 0.020 s; worst of six is 9.8 ms. file() returns 1000 blocks,
+  receipts 3303/3303/3303. blocks() returns the 40 asked for.
+  corpus/perf was NOT put into the team_finance store.
+
+PASS MARK (Task 9), the fixture
+  file(test_vishnu_testdata_fixed.sas): 23 blocks, statements 80 / folded 80 /
+  roundtrip 80, and no block carries a `sas`, `py`, `py_pretty` or `terms` key.
+  blocks(fileid, 0, 40): 23 blocks, SAS and PySpark text both present.
+
+PASS MARK (Task 10), the fixture
+  tablegraph: 12 edges. sales.sales_data, sales.q1_avg_sales, sales.final_summary all
+  present. The edge into sales.q1_avg_sales carries block_id b_007.
+  story(sales.final_summary): makers in run order, b_012 in
+  test_vishnu_testdata_fixed.sas. story of a source table is an empty list, not an error.
+
+DIFF_ROUTE  (exp42 arm: rust=:8112 over a corpus/fixtures store, oracle_b=:8342, this
+repo's own Bench; :8042 is the owner's other checkout and was neither used nor touched)
+  source      1 call    0 diffs        0 new ledger rows   CLEAN
+  file        1 call   64 diffs       64 new ledger rows   CLEAN after
+  blocks      1 call   81 diffs       81 new ledger rows   CLEAN after
+  tablegraph  1 call    4 diffs        4 new ledger rows   CLEAN after
+  story       no oracle (the Bench has no story surface at all)
+  regression on :8110 after rebuild:
+  files 1 / search 1 / neighborhood 25 / blocklinks 1 / edges 1 calls, all clean.
+  149 rows added, seven root causes (C1 n base, C2 kind vocabulary, C3 name of a
+  block that makes no table, C4 fileid vs bench path, C5 proof receipts not yet
+  filled, C6 py packaging, C7 the ctl label rust_rules_converter does not emit).
+
+G7 CHECK, with :8000 stopped (cwd verified, restarted afterwards)
+  BASE=http://localhost:5199 OUT=docs/plan/bronze/evidence_2026-09-10 node tools/shot_ui1.mjs
+  baseline_18_dashboard_mart: files=7 edges=6 edgeRows=25 edgesCount=25 / 25 humanGold=1
+  passmark_11_branch_rollup:  files=6 edges=7 edgeRows=23 edgesCount=23 / 23 humanGold=1
+  passmark_07_enrich_fx:      files=4 edges=3 edgeRows=7  edgesCount=7  / 7  humanGold=1
+  no console errors
+  no CONSOLE ERRORS line; the `could not load blocks` banner is gone; no 502 remains.
+
+STORE
+  lineageq_store convert raw/bench_stack/out/spec/sas.json corpus/team_finance
+    backend/lineageq.duckdb -> 25 files, 26 blocks, 126 node4, 41 edges,
+    fold 42 ms / store 63 ms / total 111 ms
+  lineageq_store human-edit backend/lineageq.duckdb
+    backend/api/tests/fixtures/human_edits.json -> 1 row written
+
+ROUTES  LANDED = 10 of 12. Only convert and run still forward.
