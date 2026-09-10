@@ -30,8 +30,31 @@ does it silently. See `tools/diff_route.py`'s module doc comment and Task 4's re
 | run | yes | no oracle — the pass mark is the 2026-09-09 receipt, 11/11 (Task 12 note) | — |
 
 **Twelve of twelve, 2026-09-10 (M4a).** `convert` was the last unlanded question; with it the
-`landed` column has no `no` left in it and `/api/health` reports `forwarded: []`. The fallback and
-`oracle.rs` still exist — deleting them is Task 14 (M4b), whose job is to prove nothing needs them.
+`landed` column has no `no` left in it and `/api/health` reports `forwarded: []`.
+
+**Closed, 2026-09-10 (Task 14, M4b).** Nothing needed the forwarder, so it is gone: `oracle.rs`,
+`routes/forward.rs`, `tests/forward.rs`, `AppState.oracle_a` / `oracle_b`, the `--oracle-a` /
+`--oracle-b` flags and the router's `.fallback()`. An unknown `/api/` path is now a plain 404. All
+nine diffable routes were re-run clean in one sitting the same day — see
+`bronze_phase2_receipts.md`, pass mark 3, for the two arms and the ports each used.
+
+### UI2's own five (Decision D17, M4b)
+
+These are not among the twelve questions and have **no oracle**: they are the Bench-only,
+corpus-contract routes, renamed under `/api/bench/` so they cannot collide with UI1's names
+(Ruling 6's "rename under a prefix" branch). Their proof is `backend/api/tests/bench.rs`, one test
+each, not a differential run.
+
+| route | landed | oracle | note |
+|---|---|---|---|
+| `/api/bench/files` | yes | none — Bench shape, store keys | the page's file tree, keyed by fileid |
+| `/api/bench/folder` | yes | none | `flow` links only; `subset` / `derived` not reproduced — receipts page |
+| `/api/bench/similar` | yes | none | `[]` with a note: the score is the Bench's Python signature index |
+| `/api/bench/listing` | yes | none | `{loaded:false}` with a note: needs `out/pyspark_ravi` CSVs |
+| `/api/bench/save` | yes | none | writes `corpus/*/…/work/<file>`; every other path is a 400 |
+
+The four Jupyter-attach routes (`sessions`, `session`, `exec`, `term`) are **dropped**, not landed:
+no route, no forwarder, and UI2's Terminal tab says "Jupyter attach returns in M5".
 
 `landed`: `no` until the route reads from the store instead of forwarding to a Python oracle
 (`oracle::forward` deleted for that arm) and its `diff_route.py` run — or, for `convert`/`run`,

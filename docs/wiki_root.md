@@ -7,9 +7,21 @@ tags: [root, hub]
 
 **Inputs → outputs.** The owner's brief of 2026-09-08 and the exp_42 perf spike → this vault.
 
-## Status (2026-09-08)
+## Status (2026-09-10)
 
-Planning. No code copied yet. The plan is a `gold_draft`; the owner promotes it.
+**Phase 2 is closed.** Two windows run on one Rust binary over one DuckDB store, and no Python
+process answers anything: all twelve questions are in Rust, `oracle.rs` and the `/api/*` forwarder
+are deleted, UI1 lives in `frontend/ui_across_file_ui/` and UI2 in
+`frontend/ui_file_ide/bench.html`, served from `:8110/bench`. The seven pass marks were
+re-measured in one sitting with this repo's Python stopped — [[bronze_phase2_receipts]].
+
+There are **three** UIs, not two (owner gold, `gold_three_uis_and_verification_loop.md`): UI1 and
+UI2 ship, UI3 — the verification workbench — is a third window behind a build flag that keeps it
+out of the release binary. It does not exist yet. Neither shipping window names the reference
+engine.
+
+The plan is still a `gold_draft`; the owner promotes it. Its C1–C7 corrections were applied on
+2026-09-10.
 
 ## Map
 
@@ -32,6 +44,8 @@ Later dimensions, opened when their first page exists: `backend`, `frontend`, `r
 - 2026-09-10 — M2: the in-file questions. `file`, `blocks`, `tablegraph` and `story` land in Rust (Tasks 9–10), plus UI1's own `/api/file/<fileid>` detail; `LANDED` reaches ten of twelve, only the two POST-shaped questions (`convert`, `run`) still forward. Pass marks: 23 blocks and 80/80/80 on the exp_42 fixture, 12 `tablegraph` edges with `sales.q1_avg_sales` made by `b_007`, and `file`/`blocks` over HTTP on `big_1000.sas` at 4.9–9.8 ms and 4.4–5.6 ms against a 20 ms mark. 149 accepted divergences in seven root causes: `docs/plan/bronze/bronze_phase2_route_ledger.md` (Task 9 and Task 10 notes).
 - 2026-09-10 — M3a: five engine defects closed, Prolog first then Rust — `0.40` round-trips (team_finance L1 goes 24/25 → 25/25), UNION ALL PySpark renders every branch, CASE WHEN and a lone `.` get px/pe rules, the `ctl` lineage label reaches the store (root cause C7 retired, 12 `ds` + 4 `ctl` on the fixture), and the Prolog pretty printer slices the source by bytes. Ledger: `docs/plan/bronze/bronze_phase2_route_ledger.md`.
 - 2026-09-10 — M4a: `convert()` lands (Task 6b), so the phase-2 route table closes at **twelve of twelve** and `/api/health` forwards nothing; the store can be filled over HTTP (`corpus/team_finance` holds the store lock 106.5 ms, `big_2000.sas` 2353.1 ms, a second unchanged convert 5.2 ms / 1.3 ms, no read fails). CRLF is normalised **on intake** (Decision D13): `raw/` untouched, `files.source` still the bytes as received, and node/4 `prolog == rust` on the 25 team_finance files goes **0/25 → 25/25** (plain PySpark 13/25 → 21/25, the four left being the known emitter panics). The Z3 input generator (J1) is fixed and a failed generation can no longer be cached, so pass mark 5 was re-measured on inputs generated from today's node/4: still 11/11 on both engines. Ledger: `docs/plan/bronze/bronze_phase2_route_ledger.md` (Task 6b note; the Task 12 note's J1 paragraph now RESOLVED).
+
+- 2026-09-10 — **M4b: phase 2 closed.** UI2 extracted from `raw/bench_stack/server/bench.html` to `frontend/ui_file_ide/bench.html` and repointed at Rust: the four lineage routes become `file()` + `blocks()` + `tablegraph()` + `source()` + `run()`, five Bench-only routes land as `/api/bench/*`, and the four Jupyter-attach routes are dropped until M5 (Decision D17). The Prolog surface is stripped (gold §7 C6): `grep -ci prolog frontend/ui_file_ide/bench.html` = 0, and `GET /bench` on `:8110` serves the page again. `oracle.rs`, `routes/forward.rs` and the `/api/*` fallback are deleted; `raw/node4_viz` is deleted except its provenance README (D11). All seven pass marks re-measured in one sitting with no Python from this repo alive: 6/7, 4/3, nine diffable routes clean, UI2 23 blocks · 80/80 · 12 edges, `run()` 11/11 match, `file()` 3.6–8.7 ms and `blocks(0,40)` 4.0–4.4 ms on `big_1000.sas`. Receipts, every difference from the two 2026-09-09 baselines, and what none of it proves: [[bronze_phase2_receipts]].
 
 ## Story
 
