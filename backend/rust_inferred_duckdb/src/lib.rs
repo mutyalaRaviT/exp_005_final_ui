@@ -481,6 +481,29 @@ pub fn insert_human_edit(conn: &Connection, e: &HumanEdit) -> Res<()> {
     Ok(())
 }
 
+/// Read a JSON array of `HumanEdit`s from a file and write every one of them.
+///
+/// **Why this exists (M2/G3, 2026-09-10).** `insert_human_edit` existed, but nothing on the
+/// command line could call it: M1 seeded the dev store's one customer edit with a throwaway
+/// Python script, which means the dev store could not be rebuilt from the repo alone (plan
+/// Part G, finding G3). This is the store-side half of `lineageq_store human-edit <db>
+/// <json>`; the JSON shape is exactly what `backend/api/tests/fixtures/human_edits.json`
+/// holds, so the same file seeds the test store and the dev store.
+///
+/// Returns how many rows were written. Idempotent, because `insert_human_edit` is: running
+/// it twice on the same file leaves the same rows.
+///
+/// **Inputs → outputs.** a connection + a path to a JSON array → that many `human_edits`
+/// rows, and the count.
+pub fn load_human_edits(conn: &Connection, path: &Path) -> Res<usize> {
+    let text = std::fs::read_to_string(path)?;
+    let edits: Vec<HumanEdit> = serde_json::from_str(&text)?;
+    for e in &edits {
+        insert_human_edit(conn, e)?;
+    }
+    Ok(edits.len())
+}
+
 /// Every human assertion in the store, oldest first. `edges()` merges these over the
 /// inferred rows exactly as `service.py::_materialize_provided`'s `_merged_edges` does.
 pub fn human_edits(conn: &Connection) -> Res<Vec<HumanEdit>> {
