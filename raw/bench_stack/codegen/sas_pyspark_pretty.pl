@@ -40,7 +40,42 @@ main :- format(user_error, "usage: swipl -q -s codegen/sas_pyspark_pretty.pl -g 
 load_source :-
     once(node(_, _, _, trace(File, _, _, _, _))),
     ( exists_file(File) -> read_file_to_string(File, T, []) ; T = "" ),
-    assertz(src_text(T)).
+    assertz(src_text(T)),
+    build_byte_map(T).
+
+% ---------------------------------------------------------- byte offsets
+% M3a defect 5 (2026-09-10): node/4 trace offsets B0/B1 are BYTE offsets into
+% the source file, but an SWI string is indexed by CODE POINTS, so sub_string/5
+% below sliced the wrong span on any file holding a non-ASCII character. One
+% em-dash in corpus/perf/big_100|big_1000|big_2000.sas was enough to make every
+% source comment after it drift by 2 characters, and pretty PySpark differ from
+% the Rust mirror (which indexes bytes) on all three.
+%
+% Rather than re-reading the file as octets and decoding each slice back, the
+% correction is precomputed once: a UTF-8 code point of N bytes costs N-1 extra
+% bytes, so for a byte offset B the code-point offset is B minus the extras of
+% every character that ENDS at or before B. mb_marks/1 holds one BytePos-CumExtra
+% pair per multi-byte character only — one entry for the whole of big_2000.sas —
+% so byte_cp/2 is O(number of non-ASCII characters), not O(file size).
+build_byte_map(T) :- string_codes(T, Cs), off_marks(Cs, 0, 0, Ms), assertz(mb_marks(Ms)).
+
+off_marks([], _, _, []).
+off_marks([C|Cs], B, E, Ms) :-
+    utf8_len(C, N), B1 is B + N,
+    (   N =:= 1
+    ->  E1 = E, Ms = Ms1
+    ;   E1 is E + N - 1, Ms = [B1-E1|Ms1] ),
+    off_marks(Cs, B1, E1, Ms1).
+
+utf8_len(C, 1) :- C < 0x80, !.
+utf8_len(C, 2) :- C < 0x800, !.
+utf8_len(C, 3) :- C < 0x10000, !.
+utf8_len(_, 4).
+
+byte_cp(B, CP) :- mb_marks(Ms), !, cum_extra(Ms, B, 0, E), CP is B - E.
+byte_cp(B, B).
+cum_extra([], _, E, E).
+cum_extra([BP-E1|R], B, E0, E) :- ( BP =< B -> cum_extra(R, B, E1, E) ; E = E0 ).
 
 % ---------------------------------------------------------------- blocks
 blocks(Bs) :- findall(B, node(B, _, _, _), Bs0), list_to_set(Bs0, Bs).
@@ -94,8 +129,10 @@ source_comment(datalines(Body), _, _, [C]) :- !,
     split_string(Body, "\n", " \t\r", Ls0), exclude(==(""), Ls0, Ls), length(Ls, N),
     format(atom(C), "#   datalines;  ... ~w rows ...", [N]).
 source_comment(_, B0, B1, Cs) :-
-    src_text(T), string_length(T, Len), B1 =< Len, !,
-    L is B1 - B0, sub_string(T, B0, L, _, Slice),
+    % M3a defect 5: B0/B1 are BYTES; sub_string/5 counts CODE POINTS.
+    byte_cp(B0, C0), byte_cp(B1, C1),
+    src_text(T), string_length(T, Len), C1 =< Len, !,
+    L is C1 - C0, sub_string(T, C0, L, _, Slice),
     split_string(Slice, "\n", " \t\r", Ls0), exclude(==(""), Ls0, Ls1),
     reflow(Ls1, Ls),
     findall(C, ( member(S, Ls), format(atom(C), "#   ~w", [S]) ), Cs).
@@ -400,7 +437,12 @@ binop(and, "&"). binop(or, "|").
 scalar_var(select_core([proj(_, some(A), _)|_], _, _, _, _, _), N) :- !, lower(A, L), format(atom(N), "~w_value", [L]).
 scalar_var(select_core([proj(col(C), none, _)|_], _, _, _, _, _), N) :- !, lower(C, L), format(atom(N), "~w_value", [L]).
 scalar_var(_, subquery_value).
-unique_scalar(N0, N) :- ( scalar_name(N0) -> between(2, 99, I), format(atom(N), "~w_~w", [N0, I]), \+ scalar_name(N), ! ; N = N0 ), assertz(scalar_name(N)).
+% M3a defect 5, second cause on the perf files: the suffix search stopped at 99,
+% so the 100th scalar subquery sharing a name found no free suffix, unique_scalar/2
+% FAILED, and the whole block printed nothing — big_1000.sas lost 4 blocks and
+% big_2000.sas more, against a Rust mirror that has no such cap. `inf` removes the
+% cap; the search is still first-free-suffix, so every name below 100 is unchanged.
+unique_scalar(N0, N) :- ( scalar_name(N0) -> between(2, inf, I), format(atom(N), "~w_~w", [N0, I]), \+ scalar_name(N), ! ; N = N0 ), assertz(scalar_name(N)).
 
 sas_fn(month, month).  sas_fn(year, year).  sas_fn(day, dayofmonth).
 sas_fn(sum, sum).  sas_fn(avg, avg).  sas_fn(mean, avg).  sas_fn(max, max).  sas_fn(min, min).  sas_fn(count, count).
