@@ -338,6 +338,24 @@ pe(col(A, N), _, T, P, P) :- lower(A, LA), lower(N, L), format(atom(T), "F.col(\
 pe(lit(V, _), Ctx, T, P0, P) :- !, pe(lit(V), Ctx, T, P0, P).
 pe(lit(V), top, T, P, P) :- !, py_lit(V, X), format(atom(T), "F.lit(~w)", [X]).
 pe(lit(V), _, T, P, P) :- py_lit(V, T).
+% M3a defect 3 (2026-09-10): CASE WHEN ... END and the lone `.` (missing).
+% CASE_FORM has folded to case_expr([when(Cond,Then)...], none|some(Else)) since
+% task 5b and MISSING_FORM to `missing` since task 5d, but neither had a rule in
+% either PySpark emitter: 13_risk_flags.sas's risk_band and 25_final_pack.sas's
+% third UNION ALL branch fell through to no clause at all here (and made the Rust
+% mirror panic, which is how `lineageq_store convert` reported them as a warn and
+% stored an EMPTY program for the block).
+%
+% CASE maps to the PySpark chain F.when(c1, v1).when(c2, v2).otherwise(vN), with
+% no `.otherwise(...)` when the source has no ELSE — that is Spark's own default
+% (null), so writing one would invent a value the SAS did not name.
+% A lone `.` is SAS's numeric missing value, i.e. NULL: F.lit(None).
+pe(case_expr(Whens, ElseOpt), _, T, P0, P) :- !,
+    when_chain(Whens, WT, P0, P1),
+    (   ElseOpt = some(E)
+    ->  pe(E, sub, ET, P1, P), format(atom(T), "~w.otherwise(~w)", [WT, ET])
+    ;   P = P1, T = WT ).
+pe(missing, _, "F.lit(None)", P, P) :- !.
 pe(star, _, "\"*\"", P, P).
 pe(star(A0), _, T, P, P) :- lower(A0, A), format(atom(T), "\"~w.*\"", [A]).
 pe(paren(E), _, T, P0, P) :- pe(E, sub, X, P0, P), format(atom(T), "(~w)", [X]).
@@ -422,3 +440,15 @@ py_esc([C|Cs], [C|Es]) :- py_esc(Cs, Es).
 % a path: raw string when that is safe (no quote, no trailing backslash), else escaped
 py_path(A, S) :- \+ sub_atom(A, _, _, _, '"'), \+ sub_atom(A, _, 1, 0, '\\'), !, format(atom(S), "r\"~w\"", [A]).
 py_path(A, S) :- py_str(A, S).
+
+% M3a defect 3: the CASE chain helpers, kept below every pe clause so
+% pe's own clauses stay contiguous (SWI warns otherwise).
+when_chain([when(C, V)|Ws], T, P0, P) :-
+    pe(C, top, CT, P0, P1), pe(V, sub, VT, P1, P2),
+    format(atom(T0), "F.when(~w, ~w)", [CT, VT]),
+    when_rest(Ws, T0, T, P2, P).
+when_rest([], T, T, P, P).
+when_rest([when(C, V)|Ws], Acc, T, P0, P) :-
+    pe(C, top, CT, P0, P1), pe(V, sub, VT, P1, P2),
+    format(atom(Acc1), "~w.when(~w, ~w)", [Acc, CT, VT]),
+    when_rest(Ws, Acc1, T, P2, P).

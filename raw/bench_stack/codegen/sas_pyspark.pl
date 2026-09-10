@@ -278,6 +278,24 @@ px(col(A, N), T, P, P) :- lower(A, LA), lower(N, L), format(atom(T), "F.col(\"~w
 px(lit(V, _), T, P, P) :- !, format(atom(T), "F.lit(~w)", [V]).
 px(lit(V), T, P, P) :- number(V), !, format(atom(T), "F.lit(~w)", [V]).
 px(lit(V), T, P, P) :- py_str(V, S), format(atom(T), "F.lit(~w)", [S]).
+% M3a defect 3 (2026-09-10): CASE WHEN ... END and the lone `.` (missing).
+% CASE_FORM has folded to case_expr([when(Cond,Then)...], none|some(Else)) since
+% task 5b and MISSING_FORM to `missing` since task 5d, but neither had a rule in
+% either PySpark emitter: 13_risk_flags.sas's risk_band and 25_final_pack.sas's
+% third UNION ALL branch fell through to no clause at all here (and made the Rust
+% mirror panic, which is how `lineageq_store convert` reported them as a warn and
+% stored an EMPTY program for the block).
+%
+% CASE maps to the PySpark chain F.when(c1, v1).when(c2, v2).otherwise(vN), with
+% no `.otherwise(...)` when the source has no ELSE — that is Spark's own default
+% (null), so writing one would invent a value the SAS did not name.
+% A lone `.` is SAS's numeric missing value, i.e. NULL: F.lit(None).
+px(case_expr(Whens, ElseOpt), T, P0, P) :- !,
+    when_chain(Whens, WT, P0, P1),
+    (   ElseOpt = some(E)
+    ->  px(E, ET, P1, P), format(atom(T), "~w.otherwise(~w)", [WT, ET])
+    ;   P = P1, T = WT ).
+px(missing, "F.lit(None)", P, P) :- !.
 px(star, "F.col(\"*\")", P, P).
 px(star(A0), T, P, P) :- lower(A0, A), format(atom(T), "F.col(\"~w.*\")", [A]).
 px(paren(E), T, P0, P) :- px(E, X, P0, P), format(atom(T), "(~w)", [X]).
@@ -333,3 +351,15 @@ py_esc([0'\\|Cs], [0'\\, 0'\\|Es]) :- !, py_esc(Cs, Es).
 py_esc([0'"|Cs], [0'\\, 0'"|Es]) :- !, py_esc(Cs, Es).
 py_esc([0'\n|Cs], [0'\\, 0'n|Es]) :- !, py_esc(Cs, Es).
 py_esc([C|Cs], [C|Es]) :- py_esc(Cs, Es).
+
+% M3a defect 3: the CASE chain helpers, kept below every px clause so
+% px's own clauses stay contiguous (SWI warns otherwise).
+when_chain([when(C, V)|Ws], T, P0, P) :-
+    px(C, CT, P0, P1), px(V, VT, P1, P2),
+    format(atom(T0), "F.when(~w, ~w)", [CT, VT]),
+    when_rest(Ws, T0, T, P2, P).
+when_rest([], T, T, P, P).
+when_rest([when(C, V)|Ws], Acc, T, P0, P) :-
+    px(C, CT, P0, P1), px(V, VT, P1, P2),
+    format(atom(Acc1), "~w.when(~w, ~w)", [Acc, CT, VT]),
+    when_rest(Ws, Acc1, T, P2, P).
