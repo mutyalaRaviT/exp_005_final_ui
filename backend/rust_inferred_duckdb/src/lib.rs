@@ -29,6 +29,12 @@ pub type Res<T> = Result<T, Box<dyn std::error::Error>>;
 pub fn open(db: &Path) -> Res<Connection> {
     let conn = Connection::open(db)?;
     conn.execute_batch(schema::DDL)?;
+    // Additive columns on a store that already existed. A store created by the DDL just
+    // above already has them, and DuckDB says so with an error; that is the expected
+    // outcome, not a failure, so each statement is run and its result discarded.
+    for sql in schema::MIGRATIONS {
+        let _ = conn.execute(sql, params![]);
+    }
     Ok(conn)
 }
 
@@ -70,8 +76,24 @@ pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<Co
             .unwrap_or(path)
             .to_string_lossy()
             .to_string();
-        let text = std::fs::read_to_string(path)?;
-        let hash = hash_of(&text);
+        // Decision D13 (plan Part I, finding I4): CRLF is normalised **on intake**, and
+        // `raw/` is never rewritten. The Python tokeniser reads with universal newlines,
+        // so on a CRLF file Prolog's trace offsets run one byte short per line while
+        // Rust's count the `\r` — node/4 differed on all 25 CRLF `team_finance` files and
+        // the plain PySpark differed on the 8 with datalines. Feeding the engine LF makes
+        // both sides see the same bytes (measured: node/4 0/25 -> 25/25, plain 13/25 ->
+        // 21/25, the four left being the pre-existing emitter panics).
+        //
+        // `raw_text` is what arrived and is what `files.source` stores, so `/api/source`
+        // still hands UI1 the bytes on disk, CRLF intact, and the code pane shows the file
+        // as it is. `text` is the LF view, and everything derived — the fold, node/4's
+        // trace offsets, `blocks.sas_text`, the emitted PySpark — is derived from it.
+        // `files.hash` is taken over `raw_text` so that a file whose only change is its
+        // line endings is still seen as changed.
+        let raw_text = std::fs::read_to_string(path)?;
+        let hash = hash_of(&raw_text);
+        let crlf = raw_text.contains("\r\n");
+        let text = if crlf { raw_text.replace("\r\n", "\n") } else { raw_text.clone() };
 
         // unchanged file AND unchanged spec? leave it alone. If the spec changed, the
         // grammar that produced the stored rows changed too, so they are stale answers
@@ -99,7 +121,7 @@ pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<Co
         }
         match &folded {
             Ok(f) => {
-                write_file(&tx, &fileid, &hash, &text, "ok", None)?;
+                write_file(&tx, &fileid, &hash, &raw_text, "ok", None, crlf)?;
                 rep.blocks += write_blocks(&tx, &fileid, f)?;
                 rep.node4 += write_node4(&tx, &fileid, f)?;
                 rep.edges += write_edges(&tx, &fileid, f)?;
@@ -109,7 +131,7 @@ pub fn convert(conn: &mut Connection, spec_path: &Path, folder: &Path) -> Res<Co
                 rep.ok += 1;
             }
             Err(e) => {
-                write_file(&tx, &fileid, &hash, &text, "error", Some(e))?;
+                write_file(&tx, &fileid, &hash, &raw_text, "error", Some(e), crlf)?;
                 event(&tx, "convert.error", &fileid, e)?;
                 rep.failed += 1;
             }
@@ -369,10 +391,12 @@ fn fold_one(spec: &spec::Spec, fileid: &str, text: &str) -> Result<Folded, Strin
 
 // ---------------------------------------------------------------- writers
 
-fn write_file(tx: &duckdb::Transaction, fileid: &str, hash: &str, text: &str, status: &str, err: Option<&String>) -> Res<()> {
+/// `text` is the file's bytes **as received** — CRLF and all. What the engine folded is
+/// the LF view of the same bytes; `crlf` says whether the two differ (Decision D13).
+fn write_file(tx: &duckdb::Transaction, fileid: &str, hash: &str, text: &str, status: &str, err: Option<&String>, crlf: bool) -> Res<()> {
     tx.execute(
-        "INSERT INTO files (fileid, hash, loc, status, error, converted_at, source) VALUES (?,?,?,?,?, now(), ?)",
-        params![fileid, hash, text.lines().count() as i32, status, err.map(|s| s.as_str()).unwrap_or(""), text],
+        "INSERT INTO files (fileid, hash, loc, status, error, converted_at, source, crlf_normalised) VALUES (?,?,?,?,?, now(), ?, ?)",
+        params![fileid, hash, text.lines().count() as i32, status, err.map(|s| s.as_str()).unwrap_or(""), text, crlf],
     )?;
     Ok(())
 }

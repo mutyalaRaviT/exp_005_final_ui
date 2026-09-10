@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS files (
     status        VARCHAR,               -- ok | error
     error         VARCHAR,
     converted_at  TIMESTAMP,
-    source        VARCHAR                -- the file's full text
+    source        VARCHAR,               -- the file's full text, exactly as received
+    crlf_normalised BOOLEAN              -- the bytes held CRLF; the engine was fed LF (D13)
 );
 
 CREATE TABLE IF NOT EXISTS blocks (
@@ -141,6 +142,19 @@ CREATE INDEX IF NOT EXISTS edges_by_file  ON edges  (fileid);
 CREATE INDEX IF NOT EXISTS edges_by_src   ON edges  (src_table);
 CREATE INDEX IF NOT EXISTS edges_by_dst   ON edges  (dst_table);
 "#;
+
+/// Columns added after a store may already exist in the field. `CREATE TABLE IF NOT
+/// EXISTS` above never alters a table that is already there, so every additive column
+/// needs a statement here too, run once at `open()` and allowed to fail when the column
+/// is already present.
+///
+/// **Why this exists (M4a, Decision D13).** `files.crlf_normalised` records that a file
+/// arrived with CRLF line endings and was fed to the engine as LF. Stores converted
+/// before M4a — `backend/lineageq.duckdb`, every `/tmp/*.duckdb` a receipt was taken
+/// against — have a `files` table without it, and would otherwise fail their next insert.
+pub const MIGRATIONS: &[&str] = &[
+    "ALTER TABLE files ADD COLUMN crlf_normalised BOOLEAN",
+];
 
 /// Wipe one file's rows before rewriting them, so a reconvert is idempotent.
 pub const CLEAR_FILE: &[&str] = &[

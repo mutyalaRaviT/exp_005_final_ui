@@ -62,6 +62,24 @@ The resulting `backend/lineageq.duckdb` is build output, not source — it is ge
   against. Task 5 deleted the folders it used to live in; registered here on 2026-09-10 by
   M0.1. See `fixtures/README.md`.
 
+## Line endings (Decision D13, M4a)
+
+The 25 `team_finance/sas/raw/*.sas` files have **CRLF** line endings; the fixtures and the
+`perf/` files have LF. Nothing here is ever rewritten to fix that — `raw/` is the bytes as
+received, and that is the whole point of a `raw/` stage.
+
+Instead `inferred_duckdb::convert` normalises `\r\n` to `\n` **on intake**, before
+tokenising, and records the fact in `files.crlf_normalised`. `files.source` still holds the
+bytes exactly as they arrived, so `GET /api/source` and UI1's code pane show the file as it
+is on disk.
+
+Why it matters: the Python tokeniser reads with universal newlines
+(`raw/bench_stack/pipeline/run_tokenise.py`), so on a CRLF file Prolog's node/4 trace
+offsets run one byte short per line while Rust's count the `\r`. Measured on these 25
+files, Prolog vs Rust: node/4 `prolog == rust` **0/25 before, 25/25 after**; plain PySpark
+**13/25 before, 21/25 after** (the four still differing are the pre-existing emitter panics
+— `coalesce` in 07 and 21, `today` in 08, `orderby(...)` in 14 — not line endings).
+
 ## Checks
 
 - `tools/check_corpus.sh` — the structure contract.
