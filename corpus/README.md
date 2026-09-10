@@ -46,8 +46,10 @@ The resulting `backend/lineageq.duckdb` is build output, not source — it is ge
 - `team_finance/sas/raw/` — 25 chained SAS files (customers, products, branches, accounts,
   transactions, FX, risk, compliance, dashboard). From
   `~/Desktop/sas2py_projects/file_dependencies_regex/inputs/ankitha_1`, via
-  `raw/lineage_server/`. 24 of 25 round-trip; `13_risk_flags.sas` does not — `0.40` prints
-  back as `0.4`, an engine bug in the printer.
+  `raw/lineage_server/`. **25 of 25 round-trip** (M3a, 2026-09-10). They were 24 of 25 until
+  then: `13_risk_flags.sas` printed `0.40` back as `0.4`, because a NUMBER token folded to a
+  bare Prolog number and the lexeme was gone. The SAS `number` expr leaf now keeps it —
+  `lit(Value, Lexeme)` — and both engines print the lexeme.
 - `team_finance/hive/raw/` — 6 HiveQL files, from
   `lineageQ_aug_experiments/exp_014_vertical_slice_hadoop/corpus/hive/small`. **Present but
   not converted:** the Hive tokeniser spec (`raw/bench_stack/pipeline/specs/hive.py`) has

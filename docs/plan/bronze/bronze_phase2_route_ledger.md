@@ -349,10 +349,6 @@ divergences`: a count with a link into the table below, or `—` if none.
 | blocks | test_vishnu_testdata_fixed.sas | [22].n | C1 block index base — this store's `n` is the 0-based `blocks.n` that `blocks(from,to)` windows on; the Bench prints `int(block_id.split('_')[1])`, i.e. 1-based. The block ids themselves are identical (`b_001`..`b_023`), so this is one number written two ways. Emitting the Bench's would make `file()` and `blocks()` disagree about which block a window contains. |
 | blocks | test_vishnu_testdata_fixed.sas | [22].name | C3 name of a block that makes no table — this store leaves `blocks.name` empty when the block writes nothing (LIBNAME, every PROC PRINT); the Bench falls back to the head functor, so it reads `name: 'proc_print'`. Every block that does write a table agrees exactly (21/23 names identical). |
 | blocks | test_vishnu_testdata_fixed.sas | [22].py | C6 packaging of the generated PySpark — the Bench's `py` is one section sliced out of its whole-file pretty program (`_py_sections`); this store's `py` is the block's own standalone runnable program (preamble, the generated statement, epilogue), which is the form Task 12's `run()` executes. Traced by hand over all 23 blocks: for the 11 blocks where the Bench emits any code at all, its exact text is a verbatim substring of this store's `py_pretty` (the one exception, b_012, is the Bench's last section running to EOF and swallowing 11 PROC PRINT comment blocks; its first line matches verbatim). For the other 12 the Bench emits `''` because its section finder finds no section, while this store does generate the LIBNAME and PROC PRINT code. |
-| tablegraph | test_vishnu_testdata_fixed.sas | edges[missing:94d69ee3d20b] | C7 the `ctl` label has no Rust counterpart yet — `rust_rules_converter`'s lineage pass emits `ds` facts only, so this store's `edges.kind` is `ds` for every row of this file. Traced by hand: each of these four is the **same** `(src, dst, block_id)` triple as a `ds` edge this store already carries (`sales.sales_data->sales.q1_sales` b_005, `sales.avg_sales->sales.above_avg_sales` b_010, `sales.sales_data->sales.above_avg_sales` b_010, `sales.sales_data->sales.monthly_sales` b_011), so no table pair is missing from the graph — only the second, control-flavoured label on a pair that is already drawn. The graph is 12 edges, which is the owner's own pass mark. Emitting `ctl` facts is an engine change in `rust_rules_converter`, which M2 must not touch (lane rule, plan Part B) and M3 owns. |
-| tablegraph | test_vishnu_testdata_fixed.sas | edges[missing:b462e700a9e3] | C7 the `ctl` label has no Rust counterpart yet — `rust_rules_converter`'s lineage pass emits `ds` facts only, so this store's `edges.kind` is `ds` for every row of this file. Traced by hand: each of these four is the **same** `(src, dst, block_id)` triple as a `ds` edge this store already carries (`sales.sales_data->sales.q1_sales` b_005, `sales.avg_sales->sales.above_avg_sales` b_010, `sales.sales_data->sales.above_avg_sales` b_010, `sales.sales_data->sales.monthly_sales` b_011), so no table pair is missing from the graph — only the second, control-flavoured label on a pair that is already drawn. The graph is 12 edges, which is the owner's own pass mark. Emitting `ctl` facts is an engine change in `rust_rules_converter`, which M2 must not touch (lane rule, plan Part B) and M3 owns. |
-| tablegraph | test_vishnu_testdata_fixed.sas | edges[missing:fbfdd765a752] | C7 the `ctl` label has no Rust counterpart yet — `rust_rules_converter`'s lineage pass emits `ds` facts only, so this store's `edges.kind` is `ds` for every row of this file. Traced by hand: each of these four is the **same** `(src, dst, block_id)` triple as a `ds` edge this store already carries (`sales.sales_data->sales.q1_sales` b_005, `sales.avg_sales->sales.above_avg_sales` b_010, `sales.sales_data->sales.above_avg_sales` b_010, `sales.sales_data->sales.monthly_sales` b_011), so no table pair is missing from the graph — only the second, control-flavoured label on a pair that is already drawn. The graph is 12 edges, which is the owner's own pass mark. Emitting `ctl` facts is an engine change in `rust_rules_converter`, which M2 must not touch (lane rule, plan Part B) and M3 owns. |
-| tablegraph | test_vishnu_testdata_fixed.sas | edges[missing:e51d43efdd4e] | C7 the `ctl` label has no Rust counterpart yet — `rust_rules_converter`'s lineage pass emits `ds` facts only, so this store's `edges.kind` is `ds` for every row of this file. Traced by hand: each of these four is the **same** `(src, dst, block_id)` triple as a `ds` edge this store already carries (`sales.sales_data->sales.q1_sales` b_005, `sales.avg_sales->sales.above_avg_sales` b_010, `sales.sales_data->sales.above_avg_sales` b_010, `sales.sales_data->sales.monthly_sales` b_011), so no table pair is missing from the graph — only the second, control-flavoured label on a pair that is already drawn. The graph is 12 edges, which is the owner's own pass mark. Emitting `ctl` facts is an engine change in `rust_rules_converter`, which M2 must not touch (lane rule, plan Part B) and M3 owns. |
 
 164 rows: `blocklinks` 80, `edges` 84 — all of them Task 7's, all of them traced to the two
 root causes in the Task 7 note below. `neighborhood` carried 288 rows here (Task 6, three `rust_rules_converter` fold gaps —
@@ -372,11 +368,18 @@ Run (2026-09-10): `python tools/diff_route.py tablegraph --rust-base http://127.
 12 edges, and all twelve match the Bench's `ds_lineage` facts exactly — same `src`, same `dst`,
 same `block_id`, including `b_007`.
 
-**Cause C7, the only one.** The Bench carries a second fact list, `ctl_lineage` (the
-control/filter dependency), with 4 triples for this file; `rust_rules_converter`'s lineage pass
-emits `ds` facts only, so `edges.kind` is `ds` for every row here. Each of the four was traced
-by hand and is the *same* `(src, dst, block_id)` triple as a `ds` edge this store already
-carries:
+**Cause C7 — RETIRED by M3a (2026-09-10), commit `6a2db0c`.** The four rows are DELETED, not
+re-accepted, and `diff_route.py tablegraph --corpus exp42` is clean without them (re-run below).
+The label was never missing from `rust_rules_converter` at all: it emits `ctl_lineage(Out, In,
+Col)` and always has. It was dropped by the store's edge writer,
+`rust_inferred_duckdb/src/lineage_blocks.rs::edges_per_block`, which parsed `ds_lineage/2` lines
+and skipped every other fact. That writer now also reads `ctl_lineage/3`, deduplicated per
+(src, dst, block) because the fact names a column and the store's edge names a table pair. The
+store answers 12 `ds` + 4 `ctl` for this fixture; the pass mark is unchanged — it counts the
+twelve dataset flows — and `backend/api/tests/tablegraph.rs` now pins both counts plus the fact
+that every `ctl` edge repeats a triple one of the twelve `ds` edges already draws.
+
+What the four were (kept as the record of the trace):
 
 | the `ctl` edge the Bench also emits | already present here as |
 |---|---|
@@ -385,10 +388,9 @@ carries:
 | `sales.sales_data -> sales.above_avg_sales`, `b_010` | `ds` |
 | `sales.sales_data -> sales.monthly_sales`, `b_011` | `ds` |
 
-So no table pair is missing from the graph and none is invented — what is missing is a second,
-control-flavoured label on a pair that is already drawn. Emitting `ctl` facts is a change in
-`rust_rules_converter`, which M2 must not touch (the lane rule in the milestone plan, Part B)
-and M3 owns. Whoever lands it should delete these four rows, not re-accept them.
+No table pair was missing from the graph and none was invented — what was missing was a second,
+control-flavoured label on a pair that was already drawn. M3a landed it in the owning layer and
+deleted these four rows.
 
 `tables[].kind` is projected off both sides, as it has been since Task 4's tool: the Bench's
 lineage facts carry no per-table classification at all, so there is nothing to check this

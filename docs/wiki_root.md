@@ -29,6 +29,7 @@ Later dimensions, opened when their first page exists: `backend`, `frontend`, `r
 - 2026-09-10 — M0 re-baseline: briefs 7–14 corrected, corpus/fixtures/ registered. Plan: docs/superpowers/plans/2026-09-10-milestone-plan.md.
 - 2026-09-10 — M1: UI1 without Python. `blocklinks`, `edges` and `source` land in Rust (Tasks 7–8); UI1 extracted from `raw/node4_viz` to `frontend/ui_across_file_ui/`; pass marks 6/7, 4/3 and 25/25 re-measured with `:8000` stopped. Evidence: `docs/plan/bronze/evidence_2026-09-10/`.
 - 2026-09-10 — M2: the in-file questions. `file`, `blocks`, `tablegraph` and `story` land in Rust (Tasks 9–10), plus UI1's own `/api/file/<fileid>` detail; `LANDED` reaches ten of twelve, only the two POST-shaped questions (`convert`, `run`) still forward. Pass marks: 23 blocks and 80/80/80 on the exp_42 fixture, 12 `tablegraph` edges with `sales.q1_avg_sales` made by `b_007`, and `file`/`blocks` over HTTP on `big_1000.sas` at 4.9–9.8 ms and 4.4–5.6 ms against a 20 ms mark. 149 accepted divergences in seven root causes: `docs/plan/bronze/bronze_phase2_route_ledger.md` (Task 9 and Task 10 notes).
+- 2026-09-10 — M3a: five engine defects closed, Prolog first then Rust — `0.40` round-trips (team_finance L1 goes 24/25 → 25/25), UNION ALL PySpark renders every branch, CASE WHEN and a lone `.` get px/pe rules, the `ctl` lineage label reaches the store (root cause C7 retired, 12 `ds` + 4 `ctl` on the fixture), and the Prolog pretty printer slices the source by bytes. Ledger: `docs/plan/bronze/bronze_phase2_route_ledger.md`.
 
 ## Story
 
