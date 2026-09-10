@@ -354,3 +354,27 @@ What M2 changed in the plan's own assumptions:
 | D12 | `tablegraph.tables[].kind`: keep `source` / `derived` (does this file write it), or use the Bench's SOURCE / STEP n layering? | Keep; M5's graph computes layers client-side from edges as the Bench does. | M5 |
 
 **M3 is dispatched in two halves**, same lane, sequential: **M3a** engine prerequisites (0.40 printer; UNION ALL PySpark all branches; CASE `px`/`pe`; ctl_lineage facts; the Unicode byte/code-point pretty drift), Prolog first then Rust, with the full regression net; **M3b** Tasks 11 and 12. Brief for M3a at `.superpowers/sdd/milestones/m3a-brief.md`.
+
+---
+
+## Part I — M3a exam (2026-09-10)
+
+M3a returned ten commits `e59dc9b … 8f0f570`, Prolog before Rust for every defect. Reproduced by the dispatcher: `cargo test --workspace --release` 61 passed 0 failed; `lineageq_store convert` on team_finance 25 / 26 / 126 / **72 edges (ds 41, ctl 31)**; five ankitha routes clean; `run_fold` on team_finance `ALL FOLDED AND ROUND-TRIPPED: true` with `13_risk_flags` `3/3 3/3 yes`; the fixture `80/80 80/80 yes` and **node/4, plain and pretty PySpark byte-identical** between Prolog and Rust; `18_dashboard_mart` PySpark names all four sources under one `union` chain; with `:8000` stopped UI1 still prints 6/7, 4/3, 25/25 and no console errors. **M3a accepted.** All five defects closed.
+
+Judgments and findings:
+
+| # | finding | ruling |
+|---|---|---|
+| I1 | `backend/api/tests/tablegraph.rs` `edges.len() == 12` became `ds == 12 && ctl == 4 && every ctl repeats a ds triple`. | Accepted as a tightening: the 12 was the Bench's ds count and the Bench shows the same 4 ctl. Not a D13 violation. |
+| I2 | Defect 1 took design (b): `lit(V)` → `lit(V, Text)` behind an opt-in `keep_lexeme` leaf flag in `pipeline/pydsl/pydsl_lib.py` and `gen_prolog.py` (two files outside the written scope, needed because the pyDSL had no knob). Other languages unchanged. | Accepted; scope was under-written, not over-stepped. |
+| I3 | Two more engine bugs closed en route: `missing` (`.`) had no PySpark rule; `unique_scalar/2` capped scalar subqueries at 99 so big_1000 lost 4 blocks in pretty. | Good. |
+| I4 | **CRLF drift, sixth defect, left open by design.** The Python tokeniser reads with universal newlines, so Prolog trace offsets are one byte short per line on the 25 CRLF team_finance files: node/4 differs on all 25 and pretty differs in `#` comment lines only. A fix was built, measured (regresses L1 to 24/25 because the datalines printer hard-codes `\n`), and reverted. Needs tokeniser + `driver.pl` + generated datalines printer together. | **Decision D13.** Not blocking M3b: the fixture and perf files are LF and byte-identical. |
+| I5 | Rust emitter still panics on 4 team_finance files (`coalesce` ×2, `today`, `orderby(...) not a list`), caught by `catch_emit`; pre-existing. | Backlog for M3b or M4's corpus sweep; listed in the ledger note. |
+| I6 | `pipeline` pytest 100 passed / 61 failed, identical before and after: the 61 are sqoop/pig/oozie lanes whose corpora Task 5 deleted. | M9 (second language) owns this. |
+| I7 | A `git stash -u` early in the run captured five untracked files and restored them; `out/grammar/{oozie,sqoop}.pl` remain untracked in the tree. | Hygiene; add to `.gitignore` or commit in M9. |
+
+| ID | Question | Default until answered | Blocks |
+|---|---|---|---|
+| D13 | Fix CRLF handling so Prolog node/4 traces match Rust byte offsets on CRLF sources (tokeniser + driver + datalines printer), or normalise the corpus to LF on intake (`raw/` stays as received, `auto_convert` reads LF)? | Normalise on intake in M4's `convert()`; keep `raw/` untouched. | M4 corpus sweep honesty; M6 |
+
+Next dispatch: **M3b** (Tasks 11 + 12), brief at `.superpowers/sdd/milestones/m3b-brief.md`.
